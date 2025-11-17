@@ -23,17 +23,29 @@ func NewAuthHandler(db *gorm.DB) *AuthHandler {
 
 // GetQRCode 获取微信登录二维码
 func (h *AuthHandler) GetQRCode(c *gin.Context) {
-	qrCode, err := h.wechatClient.GetQRCode()
+	// 获取回调地址（前端地址）
+	redirectURI := c.Query("redirect_uri")
+	if redirectURI == "" {
+		// 默认使用请求来源
+		referer := c.GetHeader("Referer")
+		if referer != "" {
+			redirectURI = referer + "/auth/wechat/callback"
+		} else {
+			redirectURI = "http://localhost:3000/auth/wechat/callback"
+		}
+	}
+
+	qrCode, err := h.wechatClient.GetQRCode(redirectURI)
 	if err != nil {
-		utils.Error(c, utils.CodeError, "获取二维码失败")
+		utils.Error(c, utils.CodeError, "获取二维码失败: "+err.Error())
 		return
 	}
 
-	qrCodeURL := h.wechatClient.GetQRCodeURL(qrCode.Ticket)
-
+	// 返回授权URL，前端需要将其转换为二维码图片
 	utils.Success(c, gin.H{
-		"ticket":        qrCode.Ticket,
-		"qr_code_url":   qrCodeURL,
+		"ticket":         qrCode.Ticket,
+		"qr_code_url":    qrCode.URL, // 这是授权URL，需要转换为二维码
+		"auth_url":       qrCode.URL,  // 授权URL
 		"expire_seconds": qrCode.ExpireSeconds,
 	})
 }

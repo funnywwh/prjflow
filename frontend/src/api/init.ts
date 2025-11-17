@@ -28,6 +28,7 @@ export interface InitResponse {
 export interface QRCodeResponse {
   ticket: string
   qrCodeUrl: string
+  authUrl?: string  // 授权URL
   expireSeconds: number
 }
 
@@ -40,11 +41,12 @@ export const saveWeChatConfig = async (data: WeChatConfigRequest): Promise<{ mes
 }
 
 export const getInitQRCode = async (): Promise<QRCodeResponse> => {
-  const data = await request.get('/init/qrcode')
+  const data: any = await request.get('/init/qrcode')
   return {
     ticket: data.ticket,
-    qrCodeUrl: data.qr_code_url,
-    expireSeconds: data.expire_seconds
+    qrCodeUrl: data.qr_code_url || data.auth_url || '',
+    authUrl: data.auth_url || data.qr_code_url || '',
+    expireSeconds: data.expire_seconds || 600
   }
 }
 

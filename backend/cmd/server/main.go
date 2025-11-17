@@ -15,6 +15,7 @@ import (
 	"project-management/internal/config"
 	"project-management/internal/middleware"
 	"project-management/internal/utils"
+	"project-management/internal/websocket"
 )
 
 func main() {
@@ -54,14 +55,28 @@ func main() {
 		})
 	})
 
+	// WebSocket路由
+	r.GET("/ws", websocket.HandleWebSocket)
+
+	// 微信验证文件路由（不需要认证，必须放在根路径）
+	// 支持格式：/MP_verify_xxxxx.txt
+	// 注意：这个路由必须放在其他路由之前，但只匹配 MP_verify_ 开头的文件
+	wechatVerifyHandler := api.NewWeChatVerifyHandler(db)
+	// 使用参数路由，匹配 /MP_verify_:code.txt 格式
+	// 注意：Gin 不支持在参数名中包含点，所以我们需要使用 :code 参数
+	r.GET("/MP_verify_:code", wechatVerifyHandler.HandleVerifyFile) // 匹配 /MP_verify_xxxxx.txt
+	r.POST("/api/wechat/verify-file", wechatVerifyHandler.SaveVerifyFile) // 保存验证文件内容
+
 	// 系统初始化路由（不需要认证）
 	initHandler := api.NewInitHandler(db)
+	initCallbackHandler := api.NewInitCallbackHandler(db)
 	initGroup := r.Group("/init")
 	{
 		initGroup.GET("/status", initHandler.CheckInitStatus)
 		initGroup.POST("/wechat-config", initHandler.SaveWeChatConfig) // 第一步：保存微信配置
 		initGroup.GET("/qrcode", initHandler.GetInitQRCode)            // 获取初始化二维码
-		initGroup.POST("", initHandler.InitSystem)                     // 第二步：通过微信登录完成初始化
+		initGroup.GET("/callback", initCallbackHandler.HandleCallback) // 微信回调处理
+		initGroup.POST("", initHandler.InitSystem)                     // 第二步：通过微信登录完成初始化（保留兼容）
 	}
 
 	// 认证相关路由

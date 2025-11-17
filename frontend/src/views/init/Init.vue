@@ -51,7 +51,7 @@
         <a-spin :spinning="loading">
           <div class="qr-section">
             <a-divider orientation="left">管理员登录</a-divider>
-            <p class="hint">请使用微信扫码登录，系统将自动创建管理员账号</p>
+            <p class="hint">请使用微信扫码，扫码后会在微信内打开授权页面，确认后系统将自动创建管理员账号</p>
             
             <div v-if="!qrCodeUrl" class="qr-placeholder">
               <a-button type="primary" @click="getQRCode" :loading="qrLoading">
@@ -61,7 +61,8 @@
             
             <div v-else class="qr-container">
               <img :src="qrCodeUrl" alt="微信登录二维码" />
-              <p>请使用微信扫码登录</p>
+              <p>请使用微信扫码</p>
+              <p class="hint-small">扫码后会在微信内打开授权页面</p>
               <a-button @click="getQRCode" :loading="qrLoading">刷新二维码</a-button>
             </div>
           </div>
@@ -75,6 +76,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
+import QRCode from 'qrcode'
 import { 
   checkInitStatus, 
   saveWeChatConfig, 
@@ -93,6 +95,7 @@ const qrLoading = ref(false)
 const qrCodeUrl = ref('')
 const ticket = ref('')
 let pollTimer: number | null = null
+let ws: WebSocket | null = null
 
 const wechatConfig = ref<WeChatConfigRequest>({
   wechat_app_id: '',
@@ -129,9 +132,31 @@ const getQRCode = async () => {
   qrLoading.value = true
   try {
     const data = await getInitQRCode()
-    qrCodeUrl.value = data.qrCodeUrl
     ticket.value = data.ticket
-    startPolling()
+    
+    // 将授权URL转换为二维码图片
+    if (data.authUrl || data.qrCodeUrl) {
+      const authUrl = data.authUrl || data.qrCodeUrl
+      try {
+        // 使用 qrcode 库生成二维码图片
+        const qrCodeDataURL = await QRCode.toDataURL(authUrl, {
+          width: 200,
+          margin: 2
+        })
+        qrCodeUrl.value = qrCodeDataURL
+      } catch (qrError) {
+        console.error('生成二维码失败:', qrError)
+        message.error('生成二维码图片失败')
+        // 如果生成失败，显示授权URL
+        qrCodeUrl.value = authUrl
+      }
+    } else {
+      message.error('未获取到授权URL')
+      return
+    }
+    
+    // 建立WebSocket连接
+    startWebSocket()
   } catch (error: any) {
     message.error(error.message || '获取二维码失败')
   } finally {
@@ -139,27 +164,97 @@ const getQRCode = async () => {
   }
 }
 
-// 开始轮询检查登录状态
-const startPolling = () => {
-  if (pollTimer) {
-    clearInterval(pollTimer)
+// WebSocket连接
+let ws: WebSocket | null = null
+
+// 建立WebSocket连接
+const startWebSocket = () => {
+  if (!ticket.value) {
+    return
+  }
+
+  // 关闭旧连接
+  if (ws) {
+    ws.close()
+  }
+
+  // 建立新连接
+  // 开发环境：直接连接到后端（因为WebSocket不能通过HTTP代理）
+  // 生产环境：使用当前域名
+  const isDev = import.meta.env.DEV
+  let wsUrl: string
+  
+  if (isDev) {
+    // 开发环境：直接连接到后端服务器
+    wsUrl = `ws://localhost:8080/ws?ticket=${ticket.value}`
+  } else {
+    // 生产环境：使用当前协议和域名
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    wsUrl = `${protocol}//${window.location.host}/ws?ticket=${ticket.value}`
   }
   
-  // 注意：这里需要根据实际的微信登录流程来实现
-  // 微信开放平台的扫码登录通常需要：
-  // 1. 用户扫码后，微信会回调到配置的回调地址
-  // 2. 或者使用轮询方式检查二维码状态
-  // 这里暂时使用模拟方式，实际需要根据微信开放平台的API实现
-  
-  pollTimer = window.setInterval(async () => {
-    // 这里应该调用检查二维码状态的API
-    // 如果用户已扫码，获取code后调用initSystem
-    // 暂时注释，需要根据实际微信API实现
-  }, 2000)
+  ws = new WebSocket(wsUrl)
+
+  ws.onopen = () => {
+    console.log('WebSocket连接已建立')
+  }
+
+  ws.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data)
+      handleWebSocketMessage(msg)
+    } catch (error) {
+      console.error('解析WebSocket消息失败:', error)
+    }
+  }
+
+  ws.onerror = (error) => {
+    console.error('WebSocket错误:', error)
+    message.error('WebSocket连接错误')
+  }
+
+  ws.onclose = () => {
+    console.log('WebSocket连接已关闭')
+  }
+}
+
+// 处理WebSocket消息
+const handleWebSocketMessage = (msg: any) => {
+  if (msg.type === 'success') {
+    // 初始化成功
+    const data = msg.data as any
+    if (data.token && data.user) {
+      // 保存token和用户信息
+      authStore.setToken(data.token)
+      authStore.setUser(data.user)
+      
+      message.success(msg.message || '系统初始化成功！')
+      
+      // 关闭WebSocket连接
+      if (ws) {
+        ws.close()
+        ws = null
+      }
+      
+      // 跳转到工作台
+      setTimeout(() => {
+        router.push('/dashboard')
+      }, 1000)
+    }
+  } else if (msg.type === 'error') {
+    // 初始化失败
+    message.error(msg.message || '初始化失败')
+    loading.value = false
+  } else if (msg.type === 'info') {
+    // 信息提示
+    message.info(msg.message || '')
+  }
 }
 
 // 处理微信登录回调（当用户扫码后，微信会返回code）
-const handleWeChatLogin = async (code: string) => {
+// 保留用于后续实现微信回调处理
+// @ts-ignore
+const _handleWeChatLogin = async (code: string) => {
   loading.value = true
   try {
     const response = await initSystem({ code })
@@ -208,6 +303,10 @@ onUnmounted(() => {
   if (pollTimer) {
     clearInterval(pollTimer)
   }
+  if (ws) {
+    ws.close()
+    ws = null
+  }
 })
 </script>
 
@@ -236,6 +335,12 @@ onUnmounted(() => {
 .hint {
   color: #666;
   margin-bottom: 20px;
+}
+
+.hint-small {
+  color: #999;
+  font-size: 12px;
+  margin: 0;
 }
 
 .qr-section {

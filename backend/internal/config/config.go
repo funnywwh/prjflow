@@ -39,6 +39,13 @@ type JWTConfig struct {
 type WeChatConfig struct {
 	AppID     string `mapstructure:"app_id"`
 	AppSecret string `mapstructure:"app_secret"`
+	// AccountType: "official_account" (公众号) 或 "open_platform" (开放平台网站应用)
+	// 默认: "open_platform"
+	AccountType string `mapstructure:"account_type"`
+	// Scope: "snsapi_base" (静默授权) 或 "snsapi_userinfo" (需要用户确认)
+	// 仅当 AccountType 为 "official_account" 时有效
+	// 默认: "snsapi_userinfo"
+	Scope string `mapstructure:"scope"`
 }
 
 var AppConfig *Config
@@ -83,5 +90,7 @@ func setDefaults() {
 
 	viper.SetDefault("wechat.app_id", "")
 	viper.SetDefault("wechat.app_secret", "")
+	viper.SetDefault("wechat.account_type", "open_platform") // open_platform 或 official_account
+	viper.SetDefault("wechat.scope", "snsapi_userinfo")       // snsapi_base 或 snsapi_userinfo
 }
 

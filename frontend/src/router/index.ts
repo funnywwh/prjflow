@@ -14,9 +14,21 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: false }
   },
   {
+    path: '/init/callback',
+    name: 'InitCallback',
+    component: () => import('../views/init/InitCallback.vue'),
+    meta: { requiresAuth: false }
+  },
+  {
     path: '/login',
     name: 'Login',
     component: () => import('../views/auth/Login.vue'),
+    meta: { requiresAuth: false }
+  },
+  {
+    path: '/auth/wechat/callback',
+    name: 'WeChatCallback',
+    component: () => import('../views/auth/WeChatCallback.vue'),
     meta: { requiresAuth: false }
   },
   {

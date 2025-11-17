@@ -2,6 +2,7 @@ package api
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"project-management/internal/model"
 	"project-management/internal/utils"
@@ -240,17 +241,35 @@ func (h *InitHandler) GetInitQRCode(c *gin.Context) {
 	h.wechatClient.AppID = wechatAppIDConfig.Value
 	h.wechatClient.AppSecret = wechatAppSecretConfig.Value
 
-	qrCode, err := h.wechatClient.GetQRCode()
+	// 获取回调地址（初始化回调地址）
+	redirectURI := c.Query("redirect_uri")
+	if redirectURI == "" {
+		referer := c.GetHeader("Referer")
+		if referer != "" {
+			redirectURI = referer + "/init/callback"
+		} else {
+			redirectURI = "http://localhost:3000/init/callback"
+		}
+	}
+
+	// 生成唯一的ticket（使用UUID）
+	ticket := uuid.New().String()
+	
+	// 将ticket作为state参数的一部分，这样回调时可以获取到ticket
+	// 注意：微信的state参数会原样返回，格式：ticket:uuid
+	stateWithTicket := "ticket:" + ticket
+
+	qrCode, err := h.wechatClient.GetQRCode(redirectURI, stateWithTicket)
 	if err != nil {
-		utils.Error(c, utils.CodeError, "获取二维码失败")
+		utils.Error(c, utils.CodeError, "获取二维码失败: "+err.Error())
 		return
 	}
 
-	qrCodeURL := h.wechatClient.GetQRCodeURL(qrCode.Ticket)
-
+	// 返回授权URL和ticket，前端需要将其转换为二维码图片
 	utils.Success(c, gin.H{
-		"ticket":         qrCode.Ticket,
-		"qr_code_url":    qrCodeURL,
+		"ticket":         ticket, // 使用我们生成的UUID作为ticket
+		"qr_code_url":    qrCode.URL, // 这是授权URL，需要转换为二维码
+		"auth_url":       qrCode.URL,  // 授权URL
 		"expire_seconds": qrCode.ExpireSeconds,
 	})
 }

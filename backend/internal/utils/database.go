@@ -3,6 +3,8 @@ package utils
 import (
 	"fmt"
 
+	_ "modernc.org/sqlite" // 纯Go SQLite驱动，支持静态编译，必须在 gorm.io/driver/sqlite 之前导入
+	
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -16,7 +18,14 @@ func InitDB() (*gorm.DB, error) {
 
 	switch config.AppConfig.Database.Type {
 	case "sqlite":
-		dialector = sqlite.Open(config.AppConfig.Database.DSN)
+		// 使用纯Go实现的SQLite驱动（modernc.org/sqlite）
+		// 支持静态编译（CGO_ENABLED=0），无需CGO和系统库
+		// modernc.org/sqlite 注册为 "sqlite" 驱动（不是 "sqlite3"）
+		// 使用 sqlite.New() 并指定 DriverName 为 "sqlite"
+		dialector = sqlite.New(sqlite.Config{
+			DriverName: "sqlite", // 使用 modernc.org/sqlite 注册的驱动名
+			DSN:        config.AppConfig.Database.DSN,
+		})
 	case "mysql":
 		dsn := config.AppConfig.Database.DSN
 		if dsn == "" {
@@ -42,4 +51,3 @@ func InitDB() (*gorm.DB, error) {
 
 	return db, nil
 }
-

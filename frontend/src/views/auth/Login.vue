@@ -11,7 +11,8 @@
           </div>
           <div v-else class="qr-container">
             <img :src="qrCodeUrl" alt="微信登录二维码" />
-            <p>请使用微信扫码登录</p>
+            <p>请使用微信扫码</p>
+            <p class="hint-small">扫码后会在微信内打开授权页面</p>
             <a-button @click="getQRCode">刷新二维码</a-button>
           </div>
         </a-spin>
@@ -23,6 +24,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { message } from 'ant-design-vue'
+import QRCode from 'qrcode'
 import { getWeChatQRCode } from '@/api/auth'
 
 const loading = ref(false)
@@ -34,8 +36,28 @@ const getQRCode = async () => {
   loading.value = true
   try {
     const data = await getWeChatQRCode()
-    qrCodeUrl.value = data.qrCodeUrl
     ticket.value = data.ticket
+    
+    // 将授权URL转换为二维码图片
+    if (data.authUrl || data.qrCodeUrl) {
+      const authUrl = data.authUrl || data.qrCodeUrl
+      try {
+        // 使用 qrcode 库生成二维码图片
+        const qrCodeDataURL = await QRCode.toDataURL(authUrl, {
+          width: 200,
+          margin: 2
+        })
+        qrCodeUrl.value = qrCodeDataURL
+      } catch (qrError) {
+        console.error('生成二维码失败:', qrError)
+        message.error('生成二维码图片失败')
+        // 如果生成失败，显示授权URL
+        qrCodeUrl.value = authUrl
+      }
+    } else {
+      message.error('未获取到授权URL')
+    }
+    
     startPolling()
   } catch (error) {
     message.error('获取二维码失败')
@@ -103,6 +125,12 @@ onUnmounted(() => {
 .qr-container img {
   width: 200px;
   height: 200px;
+}
+
+.hint-small {
+  color: #999;
+  font-size: 12px;
+  margin: 0;
 }
 </style>
 

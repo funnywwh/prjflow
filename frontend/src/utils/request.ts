@@ -4,7 +4,8 @@ import { message } from 'ant-design-vue'
 import { useAuthStore } from '../stores/auth'
 import router from '../router'
 
-const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
+// 使用相对路径，通过 Vite 代理转发到后端
+const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
 
 const request: AxiosInstance = axios.create({
   baseURL,

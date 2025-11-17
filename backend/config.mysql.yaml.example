@@ -5,8 +5,14 @@ server:
   write_timeout: 30
 
 database:
-  type: sqlite  # sqlite or mysql
-  dsn: data.db  # SQLite文件路径，或MySQL DSN格式: user:password@tcp(host:port)/dbname?charset=utf8mb4&parseTime=True&loc=Local
+  type: mysql  # 使用MySQL数据库
+  host: localhost
+  port: 3306
+  user: root
+  password: your_password
+  dbname: project_management
+  # 或者直接使用DSN格式
+  # dsn: "root:password@tcp(localhost:3306)/project_management?charset=utf8mb4&parseTime=True&loc=Local"
 
 jwt:
   secret: your-secret-key-change-in-production

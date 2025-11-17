@@ -14,6 +14,7 @@ export interface LoginResponse {
 export interface QRCodeResponse {
   ticket: string
   qrCodeUrl: string
+  authUrl?: string  // 授权URL
   expireSeconds: number
 }
 

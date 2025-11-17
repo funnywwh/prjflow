@@ -1,0 +1,78 @@
+package model
+
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
+
+// User 用户表
+type User struct {
+	ID           uint           `gorm:"primarykey" json:"id"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
+
+	WeChatOpenID string `gorm:"uniqueIndex;size:100" json:"wechat_open_id"` // 微信OpenID
+	Username     string `gorm:"size:50;not null" json:"username"`            // 用户名
+	Email        string `gorm:"size:100" json:"email"`                       // 邮箱
+	Avatar       string `gorm:"size:255" json:"avatar"`                     // 头像URL
+	Phone        string `gorm:"size:20" json:"phone"`                       // 手机号
+	Status       int    `gorm:"default:1" json:"status"`                      // 状态：1-正常，0-禁用
+
+	DepartmentID *uint      `gorm:"index" json:"department_id"` // 部门ID
+	Department   *Department `gorm:"foreignKey:DepartmentID" json:"department,omitempty"`
+
+	Roles []Role `gorm:"many2many:user_roles;" json:"roles,omitempty"`
+}
+
+// Department 部门表
+type Department struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	Name     string `gorm:"size:100;not null" json:"name"`        // 部门名称
+	Code     string `gorm:"size:50;uniqueIndex" json:"code"`      // 部门编码
+	ParentID *uint  `gorm:"index" json:"parent_id"`               // 父部门ID
+	Parent   *Department `gorm:"foreignKey:ParentID" json:"parent,omitempty"`
+	Children []Department `gorm:"foreignKey:ParentID" json:"children,omitempty"`
+	Level    int    `gorm:"default:1" json:"level"`               // 层级
+	Sort     int    `gorm:"default:0" json:"sort"`                // 排序
+	Status   int    `gorm:"default:1" json:"status"`             // 状态：1-正常，0-禁用
+}
+
+// Role 角色表
+type Role struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	Name        string `gorm:"size:50;not null;uniqueIndex" json:"name"` // 角色名称
+	Code        string `gorm:"size:50;not null;uniqueIndex" json:"code"` // 角色代码
+	Description string `gorm:"size:255" json:"description"`               // 描述
+	Status      int    `gorm:"default:1" json:"status"`                   // 状态：1-正常，0-禁用
+
+	Permissions []Permission `gorm:"many2many:role_permissions;" json:"permissions,omitempty"`
+	Users       []User       `gorm:"many2many:user_roles;" json:"users,omitempty"`
+}
+
+// Permission 权限表
+type Permission struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	Code        string `gorm:"size:100;not null;uniqueIndex" json:"code"` // 权限代码
+	Name        string `gorm:"size:100;not null" json:"name"`               // 权限名称
+	Resource    string `gorm:"size:50" json:"resource"`                    // 资源类型
+	Action      string `gorm:"size:50" json:"action"`                      // 操作类型
+	Description string `gorm:"size:255" json:"description"`                // 描述
+	Status      int    `gorm:"default:1" json:"status"`                    // 状态：1-正常，0-禁用
+
+	Roles []Role `gorm:"many2many:role_permissions;" json:"roles,omitempty"`
+}
+

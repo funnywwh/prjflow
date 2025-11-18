@@ -187,6 +187,33 @@ func main() {
 		projectGroup.DELETE("/:id/members/:member_id", projectHandler.RemoveProjectMember)
 	}
 
+	// 需求管理路由
+	requirementHandler := api.NewRequirementHandler(db)
+	requirementGroup := r.Group("/api/requirements", middleware.Auth())
+	{
+		requirementGroup.GET("/statistics", requirementHandler.GetRequirementStatistics)
+		requirementGroup.GET("", requirementHandler.GetRequirements)
+		requirementGroup.GET("/:id", requirementHandler.GetRequirement)
+		requirementGroup.POST("", requirementHandler.CreateRequirement)
+		requirementGroup.PUT("/:id", requirementHandler.UpdateRequirement)
+		requirementGroup.DELETE("/:id", requirementHandler.DeleteRequirement)
+		requirementGroup.PATCH("/:id/status", requirementHandler.UpdateRequirementStatus)
+	}
+
+	// Bug管理路由
+	bugHandler := api.NewBugHandler(db)
+	bugGroup := r.Group("/api/bugs", middleware.Auth())
+	{
+		bugGroup.GET("/statistics", bugHandler.GetBugStatistics)
+		bugGroup.GET("", bugHandler.GetBugs)
+		bugGroup.GET("/:id", bugHandler.GetBug)
+		bugGroup.POST("", bugHandler.CreateBug)
+		bugGroup.PUT("/:id", bugHandler.UpdateBug)
+		bugGroup.DELETE("/:id", bugHandler.DeleteBug)
+		bugGroup.PATCH("/:id/status", bugHandler.UpdateBugStatus)
+		bugGroup.POST("/:id/assign", bugHandler.AssignBug)
+	}
+
 	// 创建HTTP服务器
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", config.AppConfig.Server.Port),

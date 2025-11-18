@@ -10,9 +10,12 @@
   },
   "dependencies": {
     "@ant-design/icons-vue": "^7.0.1",
+    "@types/marked": "^5.0.2",
     "@types/qrcode": "^1.5.6",
     "ant-design-vue": "^4.2.6",
     "axios": "^1.13.2",
+    "highlight.js": "^11.11.1",
+    "marked": "^17.0.0",
     "pinia": "^3.0.4",
     "qrcode": "^1.5.4",
     "vue": "^3.5.24",

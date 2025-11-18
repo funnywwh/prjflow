@@ -1,0 +1,510 @@
+package api
+
+import (
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+	"project-management/internal/model"
+	"project-management/internal/utils"
+)
+
+type BugHandler struct {
+	db *gorm.DB
+}
+
+func NewBugHandler(db *gorm.DB) *BugHandler {
+	return &BugHandler{db: db}
+}
+
+// GetBugs 获取Bug列表
+func (h *BugHandler) GetBugs(c *gin.Context) {
+	var bugs []model.Bug
+	query := h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement")
+
+	// 搜索
+	if keyword := c.Query("keyword"); keyword != "" {
+		query = query.Where("title LIKE ? OR description LIKE ?", "%"+keyword+"%", "%"+keyword+"%")
+	}
+
+	// 项目筛选
+	if projectID := c.Query("project_id"); projectID != "" {
+		query = query.Where("project_id = ?", projectID)
+	}
+
+	// 状态筛选
+	if status := c.Query("status"); status != "" {
+		query = query.Where("status = ?", status)
+	}
+
+	// 优先级筛选
+	if priority := c.Query("priority"); priority != "" {
+		query = query.Where("priority = ?", priority)
+	}
+
+	// 严重程度筛选
+	if severity := c.Query("severity"); severity != "" {
+		query = query.Where("severity = ?", severity)
+	}
+
+	// 需求筛选
+	if requirementID := c.Query("requirement_id"); requirementID != "" {
+		query = query.Where("requirement_id = ?", requirementID)
+	}
+
+	// 创建人筛选
+	if creatorID := c.Query("creator_id"); creatorID != "" {
+		query = query.Where("creator_id = ?", creatorID)
+	}
+
+	// 分页
+	page := utils.GetPage(c)
+	pageSize := utils.GetPageSize(c)
+	offset := (page - 1) * pageSize
+
+	var total int64
+	query.Model(&model.Bug{}).Count(&total)
+
+	if err := query.Offset(offset).Limit(pageSize).Order("created_at DESC").Find(&bugs).Error; err != nil {
+		utils.Error(c, utils.CodeError, "查询失败")
+		return
+	}
+
+	utils.Success(c, gin.H{
+		"list":      bugs,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	})
+}
+
+// GetBug 获取Bug详情
+func (h *BugHandler) GetBug(c *gin.Context) {
+	id := c.Param("id")
+	var bug model.Bug
+	if err := h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").First(&bug, id).Error; err != nil {
+		utils.Error(c, 404, "Bug不存在")
+		return
+	}
+
+	utils.Success(c, bug)
+}
+
+// CreateBug 创建Bug
+func (h *BugHandler) CreateBug(c *gin.Context) {
+	var req struct {
+		Title        string  `json:"title" binding:"required"`
+		Description  string  `json:"description"`
+		Status       string  `json:"status"`
+		Priority     string  `json:"priority"`
+		Severity     string  `json:"severity"`
+		ProjectID    uint    `json:"project_id" binding:"required"`
+		RequirementID *uint  `json:"requirement_id"`
+		AssigneeIDs  []uint  `json:"assignee_ids"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Error(c, 400, "参数错误")
+		return
+	}
+
+	// 获取当前用户ID
+	userID, exists := c.Get("user_id")
+	if !exists {
+		utils.Error(c, 401, "未登录")
+		return
+	}
+
+	// 验证状态
+	if req.Status == "" {
+		req.Status = "open"
+	}
+	validStatuses := map[string]bool{
+		"open":      true,
+		"assigned":  true,
+		"in_progress": true,
+		"resolved":  true,
+		"closed":    true,
+	}
+	if !validStatuses[req.Status] {
+		utils.Error(c, 400, "状态值无效")
+		return
+	}
+
+	// 验证优先级
+	if req.Priority == "" {
+		req.Priority = "medium"
+	}
+	validPriorities := map[string]bool{
+		"low":    true,
+		"medium": true,
+		"high":   true,
+		"urgent": true,
+	}
+	if !validPriorities[req.Priority] {
+		utils.Error(c, 400, "优先级值无效")
+		return
+	}
+
+	// 验证严重程度
+	if req.Severity == "" {
+		req.Severity = "medium"
+	}
+	validSeverities := map[string]bool{
+		"low":      true,
+		"medium":   true,
+		"high":     true,
+		"critical": true,
+	}
+	if !validSeverities[req.Severity] {
+		utils.Error(c, 400, "严重程度值无效")
+		return
+	}
+
+	// 验证项目是否存在
+	var project model.Project
+	if err := h.db.First(&project, req.ProjectID).Error; err != nil {
+		utils.Error(c, 400, "项目不存在")
+		return
+	}
+
+	// 如果指定了需求，验证需求是否存在
+	if req.RequirementID != nil {
+		var requirement model.Requirement
+		if err := h.db.First(&requirement, *req.RequirementID).Error; err != nil {
+			utils.Error(c, 400, "需求不存在")
+			return
+		}
+	}
+
+	// 验证分配人是否存在
+	if len(req.AssigneeIDs) > 0 {
+		var users []model.User
+		if err := h.db.Where("id IN ?", req.AssigneeIDs).Find(&users).Error; err != nil || len(users) != len(req.AssigneeIDs) {
+			utils.Error(c, 400, "分配人不存在")
+			return
+		}
+	}
+
+	bug := model.Bug{
+		Title:        req.Title,
+		Description:  req.Description,
+		Status:       req.Status,
+		Priority:     req.Priority,
+		Severity:     req.Severity,
+		ProjectID:    req.ProjectID,
+		RequirementID: req.RequirementID,
+		CreatorID:    userID.(uint),
+	}
+
+	if err := h.db.Create(&bug).Error; err != nil {
+		utils.Error(c, utils.CodeError, "创建失败")
+		return
+	}
+
+	// 分配Bug给用户
+	if len(req.AssigneeIDs) > 0 {
+		var assignees []model.User
+		h.db.Where("id IN ?", req.AssigneeIDs).Find(&assignees)
+		if err := h.db.Model(&bug).Association("Assignees").Replace(assignees); err != nil {
+			utils.Error(c, utils.CodeError, "分配失败")
+			return
+		}
+		// 如果有分配人，状态自动变为assigned
+		if bug.Status == "open" {
+			bug.Status = "assigned"
+			h.db.Save(&bug)
+		}
+	}
+
+	// 重新加载关联数据
+	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").First(&bug, bug.ID)
+
+	utils.Success(c, bug)
+}
+
+// UpdateBug 更新Bug
+func (h *BugHandler) UpdateBug(c *gin.Context) {
+	id := c.Param("id")
+	var bug model.Bug
+	if err := h.db.First(&bug, id).Error; err != nil {
+		utils.Error(c, 404, "Bug不存在")
+		return
+	}
+
+	var req struct {
+		Title        *string `json:"title"`
+		Description  *string `json:"description"`
+		Status       *string `json:"status"`
+		Priority     *string `json:"priority"`
+		Severity     *string `json:"severity"`
+		ProjectID    *uint   `json:"project_id"`
+		RequirementID *uint  `json:"requirement_id"`
+		AssigneeIDs  *[]uint `json:"assignee_ids"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Error(c, 400, "参数错误")
+		return
+	}
+
+	// 更新字段
+	if req.Title != nil {
+		bug.Title = *req.Title
+	}
+	if req.Description != nil {
+		bug.Description = *req.Description
+	}
+	if req.Status != nil {
+		// 验证状态
+		validStatuses := map[string]bool{
+			"open":      true,
+			"assigned":  true,
+			"in_progress": true,
+			"resolved":  true,
+			"closed":    true,
+		}
+		if !validStatuses[*req.Status] {
+			utils.Error(c, 400, "状态值无效")
+			return
+		}
+		bug.Status = *req.Status
+	}
+	if req.Priority != nil {
+		// 验证优先级
+		validPriorities := map[string]bool{
+			"low":    true,
+			"medium": true,
+			"high":   true,
+			"urgent": true,
+		}
+		if !validPriorities[*req.Priority] {
+			utils.Error(c, 400, "优先级值无效")
+			return
+		}
+		bug.Priority = *req.Priority
+	}
+	if req.Severity != nil {
+		// 验证严重程度
+		validSeverities := map[string]bool{
+			"low":      true,
+			"medium":   true,
+			"high":     true,
+			"critical": true,
+		}
+		if !validSeverities[*req.Severity] {
+			utils.Error(c, 400, "严重程度值无效")
+			return
+		}
+		bug.Severity = *req.Severity
+	}
+	if req.ProjectID != nil {
+		// 验证项目是否存在
+		var project model.Project
+		if err := h.db.First(&project, *req.ProjectID).Error; err != nil {
+			utils.Error(c, 400, "项目不存在")
+			return
+		}
+		bug.ProjectID = *req.ProjectID
+	}
+	if req.RequirementID != nil {
+		// 验证需求是否存在
+		if *req.RequirementID != 0 {
+			var requirement model.Requirement
+			if err := h.db.First(&requirement, *req.RequirementID).Error; err != nil {
+				utils.Error(c, 400, "需求不存在")
+				return
+			}
+			bug.RequirementID = req.RequirementID
+		} else {
+			bug.RequirementID = nil
+		}
+	}
+
+	if err := h.db.Save(&bug).Error; err != nil {
+		utils.Error(c, utils.CodeError, "更新失败")
+		return
+	}
+
+	// 更新分配人
+	if req.AssigneeIDs != nil {
+		var assignees []model.User
+		if len(*req.AssigneeIDs) > 0 {
+			if err := h.db.Where("id IN ?", *req.AssigneeIDs).Find(&assignees).Error; err != nil || len(assignees) != len(*req.AssigneeIDs) {
+				utils.Error(c, 400, "分配人不存在")
+				return
+			}
+		}
+		if err := h.db.Model(&bug).Association("Assignees").Replace(assignees); err != nil {
+			utils.Error(c, utils.CodeError, "更新分配失败")
+			return
+		}
+		// 如果有分配人且状态为open，自动变为assigned
+		if len(assignees) > 0 && bug.Status == "open" {
+			bug.Status = "assigned"
+			h.db.Save(&bug)
+		}
+	}
+
+	// 重新加载关联数据
+	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").First(&bug, bug.ID)
+
+	utils.Success(c, bug)
+}
+
+// DeleteBug 删除Bug
+func (h *BugHandler) DeleteBug(c *gin.Context) {
+	id := c.Param("id")
+
+	if err := h.db.Delete(&model.Bug{}, id).Error; err != nil {
+		utils.Error(c, utils.CodeError, "删除失败")
+		return
+	}
+
+	utils.Success(c, gin.H{"message": "删除成功"})
+}
+
+// UpdateBugStatus 更新Bug状态
+func (h *BugHandler) UpdateBugStatus(c *gin.Context) {
+	id := c.Param("id")
+	var bug model.Bug
+	if err := h.db.First(&bug, id).Error; err != nil {
+		utils.Error(c, 404, "Bug不存在")
+		return
+	}
+
+	var req struct {
+		Status string `json:"status" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Error(c, 400, "参数错误")
+		return
+	}
+
+	// 验证状态
+	validStatuses := map[string]bool{
+		"open":      true,
+		"assigned":  true,
+		"in_progress": true,
+		"resolved":  true,
+		"closed":    true,
+	}
+	if !validStatuses[req.Status] {
+		utils.Error(c, 400, "状态值无效")
+		return
+	}
+
+	bug.Status = req.Status
+	if err := h.db.Save(&bug).Error; err != nil {
+		utils.Error(c, utils.CodeError, "更新失败")
+		return
+	}
+
+	// 重新加载关联数据
+	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").First(&bug, bug.ID)
+
+	utils.Success(c, bug)
+}
+
+// GetBugStatistics 获取Bug统计
+func (h *BugHandler) GetBugStatistics(c *gin.Context) {
+	var stats struct {
+		Total           int64 `json:"total"`
+		Open            int64 `json:"open"`
+		Assigned        int64 `json:"assigned"`
+		InProgress      int64 `json:"in_progress"`
+		Resolved        int64 `json:"resolved"`
+		Closed          int64 `json:"closed"`
+		LowPriority     int64 `json:"low_priority"`
+		MediumPriority  int64 `json:"medium_priority"`
+		HighPriority    int64 `json:"high_priority"`
+		UrgentPriority  int64 `json:"urgent_priority"`
+		LowSeverity     int64 `json:"low_severity"`
+		MediumSeverity  int64 `json:"medium_severity"`
+		HighSeverity    int64 `json:"high_severity"`
+		CriticalSeverity int64 `json:"critical_severity"`
+	}
+
+	baseQuery := h.db.Model(&model.Bug{})
+
+	// 应用筛选条件（与列表查询保持一致）
+	if keyword := c.Query("keyword"); keyword != "" {
+		baseQuery = baseQuery.Where("title LIKE ? OR description LIKE ?", "%"+keyword+"%", "%"+keyword+"%")
+	}
+	if projectID := c.Query("project_id"); projectID != "" {
+		baseQuery = baseQuery.Where("project_id = ?", projectID)
+	}
+	if requirementID := c.Query("requirement_id"); requirementID != "" {
+		baseQuery = baseQuery.Where("requirement_id = ?", requirementID)
+	}
+	if creatorID := c.Query("creator_id"); creatorID != "" {
+		baseQuery = baseQuery.Where("creator_id = ?", creatorID)
+	}
+
+	// 统计总数
+	baseQuery.Session(&gorm.Session{}).Count(&stats.Total)
+
+	// 按状态统计
+	baseQuery.Session(&gorm.Session{}).Where("status = ?", "open").Count(&stats.Open)
+	baseQuery.Session(&gorm.Session{}).Where("status = ?", "assigned").Count(&stats.Assigned)
+	baseQuery.Session(&gorm.Session{}).Where("status = ?", "in_progress").Count(&stats.InProgress)
+	baseQuery.Session(&gorm.Session{}).Where("status = ?", "resolved").Count(&stats.Resolved)
+	baseQuery.Session(&gorm.Session{}).Where("status = ?", "closed").Count(&stats.Closed)
+
+	// 按优先级统计
+	baseQuery.Session(&gorm.Session{}).Where("priority = ?", "low").Count(&stats.LowPriority)
+	baseQuery.Session(&gorm.Session{}).Where("priority = ?", "medium").Count(&stats.MediumPriority)
+	baseQuery.Session(&gorm.Session{}).Where("priority = ?", "high").Count(&stats.HighPriority)
+	baseQuery.Session(&gorm.Session{}).Where("priority = ?", "urgent").Count(&stats.UrgentPriority)
+
+	// 按严重程度统计
+	baseQuery.Session(&gorm.Session{}).Where("severity = ?", "low").Count(&stats.LowSeverity)
+	baseQuery.Session(&gorm.Session{}).Where("severity = ?", "medium").Count(&stats.MediumSeverity)
+	baseQuery.Session(&gorm.Session{}).Where("severity = ?", "high").Count(&stats.HighSeverity)
+	baseQuery.Session(&gorm.Session{}).Where("severity = ?", "critical").Count(&stats.CriticalSeverity)
+
+	utils.Success(c, stats)
+}
+
+// AssignBug 分配Bug给用户
+func (h *BugHandler) AssignBug(c *gin.Context) {
+	id := c.Param("id")
+	var bug model.Bug
+	if err := h.db.First(&bug, id).Error; err != nil {
+		utils.Error(c, 404, "Bug不存在")
+		return
+	}
+
+	var req struct {
+		AssigneeIDs []uint `json:"assignee_ids" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Error(c, 400, "参数错误")
+		return
+	}
+
+	// 验证用户是否存在
+	var users []model.User
+	if err := h.db.Where("id IN ?", req.AssigneeIDs).Find(&users).Error; err != nil || len(users) != len(req.AssigneeIDs) {
+		utils.Error(c, 400, "用户不存在")
+		return
+	}
+
+	// 分配Bug
+	if err := h.db.Model(&bug).Association("Assignees").Replace(users); err != nil {
+		utils.Error(c, utils.CodeError, "分配失败")
+		return
+	}
+
+	// 如果有分配人且状态为open，自动变为assigned
+	if bug.Status == "open" {
+		bug.Status = "assigned"
+		h.db.Save(&bug)
+	}
+
+	// 重新加载关联数据
+	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").First(&bug, bug.ID)
+
+	utils.Success(c, bug)
+}
+

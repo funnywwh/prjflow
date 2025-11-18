@@ -25,6 +25,12 @@
         <a-menu-item key="project" @click="$router.push('/project')">
           项目管理
         </a-menu-item>
+        <a-menu-item key="requirement" @click="$router.push('/requirement')">
+          需求管理
+        </a-menu-item>
+        <a-menu-item key="bug" @click="$router.push('/bug')">
+          Bug管理
+        </a-menu-item>
       </a-menu>
     </div>
     <div class="header-right">

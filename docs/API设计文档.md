@@ -359,11 +359,19 @@
 }
 ```
 
-## 需求管理API（待实现）
+## 需求管理API ✅
 
 ### 获取需求列表
 
-**GET** `/requirements?product_id=&project_id=&status=&keyword=&page=1&page_size=20`
+**GET** `/requirements?product_id=&project_id=&status=&priority=&assignee_id=&creator_id=&keyword=&page=1&page_size=20`
+
+### 获取需求统计
+
+**GET** `/requirements/statistics?product_id=&project_id=&status=&keyword=`
+
+### 获取需求详情
+
+**GET** `/requirements/:id`
 
 ### 创建需求
 
@@ -377,15 +385,43 @@
   "product_id": 1,
   "project_id": 1,
   "status": "pending",
-  "priority": "high"
+  "priority": "high",
+  "assignee_id": 1
 }
 ```
 
-## Bug管理API（待实现）
+### 更新需求
+
+**PUT** `/requirements/:id`
+
+### 删除需求
+
+**DELETE** `/requirements/:id`
+
+### 更新需求状态
+
+**PATCH** `/requirements/:id/status`
+
+**请求体**:
+```json
+{
+  "status": "in_progress"
+}
+```
+
+## Bug管理API ✅
 
 ### 获取Bug列表
 
-**GET** `/bugs?project_id=&status=&priority=&keyword=&page=1&page_size=20`
+**GET** `/bugs?project_id=&status=&priority=&severity=&requirement_id=&creator_id=&keyword=&page=1&page_size=20`
+
+### 获取Bug统计
+
+**GET** `/bugs/statistics?project_id=&requirement_id=&keyword=`
+
+### 获取Bug详情
+
+**GET** `/bugs/:id`
 
 ### 创建Bug
 
@@ -400,9 +436,18 @@
   "status": "open",
   "priority": "high",
   "severity": "critical",
+  "requirement_id": 1,
   "assignee_ids": [1, 2]
 }
 ```
+
+### 更新Bug
+
+**PUT** `/bugs/:id`
+
+### 删除Bug
+
+**DELETE** `/bugs/:id`
 
 ### 更新Bug状态
 
@@ -412,6 +457,17 @@
 ```json
 {
   "status": "in_progress"
+}
+```
+
+### 分配Bug
+
+**POST** `/bugs/:id/assign`
+
+**请求体**:
+```json
+{
+  "assignee_ids": [1, 2]
 }
 ```
 

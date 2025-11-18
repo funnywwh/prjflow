@@ -650,6 +650,114 @@
 }
 ```
 
+## 构建管理API ✅
+
+### 获取构建列表
+
+**GET** `/builds?project_id=&status=&branch=&creator_id=&keyword=&page=1&page_size=20`
+
+### 获取构建详情
+
+**GET** `/builds/:id`
+
+### 创建构建
+
+**POST** `/builds`
+
+**请求体**:
+```json
+{
+  "build_number": "build-2024-01-01-001",
+  "status": "pending",
+  "branch": "main",
+  "commit": "abc123def456",
+  "build_time": "2024-01-01 10:00:00",
+  "project_id": 1
+}
+```
+
+### 更新构建
+
+**PUT** `/builds/:id`
+
+### 删除构建
+
+**DELETE** `/builds/:id`
+
+### 更新构建状态
+
+**PATCH** `/builds/:id/status`
+
+**请求体**:
+```json
+{
+  "status": "building"
+}
+```
+
+**状态值**:
+- `pending`: 待构建
+- `building`: 构建中
+- `success`: 成功
+- `failed`: 失败
+
+## 版本管理API ✅
+
+### 获取版本列表
+
+**GET** `/versions?build_id=&project_id=&status=&keyword=&page=1&page_size=20`
+
+### 获取版本详情
+
+**GET** `/versions/:id`
+
+### 创建版本
+
+**POST** `/versions`
+
+**请求体**:
+```json
+{
+  "version_number": "v1.0.0",
+  "release_notes": "发布说明（Markdown）",
+  "status": "draft",
+  "build_id": 1,
+  "release_date": "2024-01-01",
+  "requirement_ids": [1, 2],
+  "bug_ids": [3, 4]
+}
+```
+
+### 更新版本
+
+**PUT** `/versions/:id`
+
+### 删除版本
+
+**DELETE** `/versions/:id`
+
+### 更新版本状态
+
+**PATCH** `/versions/:id/status`
+
+**请求体**:
+```json
+{
+  "status": "released"
+}
+```
+
+**状态值**:
+- `draft`: 草稿
+- `released`: 已发布
+- `archived`: 已归档
+
+### 发布版本
+
+**POST** `/versions/:id/release`
+
+**说明**: 只有构建状态为`success`的版本才能发布，发布后状态自动变为`released`，并自动设置发布日期。
+
 ## 个人工作台API（待实现）
 
 ### 获取工作台数据

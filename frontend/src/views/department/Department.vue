@@ -53,6 +53,9 @@
                     <a-button type="link" size="small" @click="handleAddChild(record)">
                       添加子部门
                     </a-button>
+                    <a-button type="link" size="small" @click="handleManageMembers(record)">
+                      成员管理
+                    </a-button>
                     <a-button type="link" size="small" @click="handleEdit(record)">
                       编辑
                     </a-button>
@@ -113,6 +116,69 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <!-- 部门成员管理对话框 -->
+    <a-modal
+      v-model:open="memberModalVisible"
+      title="部门成员管理"
+      @cancel="handleCloseMemberModal"
+      @ok="handleCloseMemberModal"
+      ok-text="关闭"
+      width="800px"
+    >
+      <a-spin :spinning="memberLoading">
+        <div style="margin-bottom: 16px">
+          <a-space>
+            <a-select
+              v-model:value="selectedUserIds"
+              mode="multiple"
+              placeholder="选择用户"
+              style="width: 300px"
+            >
+              <a-select-option
+                v-for="user in availableUsers"
+                :key="user.id"
+                :value="user.id"
+              >
+                {{ user.username }}
+              </a-select-option>
+            </a-select>
+            <a-button type="primary" @click="handleAddMembers">添加成员</a-button>
+          </a-space>
+        </div>
+        <a-table
+          :columns="memberColumns"
+          :data-source="departmentMembers"
+          row-key="id"
+        >
+          <template #bodyCell="{ column, record }">
+            <template v-if="column.key === 'username'">
+              {{ record.username }}
+            </template>
+            <template v-else-if="column.key === 'email'">
+              {{ record.email || '-' }}
+            </template>
+            <template v-else-if="column.key === 'roles'">
+              <a-tag
+                v-for="role in record.roles"
+                :key="role.id"
+                style="margin-right: 4px"
+              >
+                {{ role.name }}
+              </a-tag>
+            </template>
+            <template v-else-if="column.key === 'action'">
+              <a-popconfirm
+                title="确定要移除这个成员吗？"
+                @confirm="handleRemoveMember(record.id)"
+              >
+                <a-button type="link" size="small" danger>移除</a-button>
+              </a-popconfirm>
+            </template>
+          </template>
+        </a-table>
+      </a-spin>
+    </a-modal>
   </div>
 </template>
 
@@ -126,8 +192,12 @@ import {
   createDepartment,
   updateDepartment,
   deleteDepartment,
+  getDepartmentMembers,
+  addDepartmentMembers,
+  removeDepartmentMember,
   type Department
 } from '@/api/department'
+import { getUsers, type User } from '@/api/user'
 
 const route = useRoute()
 const router = useRouter()
@@ -135,7 +205,13 @@ const selectedKeys = ref([route.name as string])
 
 const loading = ref(false)
 const submitting = ref(false)
+const memberLoading = ref(false)
 const departments = ref<Department[]>([])
+const departmentMembers = ref<User[]>([])
+const availableUsers = ref<User[]>([])
+const currentDepartmentId = ref<number>()
+const memberModalVisible = ref(false)
+const selectedUserIds = ref<number[]>([])
 
 const columns = [
   {
@@ -168,9 +244,16 @@ const columns = [
   {
     title: '操作',
     key: 'action',
-    width: 250,
+    width: 300,
     fixed: 'right' as const
   }
+]
+
+const memberColumns = [
+  { title: '用户名', key: 'username', width: 150 },
+  { title: '邮箱', key: 'email', width: 200 },
+  { title: '角色', key: 'roles', width: 200 },
+  { title: '操作', key: 'action', width: 100 }
 ]
 
 // 将树形结构转换为扁平列表（用于表格显示）
@@ -238,6 +321,28 @@ const loadDepartments = async () => {
     message.error(error.message || '加载部门列表失败')
   } finally {
     loading.value = false
+  }
+}
+
+// 加载用户列表（用于选择）
+const loadAvailableUsers = async () => {
+  try {
+    const response = await getUsers()
+    availableUsers.value = response.list || []
+  } catch (error: any) {
+    console.error('加载用户列表失败:', error)
+  }
+}
+
+// 加载部门成员
+const loadDepartmentMembers = async (departmentId: number) => {
+  memberLoading.value = true
+  try {
+    departmentMembers.value = await getDepartmentMembers(departmentId)
+  } catch (error: any) {
+    message.error(error.message || '加载部门成员失败')
+  } finally {
+    memberLoading.value = false
   }
 }
 
@@ -336,8 +441,51 @@ const handleDelete = async (id: number) => {
   }
 }
 
+// 管理成员
+const handleManageMembers = async (record: Department) => {
+  currentDepartmentId.value = record.id
+  memberModalVisible.value = true
+  selectedUserIds.value = []
+  await loadDepartmentMembers(record.id)
+}
+
+// 添加成员
+const handleAddMembers = async () => {
+  if (!currentDepartmentId.value || selectedUserIds.value.length === 0) {
+    message.warning('请选择用户')
+    return
+  }
+  try {
+    await addDepartmentMembers(currentDepartmentId.value, selectedUserIds.value)
+    message.success('添加成功')
+    selectedUserIds.value = []
+    await loadDepartmentMembers(currentDepartmentId.value)
+  } catch (error: any) {
+    message.error(error.message || '添加失败')
+  }
+}
+
+// 移除成员
+const handleRemoveMember = async (userId: number) => {
+  if (!currentDepartmentId.value) return
+  try {
+    await removeDepartmentMember(currentDepartmentId.value, userId)
+    message.success('移除成功')
+    await loadDepartmentMembers(currentDepartmentId.value)
+  } catch (error: any) {
+    message.error(error.message || '移除失败')
+  }
+}
+
+// 关闭成员管理对话框
+const handleCloseMemberModal = () => {
+  memberModalVisible.value = false
+  selectedUserIds.value = []
+}
+
 onMounted(() => {
   loadDepartments()
+  loadAvailableUsers()
 })
 </script>
 

@@ -20,6 +20,12 @@
           <a-menu-item key="department" @click="$router.push('/department')">
             部门管理
           </a-menu-item>
+          <a-menu-item key="product" @click="$router.push('/product')">
+            产品管理
+          </a-menu-item>
+          <a-menu-item key="project" @click="$router.push('/project')">
+            项目管理
+          </a-menu-item>
         </a-menu>
       </a-layout-header>
       <a-layout-content class="content">

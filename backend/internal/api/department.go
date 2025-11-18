@@ -1,6 +1,8 @@
 package api
 
 import (
+	"fmt"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 	"project-management/internal/model"
@@ -144,5 +146,84 @@ func (h *DepartmentHandler) DeleteDepartment(c *gin.Context) {
 	}
 
 	utils.Success(c, gin.H{"message": "删除成功"})
+}
+
+// GetDepartmentMembers 获取部门成员列表
+func (h *DepartmentHandler) GetDepartmentMembers(c *gin.Context) {
+	deptID := c.Param("id")
+	var users []model.User
+	if err := h.db.Where("department_id = ?", deptID).Preload("Roles").Find(&users).Error; err != nil {
+		utils.Error(c, utils.CodeError, "查询失败")
+		return
+	}
+
+	utils.Success(c, users)
+}
+
+// AddDepartmentMembers 添加部门成员
+func (h *DepartmentHandler) AddDepartmentMembers(c *gin.Context) {
+	deptID := c.Param("id")
+
+	// 验证部门是否存在
+	var department model.Department
+	if err := h.db.First(&department, deptID).Error; err != nil {
+		utils.Error(c, 404, "部门不存在")
+		return
+	}
+
+	var req struct {
+		UserIDs []uint `json:"user_ids" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Error(c, 400, "参数错误")
+		return
+	}
+
+	// 验证用户是否存在
+	var users []model.User
+	if err := h.db.Where("id IN ?", req.UserIDs).Find(&users).Error; err != nil {
+		utils.Error(c, utils.CodeError, "查询用户失败")
+		return
+	}
+
+	if len(users) != len(req.UserIDs) {
+		utils.Error(c, 400, "部分用户不存在")
+		return
+	}
+
+	// 更新用户的部门ID
+	var deptIDUint uint
+	if _, err := fmt.Sscanf(deptID, "%d", &deptIDUint); err != nil {
+		utils.Error(c, 400, "部门ID格式错误")
+		return
+	}
+	if err := h.db.Model(&model.User{}).Where("id IN ?", req.UserIDs).Update("department_id", deptIDUint).Error; err != nil {
+		utils.Error(c, utils.CodeError, "添加成员失败")
+		return
+	}
+
+	utils.Success(c, gin.H{"message": "添加成功"})
+}
+
+// RemoveDepartmentMember 移除部门成员
+func (h *DepartmentHandler) RemoveDepartmentMember(c *gin.Context) {
+	deptID := c.Param("id")
+	userID := c.Param("user_id")
+
+	// 验证用户是否属于该部门
+	var user model.User
+	if err := h.db.Where("id = ? AND department_id = ?", userID, deptID).First(&user).Error; err != nil {
+		utils.Error(c, 404, "用户不属于该部门")
+		return
+	}
+
+	// 将用户的部门ID设置为NULL
+	if err := h.db.Model(&user).Update("department_id", nil).Error; err != nil {
+		utils.Error(c, utils.CodeError, "移除成员失败")
+		return
+	}
+
+	utils.Success(c, gin.H{"message": "移除成功"})
 }
 

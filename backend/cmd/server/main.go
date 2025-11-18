@@ -119,8 +119,13 @@ func main() {
 	deptGroup := r.Group("/departments", middleware.Auth())
 	{
 		deptGroup.GET("", deptHandler.GetDepartments)
-		deptGroup.GET("/:id", deptHandler.GetDepartment)
 		deptGroup.POST("", deptHandler.CreateDepartment)
+		// 部门成员管理（必须在 /:id 之前，因为路由按顺序匹配）
+		deptGroup.GET("/:id/members", deptHandler.GetDepartmentMembers)
+		deptGroup.POST("/:id/members", deptHandler.AddDepartmentMembers)
+		deptGroup.DELETE("/:id/members/:user_id", deptHandler.RemoveDepartmentMember)
+		// 部门CRUD（放在成员管理之后）
+		deptGroup.GET("/:id", deptHandler.GetDepartment)
 		deptGroup.PUT("/:id", deptHandler.UpdateDepartment)
 		deptGroup.DELETE("/:id", deptHandler.DeleteDepartment)
 	}
@@ -130,6 +135,49 @@ func main() {
 	dashboardGroup := r.Group("/dashboard", middleware.Auth())
 	{
 		dashboardGroup.GET("", dashboardHandler.GetDashboard)
+	}
+
+	// 产品管理路由
+	productHandler := api.NewProductHandler(db)
+	productLineGroup := r.Group("/product-lines", middleware.Auth())
+	{
+		productLineGroup.GET("", productHandler.GetProductLines)
+		productLineGroup.GET("/:id", productHandler.GetProductLine)
+		productLineGroup.POST("", productHandler.CreateProductLine)
+		productLineGroup.PUT("/:id", productHandler.UpdateProductLine)
+		productLineGroup.DELETE("/:id", productHandler.DeleteProductLine)
+	}
+	productGroup := r.Group("/products", middleware.Auth())
+	{
+		productGroup.GET("", productHandler.GetProducts)
+		productGroup.GET("/:id", productHandler.GetProduct)
+		productGroup.POST("", productHandler.CreateProduct)
+		productGroup.PUT("/:id", productHandler.UpdateProduct)
+		productGroup.DELETE("/:id", productHandler.DeleteProduct)
+	}
+
+	// 项目管理路由
+	projectHandler := api.NewProjectHandler(db)
+	projectGroupGroup := r.Group("/project-groups", middleware.Auth())
+	{
+		projectGroupGroup.GET("", projectHandler.GetProjectGroups)
+		projectGroupGroup.GET("/:id", projectHandler.GetProjectGroup)
+		projectGroupGroup.POST("", projectHandler.CreateProjectGroup)
+		projectGroupGroup.PUT("/:id", projectHandler.UpdateProjectGroup)
+		projectGroupGroup.DELETE("/:id", projectHandler.DeleteProjectGroup)
+	}
+	projectGroup := r.Group("/projects", middleware.Auth())
+	{
+		projectGroup.GET("", projectHandler.GetProjects)
+		projectGroup.GET("/:id", projectHandler.GetProject)
+		projectGroup.POST("", projectHandler.CreateProject)
+		projectGroup.PUT("/:id", projectHandler.UpdateProject)
+		projectGroup.DELETE("/:id", projectHandler.DeleteProject)
+		// 项目成员管理
+		projectGroup.GET("/:id/members", projectHandler.GetProjectMembers)
+		projectGroup.POST("/:id/members", projectHandler.AddProjectMembers)
+		projectGroup.PUT("/:id/members/:member_id", projectHandler.UpdateProjectMember)
+		projectGroup.DELETE("/:id/members/:member_id", projectHandler.RemoveProjectMember)
 	}
 
 	// 创建HTTP服务器

@@ -40,3 +40,20 @@ export const deleteDepartment = async (id: number): Promise<void> => {
   return request.delete(`/departments/${id}`)
 }
 
+// 获取部门成员列表
+export const getDepartmentMembers = async (departmentId: number): Promise<any[]> => {
+  return request.get(`/departments/${departmentId}/members`)
+}
+
+// 添加部门成员
+export const addDepartmentMembers = async (departmentId: number, userIds: number[]): Promise<void> => {
+  return request.post(`/departments/${departmentId}/members`, {
+    user_ids: userIds
+  })
+}
+
+// 移除部门成员
+export const removeDepartmentMember = async (departmentId: number, userId: number): Promise<void> => {
+  return request.delete(`/departments/${departmentId}/members/${userId}`)
+}
+

@@ -5,14 +5,19 @@ import (
 	"gorm.io/gorm"
 	"project-management/internal/model"
 	"project-management/internal/utils"
+	"project-management/pkg/wechat"
 )
 
 type UserHandler struct {
-	db *gorm.DB
+	db          *gorm.DB
+	wechatClient *wechat.WeChatClient
 }
 
 func NewUserHandler(db *gorm.DB) *UserHandler {
-	return &UserHandler{db: db}
+	return &UserHandler{
+		db:          db,
+		wechatClient: wechat.NewWeChatClient(),
+	}
 }
 
 // GetUsers 获取用户列表
@@ -110,5 +115,49 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 	}
 
 	utils.Success(c, gin.H{"message": "删除成功"})
+}
+
+// AddUserByWeChatCallback 处理微信授权回调（GET请求，微信直接重定向到这里）
+// 这个接口在微信内打开，处理完添加用户后通过WebSocket通知PC前端
+func (h *UserHandler) AddUserByWeChatCallback(c *gin.Context) {
+	code := c.Query("code")
+	state := c.Query("state")
+
+	handler := &AddUserCallbackHandler{db: h.db}
+	ctx, result, err := ProcessWeChatCallback(h.db, h.wechatClient, code, state, handler)
+
+	if err != nil {
+		c.Data(200, "text/html; charset=utf-8", []byte(handler.GetErrorHTML(ctx, err)))
+		return
+	}
+
+	// 返回成功页面（在微信内显示）
+	c.Data(200, "text/html; charset=utf-8", []byte(handler.GetSuccessHTML(ctx, result)))
+}
+
+// AddUserByWeChat 通过微信扫码添加用户（POST请求，保留用于前端回调页面调用）
+// 注意：这个方法保留用于前端回调页面调用，但主要流程已改为使用 GET 回调接口
+func (h *UserHandler) AddUserByWeChat(c *gin.Context) {
+	var req struct {
+		Code  string `json:"code" binding:"required"`
+		State string `json:"state"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Error(c, 400, "参数错误")
+		return
+	}
+
+	// 使用通用处理函数
+	handler := &AddUserCallbackHandler{db: h.db}
+	_, result, err := ProcessWeChatCallback(h.db, h.wechatClient, req.Code, req.State, handler)
+	
+	if err != nil {
+		utils.Error(c, utils.CodeError, err.Error())
+		return
+	}
+
+	// 返回JSON响应（前端回调页面使用）
+	utils.Success(c, result)
 }
 

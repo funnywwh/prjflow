@@ -102,3 +102,23 @@ export const deleteUser = async (id: number): Promise<void> => {
   return request.delete(`/users/${id}`)
 }
 
+// 扫码添加用户
+export interface AddUserByWeChatRequest {
+  code: string
+  state?: string
+}
+
+export interface AddUserByWeChatResponse {
+  user: {
+    id: number
+    username: string
+    email?: string
+    avatar?: string
+    wechat_open_id?: string
+  }
+}
+
+export const addUserByWeChat = async (data: AddUserByWeChatRequest): Promise<AddUserByWeChatResponse> => {
+  return request.post('/users/wechat/add', data)
+}
+

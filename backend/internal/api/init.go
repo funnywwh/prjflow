@@ -244,18 +244,20 @@ func (h *InitHandler) GetInitQRCode(c *gin.Context) {
 	h.wechatClient.AppSecret = wechatAppSecretConfig.Value
 
 	// 获取回调地址（初始化回调地址）
-	// 优先级：1. 查询参数 2. 配置文件中的 callback_domain 3. Referer 头 4. 默认值
-	redirectURI := c.Query("redirect_uri")
-	if redirectURI == "" {
+	// 优先级：1. 配置文件中的 callback_domain 2. 查询参数 3. Referer 头 4. 默认值
+	// 如果配置了 callback_domain，强制使用配置的域名，确保与微信后台配置一致
+	var redirectURI string
+	if config.AppConfig.WeChat.CallbackDomain != "" {
 		// 优先使用配置文件中的回调域名
-		if config.AppConfig.WeChat.CallbackDomain != "" {
-			// 确保域名以 / 结尾，然后拼接回调路径
-			domain := config.AppConfig.WeChat.CallbackDomain
-			if len(domain) > 0 && domain[len(domain)-1] != '/' {
-				domain += "/"
-			}
-			redirectURI = domain + "init/callback"
-		} else {
+		domain := config.AppConfig.WeChat.CallbackDomain
+		if len(domain) > 0 && domain[len(domain)-1] != '/' {
+			domain += "/"
+		}
+		redirectURI = domain + "init/callback"
+	} else {
+		// 如果未配置 callback_domain，使用查询参数或 Referer
+		redirectURI = c.Query("redirect_uri")
+		if redirectURI == "" {
 			// 从 Referer 头获取
 			referer := c.GetHeader("Referer")
 			if referer != "" {

@@ -32,6 +32,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: false }
   },
   {
+    path: '/auth/wechat/add-user/callback',
+    name: 'WeChatAddUserCallback',
+    component: () => import('../views/user/WeChatAddUserCallback.vue'),
+    meta: { requiresAuth: false }
+  },
+  {
     path: '/dashboard',
     name: 'Dashboard',
     component: () => import('../views/dashboard/Dashboard.vue'),
@@ -90,15 +96,23 @@ router.beforeEach(async (to, _from, next) => {
     }
     
     // 如果访问其他页面但系统未初始化，跳转到初始化页面
-    if (to.name !== 'Init' && to.name !== 'InitCallback' && !status.initialized) {
+    // 排除初始化相关路由和微信回调路由
+    if (to.name !== 'Init' && 
+        to.name !== 'InitCallback' && 
+        to.name !== 'WeChatCallback' && 
+        to.name !== 'WeChatAddUserCallback' &&
+        !status.initialized) {
       next({ name: 'Init' })
       return
     }
   } catch (error) {
     // 如果检查失败，允许继续（可能是网络问题）
     console.error('检查初始化状态失败:', error)
-    // 如果访问Init页面且检查失败，允许继续（可能是网络问题）
-    if (to.name === 'Init' || to.name === 'InitCallback') {
+    // 如果访问Init页面或微信回调页面且检查失败，允许继续（可能是网络问题）
+    if (to.name === 'Init' || 
+        to.name === 'InitCallback' || 
+        to.name === 'WeChatCallback' || 
+        to.name === 'WeChatAddUserCallback') {
       next()
       return
     }

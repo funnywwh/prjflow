@@ -41,6 +41,9 @@ export const saveWeChatConfig = async (data: WeChatConfigRequest): Promise<{ mes
 }
 
 export const getInitQRCode = async (): Promise<QRCodeResponse> => {
+  // 后端会优先使用配置文件中的 callback_domain
+  // 如果后端未配置 callback_domain，才需要传递 redirect_uri
+  // 这里不传递 redirect_uri，让后端使用配置文件中的值
   const data: any = await request.get('/init/qrcode')
   return {
     ticket: data.ticket,

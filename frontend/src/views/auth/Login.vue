@@ -5,103 +5,43 @@
         <h2>项目管理系统</h2>
       </template>
       <div class="login-content">
-        <a-spin :spinning="loading">
-          <div v-if="!qrCodeUrl" class="qr-placeholder">
-            <a-button type="primary" @click="getQRCode">获取二维码</a-button>
-          </div>
-          <div v-else class="qr-container">
-            <img :src="qrCodeUrl" alt="微信登录二维码" />
-            <p>请使用微信扫码</p>
-            <p class="hint-small">扫码后会在微信内打开授权页面</p>
-            <div v-if="authUrl" class="auth-url-container">
-              <p class="auth-url-label">连接地址：</p>
-              <a-typography-paragraph 
-                :copyable="{ text: authUrl }" 
-                class="auth-url-text"
-              >
-                {{ authUrl }}
-              </a-typography-paragraph>
-            </div>
-            <a-button @click="getQRCode">刷新二维码</a-button>
-          </div>
-        </a-spin>
+        <WeChatQRCode
+          :fetchQRCode="getWeChatQRCode"
+          initial-status-text="请使用微信扫码"
+          hint="扫码后会在微信内打开授权页面"
+          :show-auth-url="false"
+          @success="handleLoginSuccess"
+        />
       </div>
     </a-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
-import QRCode from 'qrcode'
 import { getWeChatQRCode } from '@/api/auth'
+import { useAuthStore } from '@/stores/auth'
+import WeChatQRCode from '@/components/WeChatQRCode.vue'
 
-const loading = ref(false)
-const qrCodeUrl = ref('')
-const authUrl = ref('')
-const ticket = ref('')
-let pollTimer: number | null = null
+const router = useRouter()
+const authStore = useAuthStore()
 
-const getQRCode = async () => {
-  loading.value = true
-  try {
-    const data = await getWeChatQRCode()
-    ticket.value = data.ticket
+// 处理登录成功
+const handleLoginSuccess = (data: any) => {
+  if (data.token && data.user) {
+    // 保存token和用户信息
+    authStore.setToken(data.token)
+    authStore.setUser(data.user)
     
-    // 将授权URL转换为二维码图片
-    if (data.authUrl || data.qrCodeUrl) {
-      const url = data.authUrl || data.qrCodeUrl
-      authUrl.value = url
-      try {
-        // 使用 qrcode 库生成二维码图片
-        const qrCodeDataURL = await QRCode.toDataURL(url, {
-          width: 200,
-          margin: 2
-        })
-        qrCodeUrl.value = qrCodeDataURL
-      } catch (qrError) {
-        console.error('生成二维码失败:', qrError)
-        message.error('生成二维码图片失败')
-        // 如果生成失败，显示授权URL
-        qrCodeUrl.value = url
-      }
-    } else {
-      message.error('未获取到授权URL')
-    }
+    message.success('登录成功！')
     
-    startPolling()
-  } catch (error) {
-    message.error('获取二维码失败')
-  } finally {
-    loading.value = false
+    // 跳转到工作台
+    setTimeout(() => {
+      router.push('/dashboard')
+    }, 1000)
   }
 }
-
-const startPolling = () => {
-  if (pollTimer) {
-    clearInterval(pollTimer)
-  }
-  
-  pollTimer = window.setInterval(async () => {
-    try {
-      // 这里应该调用检查登录状态的API
-      // 暂时使用模拟逻辑
-    } catch (error) {
-      console.error('Polling error:', error)
-    }
-  }, 2000)
-}
-
-
-onMounted(() => {
-  getQRCode()
-})
-
-onUnmounted(() => {
-  if (pollTimer) {
-    clearInterval(pollTimer)
-  }
-})
 </script>
 
 <style scoped>

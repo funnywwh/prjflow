@@ -1,35 +1,21 @@
 <template>
   <div class="user-management">
     <a-layout>
-      <a-layout-header class="header">
-        <div class="logo">项目管理系统</div>
-        <a-menu
-          mode="horizontal"
-          :selected-keys="selectedKeys"
-          :style="{ lineHeight: '64px' }"
-        >
-          <a-menu-item key="dashboard" @click="$router.push('/dashboard')">
-            工作台
-          </a-menu-item>
-          <a-menu-item key="user" @click="$router.push('/user')">
-            用户管理
-          </a-menu-item>
-          <a-menu-item key="permission" @click="$router.push('/permission')">
-            权限管理
-          </a-menu-item>
-          <a-menu-item key="department" @click="$router.push('/department')">
-            部门管理
-          </a-menu-item>
-        </a-menu>
-      </a-layout-header>
+      <AppHeader />
       <a-layout-content class="content">
         <div class="content-inner">
           <a-page-header title="用户管理">
             <template #extra>
-              <a-button type="primary" @click="handleCreate">
-                <template #icon><PlusOutlined /></template>
-                新增用户
-              </a-button>
+              <a-space>
+                <a-button @click="handleScanAddUser">
+                  <template #icon><QrcodeOutlined /></template>
+                  扫码添加用户
+                </a-button>
+                <a-button type="primary" @click="handleCreate">
+                  <template #icon><PlusOutlined /></template>
+                  新增用户
+                </a-button>
+              </a-space>
             </template>
           </a-page-header>
 
@@ -187,6 +173,26 @@
         </a-row>
       </a-checkbox-group>
     </a-modal>
+
+    <!-- 扫码添加用户对话框 -->
+    <a-modal
+      v-model:open="scanAddUserModalVisible"
+      title="扫码添加用户"
+      :footer="null"
+      width="500px"
+      @cancel="handleCloseScanAddUserModal"
+    >
+      <WeChatQRCode
+        ref="scanAddUserQRCodeRef"
+        :fetchQRCode="getAddUserQRCode"
+        initial-status-text="请使用微信扫码"
+        hint="扫码后会在微信内打开授权页面，确认后将添加该用户"
+        :auto-fetch="true"
+        :show-auth-url="false"
+        @success="handleScanAddUserSuccess"
+        @error="handleScanAddUserError"
+      />
+    </a-modal>
   </div>
 </template>
 
@@ -194,7 +200,9 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { PlusOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, QrcodeOutlined } from '@ant-design/icons-vue'
+import AppHeader from '@/components/AppHeader.vue'
+import WeChatQRCode from '@/components/WeChatQRCode.vue'
 import {
   getUsers,
   createUser,
@@ -205,10 +213,10 @@ import {
 } from '@/api/user'
 import { getDepartments, type Department } from '@/api/department'
 import { getRoles, assignUserRoles, type Role } from '@/api/permission'
+import request from '@/utils/request'
 
 const route = useRoute()
 const router = useRouter()
-const selectedKeys = ref([route.name as string])
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -294,6 +302,9 @@ const formRules = {
 const roleModalVisible = ref(false)
 const selectedRoleIds = ref<number[]>([])
 const currentUserId = ref<number>()
+
+const scanAddUserModalVisible = ref(false)
+const scanAddUserQRCodeRef = ref<InstanceType<typeof WeChatQRCode>>()
 
 // 加载用户列表
 const loadUsers = async () => {
@@ -452,6 +463,54 @@ const handleRoleSubmit = async () => {
   }
 }
 
+// 扫码添加用户
+const handleScanAddUser = () => {
+  scanAddUserModalVisible.value = true
+}
+
+// 获取添加用户的二维码（使用特殊的回调地址）
+const getAddUserQRCode = async () => {
+  // 后端会优先使用配置文件中的 callback_domain
+  // 但添加用户的回调路径不同，需要传递 redirect_uri（只传路径部分）
+  // 后端会自动使用配置的域名拼接路径
+  const callbackPath = '/auth/wechat/add-user/callback'
+  
+  // 调用API时传递回调路径（后端会使用配置的域名）
+  const data: any = await request.get('/auth/wechat/qrcode', {
+    params: { redirect_uri: callbackPath }
+  })
+  return {
+    ticket: data.ticket || '',
+    qrCodeUrl: data.qr_code_url || data.auth_url || '',
+    authUrl: data.auth_url || data.qr_code_url || '',
+    expireSeconds: data.expire_seconds || 600
+  }
+}
+
+// 处理扫码添加用户成功
+const handleScanAddUserSuccess = async (data: any) => {
+  if (data.user) {
+    try {
+      // 用户已通过后端API创建，这里只需要刷新列表
+      message.success('用户添加成功')
+      scanAddUserModalVisible.value = false
+      loadUsers()
+    } catch (error: any) {
+      message.error(error.message || '添加用户失败')
+    }
+  }
+}
+
+// 处理扫码添加用户错误
+const handleScanAddUserError = (error: string) => {
+  message.error(error)
+}
+
+// 关闭扫码添加用户对话框
+const handleCloseScanAddUserModal = () => {
+  scanAddUserModalVisible.value = false
+}
+
 onMounted(() => {
   loadUsers()
   loadDepartments()
@@ -462,21 +521,6 @@ onMounted(() => {
 <style scoped>
 .user-management {
   min-height: 100vh;
-}
-
-.header {
-  background: #001529;
-  color: white;
-  display: flex;
-  align-items: center;
-  padding: 0 24px;
-}
-
-.logo {
-  color: white;
-  font-size: 20px;
-  font-weight: bold;
-  margin-right: 24px;
 }
 
 .content {

@@ -81,10 +81,13 @@ func main() {
 
 	// 认证相关路由
 	authHandler := api.NewAuthHandler(db)
+	userHandler := api.NewUserHandler(db)
 	authGroup := r.Group("/auth")
 	{
 		authGroup.GET("/wechat/qrcode", authHandler.GetQRCode)
-		authGroup.POST("/wechat/login", authHandler.WeChatLogin)
+		authGroup.GET("/wechat/callback", authHandler.WeChatCallback)              // 微信登录回调接口（GET请求，微信直接重定向到这里）
+		authGroup.GET("/wechat/add-user/callback", userHandler.AddUserByWeChatCallback) // 微信添加用户回调接口（GET请求，微信直接重定向到这里）
+		authGroup.POST("/wechat/login", authHandler.WeChatLogin)                    // 微信登录（POST请求，保留用于其他场景）
 		authGroup.GET("/user/info", middleware.Auth(), authHandler.GetUserInfo)
 		authGroup.POST("/logout", middleware.Auth(), authHandler.Logout)
 	}
@@ -104,7 +107,6 @@ func main() {
 	}
 
 	// 用户管理路由
-	userHandler := api.NewUserHandler(db)
 	userGroup := r.Group("/users", middleware.Auth())
 	{
 		userGroup.GET("", userHandler.GetUsers)
@@ -112,6 +114,7 @@ func main() {
 		userGroup.POST("", userHandler.CreateUser)
 		userGroup.PUT("/:id", userHandler.UpdateUser)
 		userGroup.DELETE("/:id", userHandler.DeleteUser)
+		userGroup.POST("/wechat/add", userHandler.AddUserByWeChat) // 扫码添加用户
 	}
 
 	// 部门管理路由

@@ -1,33 +1,7 @@
 <template>
   <div class="dashboard">
     <a-layout>
-      <a-layout-header class="header">
-        <div class="logo">项目管理系统</div>
-        <a-menu
-          mode="horizontal"
-          :selected-keys="selectedKeys"
-          :style="{ lineHeight: '64px' }"
-        >
-          <a-menu-item key="dashboard" @click="$router.push('/dashboard')">
-            工作台
-          </a-menu-item>
-          <a-menu-item key="user" @click="$router.push('/user')">
-            用户管理
-          </a-menu-item>
-          <a-menu-item key="permission" @click="$router.push('/permission')">
-            权限管理
-          </a-menu-item>
-          <a-menu-item key="department" @click="$router.push('/department')">
-            部门管理
-          </a-menu-item>
-          <a-menu-item key="product" @click="$router.push('/product')">
-            产品管理
-          </a-menu-item>
-          <a-menu-item key="project" @click="$router.push('/project')">
-            项目管理
-          </a-menu-item>
-        </a-menu>
-      </a-layout-header>
+      <AppHeader />
       <a-layout-content class="content">
         <div class="content-inner">
           <a-page-header title="个人工作台" />
@@ -235,10 +209,12 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { getDashboard, type DashboardData } from '@/api/dashboard'
+import { useAuthStore } from '@/stores/auth'
+import AppHeader from '@/components/AppHeader.vue'
 
 const route = useRoute()
 const router = useRouter()
-const selectedKeys = ref([route.name as string])
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const dashboardData = ref<DashboardData>({
@@ -323,27 +299,16 @@ const goToReports = (status: string) => {
 
 onMounted(() => {
   loadDashboard()
+  // 加载用户信息
+  if (!authStore.user && authStore.isAuthenticated) {
+    authStore.loadUserInfo()
+  }
 })
 </script>
 
 <style scoped>
 .dashboard {
   min-height: 100vh;
-}
-
-.header {
-  background: #001529;
-  color: white;
-  display: flex;
-  align-items: center;
-  padding: 0 24px;
-}
-
-.logo {
-  color: white;
-  font-size: 20px;
-  font-weight: bold;
-  margin-right: 24px;
 }
 
 .content {

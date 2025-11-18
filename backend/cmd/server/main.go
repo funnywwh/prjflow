@@ -171,11 +171,20 @@ func main() {
 		projectGroupGroup.PUT("/:id", projectHandler.UpdateProjectGroup)
 		projectGroupGroup.DELETE("/:id", projectHandler.DeleteProjectGroup)
 	}
+	
+	// 看板管理路由（需要在项目路由之前定义，因为项目路由中会用到）
+	boardHandler := api.NewBoardHandler(db)
+	
 	projectGroup := r.Group("/api/projects", middleware.Auth())
 	{
 		projectGroup.GET("", projectHandler.GetProjects)
-		// 注意：统计接口需要在详情接口之前，避免路由冲突
+		// 注意：统计接口、看板接口和甘特图接口需要在详情接口之前，避免路由冲突
 		projectGroup.GET("/:id/statistics", projectHandler.GetProjectStatistics)
+		projectGroup.GET("/:id/progress", projectHandler.GetProjectProgress)
+		projectGroup.GET("/:id/gantt", projectHandler.GetProjectGantt)
+		// 项目看板路由（需要在详情路由之前）
+		projectGroup.GET("/:id/boards", boardHandler.GetProjectBoards)
+		projectGroup.POST("/:id/boards", boardHandler.CreateBoard)
 		projectGroup.GET("/:id", projectHandler.GetProject)
 		projectGroup.POST("", projectHandler.CreateProject)
 		projectGroup.PUT("/:id", projectHandler.UpdateProject)
@@ -212,6 +221,32 @@ func main() {
 		bugGroup.DELETE("/:id", bugHandler.DeleteBug)
 		bugGroup.PATCH("/:id/status", bugHandler.UpdateBugStatus)
 		bugGroup.POST("/:id/assign", bugHandler.AssignBug)
+	}
+
+	// 任务管理路由
+	taskHandler := api.NewTaskHandler(db)
+	taskGroup := r.Group("/api/tasks", middleware.Auth())
+	{
+		taskGroup.GET("", taskHandler.GetTasks)
+		taskGroup.GET("/:id", taskHandler.GetTask)
+		taskGroup.POST("", taskHandler.CreateTask)
+		taskGroup.PUT("/:id", taskHandler.UpdateTask)
+		taskGroup.DELETE("/:id", taskHandler.DeleteTask)
+		taskGroup.PATCH("/:id/status", taskHandler.UpdateTaskStatus)
+		taskGroup.PATCH("/:id/progress", taskHandler.UpdateTaskProgress)
+	}
+
+	// 看板管理路由
+	boardGroup := r.Group("/api/boards", middleware.Auth())
+	{
+		boardGroup.GET("/:id", boardHandler.GetBoard)
+		boardGroup.PUT("/:id", boardHandler.UpdateBoard)
+		boardGroup.DELETE("/:id", boardHandler.DeleteBoard)
+		boardGroup.GET("/:id/tasks", boardHandler.GetBoardTasks)
+		boardGroup.PATCH("/:id/tasks/:task_id/move", boardHandler.MoveTask)
+		boardGroup.POST("/:id/columns", boardHandler.CreateBoardColumn)
+		boardGroup.PUT("/:id/columns/:column_id", boardHandler.UpdateBoardColumn)
+		boardGroup.DELETE("/:id/columns/:column_id", boardHandler.DeleteBoardColumn)
 	}
 
 	// 创建HTTP服务器

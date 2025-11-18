@@ -471,7 +471,7 @@
 }
 ```
 
-## 任务管理API（待实现）
+## 任务管理API（已实现）
 
 ### 获取任务列表
 
@@ -507,7 +507,7 @@
 }
 ```
 
-## 看板API（待实现）
+## 看板API（已实现）
 
 ### 获取项目看板
 
@@ -529,7 +529,7 @@
 }
 ```
 
-## 甘特图API（待实现）
+## 甘特图API（已实现）
 
 ### 获取项目甘特图数据
 
@@ -549,6 +549,101 @@
         "end_date": "2024-01-15",
         "progress": 50,
         "dependencies": [2]
+      }
+    ]
+  }
+}
+```
+
+## 项目进度跟踪API（已实现）
+
+### 获取项目进度跟踪数据
+
+**GET** `/projects/:id/progress`
+
+**响应**:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "statistics": {
+      "total_tasks": 10,
+      "todo_tasks": 3,
+      "in_progress_tasks": 4,
+      "done_tasks": 3,
+      "total_bugs": 5,
+      "open_bugs": 2,
+      "in_progress_bugs": 1,
+      "resolved_bugs": 2,
+      "total_requirements": 8,
+      "in_progress_requirements": 3,
+      "completed_requirements": 5,
+      "total_members": 6
+    },
+    "task_progress_trend": [
+      {
+        "date": "2024-01-01",
+        "average": 45.5,
+        "count": 2
+      }
+    ],
+    "task_status_distribution": [
+      {
+        "status": "todo",
+        "count": 3
+      },
+      {
+        "status": "in_progress",
+        "count": 4
+      },
+      {
+        "status": "done",
+        "count": 3
+      }
+    ],
+    "task_priority_distribution": [
+      {
+        "priority": "low",
+        "count": 2
+      },
+      {
+        "priority": "medium",
+        "count": 5
+      },
+      {
+        "priority": "high",
+        "count": 3
+      }
+    ],
+    "task_completion_trend": [
+      {
+        "week": "2024-01-01",
+        "total": 10,
+        "completed": 2,
+        "completion_rate": 20.0
+      }
+    ],
+    "member_workload": [
+      {
+        "user_id": 1,
+        "username": "user1",
+        "nickname": "用户1",
+        "total": 5,
+        "completed": 2,
+        "in_progress": 2
+      }
+    ],
+    "bug_trend": [
+      {
+        "date": "2024-01-01",
+        "count": 2
+      }
+    ],
+    "requirement_trend": [
+      {
+        "date": "2024-01-01",
+        "count": 1
       }
     ]
   }

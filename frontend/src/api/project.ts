@@ -159,3 +159,41 @@ export const removeProjectMember = async (projectId: number, memberId: number): 
   return request.delete(`/projects/${projectId}/members/${memberId}`)
 }
 
+// 甘特图相关API
+export interface GanttTask {
+  id: number
+  title: string
+  start_date?: string
+  end_date?: string
+  due_date?: string
+  progress: number
+  status: string
+  priority: string
+  assignee?: string
+  dependencies?: number[]
+}
+
+export interface GanttData {
+  tasks: GanttTask[]
+}
+
+export const getProjectGantt = async (projectId: number): Promise<GanttData> => {
+  return request.get(`/projects/${projectId}/gantt`)
+}
+
+// 项目进度跟踪相关API
+export interface ProjectProgressData {
+  statistics: ProjectStatistics
+  task_progress_trend: Array<{ date: string; average: number; count: number }>
+  task_status_distribution: Array<{ status: string; count: number }>
+  task_priority_distribution: Array<{ priority: string; count: number }>
+  task_completion_trend: Array<{ week: string; total: number; completed: number; completion_rate: number }>
+  member_workload: Array<{ user_id: number; username: string; nickname?: string; total: number; completed: number; in_progress: number }>
+  bug_trend: Array<{ date: string; count: number }>
+  requirement_trend: Array<{ date: string; count: number }>
+}
+
+export const getProjectProgress = async (projectId: number): Promise<ProjectProgressData> => {
+  return request.get(`/projects/${projectId}/progress`)
+}
+

@@ -31,6 +31,9 @@
         <a-menu-item key="bug" @click="$router.push('/bug')">
           Bug管理
         </a-menu-item>
+        <a-menu-item key="task" @click="$router.push('/task')">
+          任务管理
+        </a-menu-item>
       </a-menu>
     </div>
     <div class="header-right">

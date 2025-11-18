@@ -68,6 +68,24 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/project/:id/boards',
+    name: 'BoardList',
+    component: () => import('../views/board/BoardList.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/project/:id/gantt',
+    name: 'Gantt',
+    component: () => import('../views/gantt/Gantt.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/project/:id/progress',
+    name: 'Progress',
+    component: () => import('../views/progress/Progress.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/project/:id',
     name: 'ProjectDetail',
     component: () => import('../views/project/ProjectDetail.vue'),
@@ -101,6 +119,24 @@ const routes: RouteRecordRaw[] = [
     path: '/bug',
     name: 'Bug',
     component: () => import('../views/bug/Bug.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/task/:id',
+    name: 'TaskDetail',
+    component: () => import('../views/task/TaskDetail.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/task',
+    name: 'Task',
+    component: () => import('../views/task/Task.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/board/:id',
+    name: 'Board',
+    component: () => import('../views/board/Board.vue'),
     meta: { requiresAuth: true }
   }
 ]

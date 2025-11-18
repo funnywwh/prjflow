@@ -11,6 +11,9 @@
           >
             <template #extra>
               <a-space>
+                <a-button @click="handleViewBoards">看板</a-button>
+                <a-button @click="handleViewGantt">甘特图</a-button>
+                <a-button @click="handleViewProgress">进度跟踪</a-button>
                 <a-button @click="handleEdit">编辑</a-button>
                 <a-button @click="handleManageMembers">成员管理</a-button>
               </a-space>
@@ -239,6 +242,24 @@ const loadProject = async () => {
   } finally {
     loading.value = false
   }
+}
+
+// 查看看板
+const handleViewBoards = () => {
+  if (!project.value) return
+  router.push(`/project/${project.value.id}/boards`)
+}
+
+// 查看甘特图
+const handleViewGantt = () => {
+  if (!project.value) return
+  router.push(`/project/${project.value.id}/gantt`)
+}
+
+// 查看进度跟踪
+const handleViewProgress = () => {
+  if (!project.value) return
+  router.push(`/project/${project.value.id}/progress`)
 }
 
 // 编辑项目

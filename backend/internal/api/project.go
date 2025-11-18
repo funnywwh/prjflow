@@ -360,6 +360,330 @@ func (h *ProjectHandler) GetProjectMembers(c *gin.Context) {
 	utils.Success(c, members)
 }
 
+// GetProjectGantt 获取项目甘特图数据
+func (h *ProjectHandler) GetProjectGantt(c *gin.Context) {
+	projectID := c.Param("id")
+	
+	// 验证项目是否存在
+	var project model.Project
+	if err := h.db.First(&project, projectID).Error; err != nil {
+		utils.Error(c, 404, "项目不存在")
+		return
+	}
+
+	// 获取项目的所有任务（包含依赖关系）
+	var tasks []model.Task
+	if err := h.db.Where("project_id = ?", projectID).
+		Preload("Dependencies").
+		Preload("Assignee").
+		Order("created_at ASC").
+		Find(&tasks).Error; err != nil {
+		utils.Error(c, utils.CodeError, "查询任务失败")
+		return
+	}
+
+	// 转换为甘特图数据格式
+	type GanttTask struct {
+		ID          uint     `json:"id"`
+		Title       string   `json:"title"`
+		StartDate   string   `json:"start_date,omitempty"`
+		EndDate     string   `json:"end_date,omitempty"`
+		DueDate     string   `json:"due_date,omitempty"`
+		Progress    int      `json:"progress"`
+		Status      string   `json:"status"`
+		Priority    string   `json:"priority"`
+		Assignee    string   `json:"assignee,omitempty"`
+		Dependencies []uint   `json:"dependencies,omitempty"`
+	}
+
+	ganttTasks := make([]GanttTask, 0, len(tasks))
+	for _, task := range tasks {
+		ganttTask := GanttTask{
+			ID:          task.ID,
+			Title:       task.Title,
+			Progress:    task.Progress,
+			Status:      task.Status,
+			Priority:    task.Priority,
+		}
+
+		// 格式化日期
+		if task.StartDate != nil {
+			ganttTask.StartDate = task.StartDate.Format("2006-01-02")
+		}
+		if task.EndDate != nil {
+			ganttTask.EndDate = task.EndDate.Format("2006-01-02")
+		}
+		if task.DueDate != nil {
+			ganttTask.DueDate = task.DueDate.Format("2006-01-02")
+		}
+
+		// 负责人信息
+		if task.Assignee != nil {
+			if task.Assignee.Nickname != "" {
+				ganttTask.Assignee = task.Assignee.Username + "(" + task.Assignee.Nickname + ")"
+			} else {
+				ganttTask.Assignee = task.Assignee.Username
+			}
+		}
+
+		// 依赖关系（转换为依赖任务ID列表）
+		if len(task.Dependencies) > 0 {
+			dependencyIDs := make([]uint, 0, len(task.Dependencies))
+			for _, dep := range task.Dependencies {
+				dependencyIDs = append(dependencyIDs, dep.ID)
+			}
+			ganttTask.Dependencies = dependencyIDs
+		}
+
+		ganttTasks = append(ganttTasks, ganttTask)
+	}
+
+	utils.Success(c, gin.H{
+		"tasks": ganttTasks,
+	})
+}
+
+// GetProjectProgress 获取项目进度跟踪数据
+func (h *ProjectHandler) GetProjectProgress(c *gin.Context) {
+	projectID := c.Param("id")
+	
+	// 验证项目是否存在
+	var project model.Project
+	if err := h.db.First(&project, projectID).Error; err != nil {
+		utils.Error(c, 404, "项目不存在")
+		return
+	}
+
+	// 获取基础统计
+	statistics := h.getProjectStatistics(project.ID)
+
+	// 获取任务进度趋势（最近30天）
+	taskProgressTrend := h.getTaskProgressTrend(project.ID, 30)
+
+	// 获取任务状态分布
+	taskStatusDistribution := h.getTaskStatusDistribution(project.ID)
+
+	// 获取任务优先级分布
+	taskPriorityDistribution := h.getTaskPriorityDistribution(project.ID)
+
+	// 获取任务完成率趋势（按周）
+	taskCompletionTrend := h.getTaskCompletionTrend(project.ID, 12)
+
+	// 获取成员工作量统计
+	memberWorkload := h.getMemberWorkload(project.ID)
+
+	// 获取Bug趋势（最近30天）
+	bugTrend := h.getBugTrend(project.ID, 30)
+
+	// 获取需求完成趋势
+	requirementTrend := h.getRequirementTrend(project.ID, 30)
+
+	utils.Success(c, gin.H{
+		"statistics":                statistics,
+		"task_progress_trend":       taskProgressTrend,
+		"task_status_distribution":  taskStatusDistribution,
+		"task_priority_distribution": taskPriorityDistribution,
+		"task_completion_trend":      taskCompletionTrend,
+		"member_workload":            memberWorkload,
+		"bug_trend":                  bugTrend,
+		"requirement_trend":          requirementTrend,
+	})
+}
+
+// getTaskProgressTrend 获取任务进度趋势
+func (h *ProjectHandler) getTaskProgressTrend(projectID uint, days int) []gin.H {
+	var tasks []model.Task
+	h.db.Where("project_id = ? AND created_at >= ?", projectID, time.Now().AddDate(0, 0, -days)).
+		Order("created_at ASC").
+		Find(&tasks)
+
+	// 按日期分组统计平均进度
+	progressByDate := make(map[string][]int)
+	for _, task := range tasks {
+		date := task.CreatedAt.Format("2006-01-02")
+		progressByDate[date] = append(progressByDate[date], task.Progress)
+	}
+
+	result := make([]gin.H, 0)
+	for date, progresses := range progressByDate {
+		sum := 0
+		for _, p := range progresses {
+			sum += p
+		}
+		avg := float64(sum) / float64(len(progresses))
+		result = append(result, gin.H{
+			"date":    date,
+			"average": avg,
+			"count":   len(progresses),
+		})
+	}
+
+	return result
+}
+
+// getTaskStatusDistribution 获取任务状态分布
+func (h *ProjectHandler) getTaskStatusDistribution(projectID uint) []gin.H {
+	var tasks []model.Task
+	h.db.Where("project_id = ?", projectID).Find(&tasks)
+
+	statusCount := make(map[string]int)
+	for _, task := range tasks {
+		statusCount[task.Status]++
+	}
+
+	result := make([]gin.H, 0)
+	for status, count := range statusCount {
+		result = append(result, gin.H{
+			"status": status,
+			"count":  count,
+		})
+	}
+
+	return result
+}
+
+// getTaskPriorityDistribution 获取任务优先级分布
+func (h *ProjectHandler) getTaskPriorityDistribution(projectID uint) []gin.H {
+	var tasks []model.Task
+	h.db.Where("project_id = ?", projectID).Find(&tasks)
+
+	priorityCount := make(map[string]int)
+	for _, task := range tasks {
+		priorityCount[task.Priority]++
+	}
+
+	result := make([]gin.H, 0)
+	for priority, count := range priorityCount {
+		result = append(result, gin.H{
+			"priority": priority,
+			"count":     count,
+		})
+	}
+
+	return result
+}
+
+// getTaskCompletionTrend 获取任务完成率趋势（按周）
+func (h *ProjectHandler) getTaskCompletionTrend(projectID uint, weeks int) []gin.H {
+	result := make([]gin.H, 0)
+	now := time.Now()
+
+	for i := weeks - 1; i >= 0; i-- {
+		weekStart := now.AddDate(0, 0, -i*7).Truncate(24 * time.Hour)
+		weekEnd := weekStart.AddDate(0, 0, 7)
+
+		var totalTasks, completedTasks int64
+		h.db.Model(&model.Task{}).
+			Where("project_id = ? AND created_at < ?", projectID, weekEnd).
+			Count(&totalTasks)
+		h.db.Model(&model.Task{}).
+			Where("project_id = ? AND status = ? AND updated_at >= ? AND updated_at < ?", projectID, "done", weekStart, weekEnd).
+			Count(&completedTasks)
+
+		completionRate := 0.0
+		if totalTasks > 0 {
+			completionRate = float64(completedTasks) / float64(totalTasks) * 100
+		}
+
+		result = append(result, gin.H{
+			"week":            weekStart.Format("2006-01-02"),
+			"total":           totalTasks,
+			"completed":       completedTasks,
+			"completion_rate": completionRate,
+		})
+	}
+
+	return result
+}
+
+// getMemberWorkload 获取成员工作量统计
+func (h *ProjectHandler) getMemberWorkload(projectID uint) []gin.H {
+	var tasks []model.Task
+	h.db.Where("project_id = ? AND assignee_id IS NOT NULL", projectID).
+		Preload("Assignee").
+		Find(&tasks)
+
+	memberWorkload := make(map[uint]gin.H)
+	for _, task := range tasks {
+		if task.AssigneeID == nil {
+			continue
+		}
+		assigneeID := *task.AssigneeID
+		if _, exists := memberWorkload[assigneeID]; !exists {
+			memberWorkload[assigneeID] = gin.H{
+				"user_id":   assigneeID,
+				"username":  task.Assignee.Username,
+				"nickname":  task.Assignee.Nickname,
+				"total":     0,
+				"completed": 0,
+				"in_progress": 0,
+			}
+		}
+		workload := memberWorkload[assigneeID]
+		workload["total"] = workload["total"].(int) + 1
+		if task.Status == "done" {
+			workload["completed"] = workload["completed"].(int) + 1
+		} else if task.Status == "in_progress" {
+			workload["in_progress"] = workload["in_progress"].(int) + 1
+		}
+	}
+
+	result := make([]gin.H, 0, len(memberWorkload))
+	for _, workload := range memberWorkload {
+		result = append(result, workload)
+	}
+
+	return result
+}
+
+// getBugTrend 获取Bug趋势
+func (h *ProjectHandler) getBugTrend(projectID uint, days int) []gin.H {
+	var bugs []model.Bug
+	h.db.Where("project_id = ? AND created_at >= ?", projectID, time.Now().AddDate(0, 0, -days)).
+		Order("created_at ASC").
+		Find(&bugs)
+
+	bugByDate := make(map[string]int)
+	for _, bug := range bugs {
+		date := bug.CreatedAt.Format("2006-01-02")
+		bugByDate[date]++
+	}
+
+	result := make([]gin.H, 0)
+	for date, count := range bugByDate {
+		result = append(result, gin.H{
+			"date":  date,
+			"count": count,
+		})
+	}
+
+	return result
+}
+
+// getRequirementTrend 获取需求趋势
+func (h *ProjectHandler) getRequirementTrend(projectID uint, days int) []gin.H {
+	var requirements []model.Requirement
+	h.db.Where("project_id = ? AND created_at >= ?", projectID, time.Now().AddDate(0, 0, -days)).
+		Order("created_at ASC").
+		Find(&requirements)
+
+	reqByDate := make(map[string]int)
+	for _, req := range requirements {
+		date := req.CreatedAt.Format("2006-01-02")
+		reqByDate[date]++
+	}
+
+	result := make([]gin.H, 0)
+	for date, count := range reqByDate {
+		result = append(result, gin.H{
+			"date":  date,
+			"count": count,
+		})
+	}
+
+	return result
+}
+
 // AddProjectMembers 添加项目成员
 func (h *ProjectHandler) AddProjectMembers(c *gin.Context) {
 	projectID := c.Param("id")

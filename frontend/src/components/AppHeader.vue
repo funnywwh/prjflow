@@ -33,9 +33,9 @@
           <a-menu>
             <a-menu-item>
               <a-avatar :src="authStore.user?.avatar" :size="24" style="margin-right: 8px">
-                {{ authStore.user?.username?.charAt(0).toUpperCase() }}
+                {{ (authStore.user?.nickname || authStore.user?.username)?.charAt(0).toUpperCase() }}
               </a-avatar>
-              {{ authStore.user?.username }}
+              {{ authStore.user?.username }}{{ authStore.user?.nickname ? `(${authStore.user.nickname})` : '' }}
             </a-menu-item>
             <a-menu-divider />
             <a-menu-item key="changePassword" @click="handleChangePassword">
@@ -51,9 +51,9 @@
         </template>
         <a-space class="user-info" style="cursor: pointer">
           <a-avatar :src="authStore.user?.avatar" :size="32">
-            {{ authStore.user?.username?.charAt(0).toUpperCase() }}
+            {{ (authStore.user?.nickname || authStore.user?.username)?.charAt(0).toUpperCase() }}
           </a-avatar>
-          <span class="username">{{ authStore.user?.username || '用户' }}</span>
+          <span class="username">{{ authStore.user?.username || '用户' }}{{ authStore.user?.nickname ? `(${authStore.user.nickname})` : '' }}</span>
         </a-space>
       </a-dropdown>
     </div>

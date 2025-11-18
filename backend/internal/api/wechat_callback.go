@@ -190,41 +190,42 @@ func GetDefaultErrorHTML(title, message string) string {
 // GenerateUniqueUsername 生成唯一的用户名
 // 如果基础用户名已存在，自动添加数字后缀（如：用户名_1, 用户名_2）
 // 如果基础用户名为空，使用OpenID的一部分生成
+// 为了提高唯一性，默认使用时间戳作为后缀的一部分
 func GenerateUniqueUsername(db *gorm.DB, baseUsername string, openID string) string {
 	username := baseUsername
 	if username == "" {
-		// 如果用户名为空，使用OpenID的一部分
+		// 如果用户名为空，使用OpenID的一部分 + 时间戳确保唯一性
+		openIDSuffix := openID
 		if len(openID) > 8 {
-			username = "用户_" + openID[len(openID)-8:]
-		} else {
-			username = "用户_" + openID
+			openIDSuffix = openID[len(openID)-8:]
 		}
+		// 使用时间戳的后6位 + OpenID后缀，提高唯一性
+		timestampSuffix := time.Now().Unix() % 1000000 // 取后6位
+		username = fmt.Sprintf("用户_%d_%s", timestampSuffix, openIDSuffix)
 	}
 
-	// 检查用户名是否已存在，如果存在则添加数字后缀
+	// 检查用户名是否已存在，如果存在则添加数字后缀（包括软删除的记录）
 	originalUsername := username
 	suffix := 1
-	for {
+	maxAttempts := 100
+	for attempt := 0; attempt < maxAttempts; attempt++ {
 		var checkUser model.User
-		if err := db.Where("username = ?", username).First(&checkUser).Error; err == gorm.ErrRecordNotFound {
+		// 使用 Unscoped() 检查包括软删除的记录，因为唯一索引仍然存在
+		if err := db.Unscoped().Where("username = ?", username).First(&checkUser).Error; err == gorm.ErrRecordNotFound {
 			// 用户名可用
-			break
-		} else if err != nil {
+			return username
+		} else if err != nil && err != gorm.ErrRecordNotFound {
 			// 查询出错，使用时间戳作为后缀
 			username = fmt.Sprintf("%s_%d", originalUsername, time.Now().Unix())
-			break
+			return username
 		}
-		// 用户名已存在，添加数字后缀
+		// 用户名已存在（包括软删除的），添加数字后缀
 		suffix++
 		username = fmt.Sprintf("%s_%d", originalUsername, suffix)
-		// 防止无限循环（最多尝试100次）
-		if suffix > 100 {
-			// 使用时间戳作为后缀
-			username = fmt.Sprintf("%s_%d", originalUsername, time.Now().Unix())
-			break
-		}
 	}
-
+	
+	// 如果尝试100次后仍然冲突，使用时间戳 + 随机数
+	username = fmt.Sprintf("%s_%d_%d", originalUsername, time.Now().Unix(), suffix)
 	return username
 }
 

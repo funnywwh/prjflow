@@ -165,9 +165,22 @@ func (h *InitHandler) InitSystem(c *gin.Context) {
 	}
 
 	// 2. 创建管理员用户（使用微信登录获取的用户信息）
+	// 使用微信昵称作为用户名，如果为空则使用默认值
+	adminUsername := userInfo.Nickname
+	if adminUsername == "" {
+		adminUsername = "管理员"
+	}
+	
+	// 确保昵称不为空（如果微信昵称为空，使用用户名作为默认昵称）
+	adminNickname := userInfo.Nickname
+	if adminNickname == "" {
+		adminNickname = adminUsername
+	}
+	
 	adminUser := model.User{
 		WeChatOpenID: userInfo.OpenID,
-		Username:     userInfo.Nickname,
+		Username:     adminUsername,
+		Nickname:     adminNickname, // 设置昵称（从微信昵称获取，如果为空则使用用户名）
 		Avatar:       userInfo.HeadImgURL,
 		Status:       1,
 	}

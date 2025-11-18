@@ -14,7 +14,8 @@ type User struct {
 	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
 
 	WeChatOpenID string `gorm:"column:wechat_open_id;uniqueIndex;size:100" json:"wechat_open_id"` // 微信OpenID
-	Username     string `gorm:"size:50;not null;uniqueIndex" json:"username"`            // 用户名（唯一）
+	Username     string `gorm:"size:50;not null;uniqueIndex" json:"username"`            // 用户名（唯一，用于登录）
+	Nickname     string `gorm:"size:50" json:"nickname"`                       // 昵称（用于前端显示，不能为空，应用层保证）
 	Password     string `gorm:"size:255" json:"-"`                       // 密码（不返回给前端）
 	Email        string `gorm:"size:100" json:"email"`                       // 邮箱
 	Avatar       string `gorm:"size:255" json:"avatar"`                     // 头像URL

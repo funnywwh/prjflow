@@ -150,11 +150,18 @@ func (h *LoginCallbackHandler) Process(ctx *WeChatCallbackContext) (interface{},
 	if result.Error == gorm.ErrRecordNotFound {
 		// 生成唯一的用户名（如果昵称已存在，自动添加数字后缀）
 		username := GenerateUniqueUsername(ctx.DB, ctx.UserInfo.Nickname, ctx.UserInfo.OpenID)
-		
+
+		// 确保昵称不为空（如果微信昵称为空，使用用户名作为默认昵称）
+		nickname := ctx.UserInfo.Nickname
+		if nickname == "" {
+			nickname = username
+		}
+
 		// 创建新用户
 		user = model.User{
 			WeChatOpenID: ctx.UserInfo.OpenID,
 			Username:     username,
+			Nickname:     nickname, // 设置昵称（从微信昵称获取，如果为空则使用用户名）
 			Avatar:       ctx.UserInfo.HeadImgURL,
 			Status:       1,
 		}
@@ -316,11 +323,18 @@ func (h *AuthHandler) WeChatLogin(c *gin.Context) {
 	if result.Error == gorm.ErrRecordNotFound {
 		// 生成唯一的用户名（如果昵称已存在，自动添加数字后缀）
 		username := GenerateUniqueUsername(h.db, userInfo.Nickname, userInfo.OpenID)
-		
+
+		// 确保昵称不为空（如果微信昵称为空，使用用户名作为默认昵称）
+		nickname := userInfo.Nickname
+		if nickname == "" {
+			nickname = username
+		}
+
 		// 创建新用户
 		user = model.User{
 			WeChatOpenID: userInfo.OpenID,
 			Username:     username,
+			Nickname:     nickname, // 设置昵称（从微信昵称获取，如果为空则使用用户名）
 			Avatar:       userInfo.HeadImgURL,
 			Status:       1,
 		}
@@ -406,6 +420,7 @@ func (h *AuthHandler) GetUserInfo(c *gin.Context) {
 	utils.Success(c, gin.H{
 		"id":         user.ID,
 		"username":   user.Username,
+		"nickname":   user.Nickname,
 		"email":      user.Email,
 		"avatar":     user.Avatar,
 		"phone":      user.Phone,
@@ -504,7 +519,7 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 
 	// 检查用户是否已有密码
 	hasPassword := user.Password != ""
-	
+
 	// 如果用户已有密码，需要验证旧密码
 	// 如果用户没有密码（微信登录用户），则可以直接设置新密码
 	if hasPassword {

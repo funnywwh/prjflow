@@ -72,6 +72,7 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 func (h *UserHandler) CreateUser(c *gin.Context) {
 	var req struct {
 		Username     string `json:"username" binding:"required"`
+		Nickname     string `json:"nickname" binding:"required"` // 昵称（必填）
 		Password     string `json:"password"` // 可选，如果提供则加密存储
 		Email        string `json:"email"`
 		Phone        string `json:"phone"`
@@ -95,6 +96,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	// 创建用户
 	user := model.User{
 		Username:     req.Username,
+		Nickname:     req.Nickname,
 		Email:        req.Email,
 		Phone:        req.Phone,
 		Avatar:       req.Avatar,
@@ -134,6 +136,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 
 	var req struct {
 		Username     string `json:"username"`
+		Nickname     string `json:"nickname" binding:"required"` // 昵称（必填，不能为空）
 		Password     string `json:"password"` // 可选，如果提供则更新密码
 		Email        string `json:"email"`
 		Phone        string `json:"phone"`
@@ -147,6 +150,12 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
+	// 验证昵称不能为空
+	if req.Nickname == "" {
+		utils.Error(c, 400, "昵称不能为空")
+		return
+	}
+
 	// 更新字段
 	if req.Username != "" {
 		// 检查新用户名是否已被其他用户使用
@@ -157,6 +166,8 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		}
 		user.Username = req.Username
 	}
+	// 更新昵称（必填，不能为空）
+	user.Nickname = req.Nickname
 	if req.Email != "" {
 		user.Email = req.Email
 	}

@@ -66,8 +66,11 @@
               <template #bodyCell="{ column, record }">
                 <template v-if="column.key === 'avatar'">
                   <a-avatar :src="record.avatar" :size="40">
-                    {{ record.username?.charAt(0).toUpperCase() }}
+                    {{ (record.nickname || record.username)?.charAt(0).toUpperCase() }}
                   </a-avatar>
+                </template>
+                <template v-else-if="column.key === 'nickname'">
+                  {{ record.username }}({{ record.nickname }})
                 </template>
                 <template v-else-if="column.key === 'status'">
                   <a-tag :color="record.status === 1 ? 'green' : 'red'">
@@ -125,7 +128,10 @@
         :wrapper-col="{ span: 18 }"
       >
         <a-form-item label="用户名" name="username">
-          <a-input v-model:value="formData.username" placeholder="请输入用户名" />
+          <a-input v-model:value="formData.username" placeholder="请输入用户名（用于登录）" />
+        </a-form-item>
+        <a-form-item label="昵称" name="nickname">
+          <a-input v-model:value="formData.nickname" placeholder="请输入昵称（必填，用于显示）" />
         </a-form-item>
         <a-form-item 
           label="密码" 
@@ -203,6 +209,30 @@
         @error="handleScanAddUserError"
       />
     </a-modal>
+
+    <!-- 修改昵称对话框 -->
+    <a-modal
+      v-model:open="nicknameModalVisible"
+      title="设置用户昵称"
+      @ok="handleNicknameSubmit"
+      @cancel="handleNicknameCancel"
+      :confirm-loading="nicknameSubmitting"
+    >
+      <a-form
+        ref="nicknameFormRef"
+        :model="nicknameFormData"
+        :rules="nicknameFormRules"
+        :label-col="{ span: 6 }"
+        :wrapper-col="{ span: 18 }"
+      >
+        <a-form-item label="用户名" name="username">
+          <a-input v-model:value="nicknameFormData.username" disabled />
+        </a-form-item>
+        <a-form-item label="昵称" name="nickname">
+          <a-input v-model:value="nicknameFormData.nickname" placeholder="请输入昵称（必填，用于前端显示）" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -261,6 +291,11 @@ const columns = [
     key: 'username'
   },
   {
+    title: '昵称',
+    dataIndex: 'nickname',
+    key: 'nickname'
+  },
+  {
     title: '邮箱',
     dataIndex: 'email',
     key: 'email'
@@ -298,6 +333,7 @@ const modalTitle = ref('新增用户')
 const formRef = ref()
 const formData = reactive<CreateUserRequest & { id?: number; password?: string }>({
   username: '',
+  nickname: '',
   password: '',
   email: '',
   phone: '',
@@ -307,6 +343,7 @@ const formData = reactive<CreateUserRequest & { id?: number; password?: string }
 
 const formRules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+  nickname: [{ required: true, message: '请输入昵称', trigger: 'blur' }],
   email: [{ type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }]
 }
 
@@ -316,6 +353,18 @@ const currentUserId = ref<number>()
 
 const scanAddUserModalVisible = ref(false)
 const scanAddUserQRCodeRef = ref<InstanceType<typeof WeChatQRCode>>()
+
+const nicknameModalVisible = ref(false)
+const nicknameSubmitting = ref(false)
+const nicknameFormRef = ref()
+const nicknameFormData = reactive({
+  id: 0,
+  username: '',
+  nickname: ''
+})
+const nicknameFormRules = {
+  nickname: [{ required: true, message: '请输入昵称（不能为空）', trigger: 'blur' }]
+}
 
 // 加载用户列表
 const loadUsers = async () => {
@@ -384,6 +433,7 @@ const handleCreate = () => {
   modalTitle.value = '新增用户'
   Object.assign(formData, {
     username: '',
+    nickname: '',
     password: '',
     email: '',
     phone: '',
@@ -400,6 +450,7 @@ const handleEdit = (record: User) => {
   Object.assign(formData, {
     id: record.id,
     username: record.username,
+    nickname: record.nickname || '',
     password: '', // 编辑时不显示密码，留空则不修改
     email: record.email || '',
     phone: record.phone || '',
@@ -511,10 +562,12 @@ const getAddUserQRCode = async () => {
 const handleScanAddUserSuccess = async (data: any) => {
   if (data.user) {
     try {
-      // 用户已通过后端API创建，这里只需要刷新列表
-      message.success('用户添加成功')
+      // 用户已通过后端API创建，显示修改昵称对话框
       scanAddUserModalVisible.value = false
-      loadUsers()
+      nicknameFormData.id = data.user.id
+      nicknameFormData.username = data.user.username
+      nicknameFormData.nickname = data.user.nickname || ''
+      nicknameModalVisible.value = true
     } catch (error: any) {
       message.error(error.message || '添加用户失败')
     }
@@ -529,6 +582,37 @@ const handleScanAddUserError = (error: string) => {
 // 关闭扫码添加用户对话框
 const handleCloseScanAddUserModal = () => {
   scanAddUserModalVisible.value = false
+}
+
+// 提交昵称修改
+const handleNicknameSubmit = async () => {
+  try {
+    await nicknameFormRef.value.validate()
+    nicknameSubmitting.value = true
+    
+    await updateUser(nicknameFormData.id, {
+      nickname: nicknameFormData.nickname
+    })
+    
+    message.success('昵称设置成功')
+    nicknameModalVisible.value = false
+    loadUsers()
+  } catch (error: any) {
+    if (error.errorFields) {
+      return
+    }
+    message.error(error.message || '设置昵称失败')
+  } finally {
+    nicknameSubmitting.value = false
+  }
+}
+
+// 取消昵称修改
+const handleNicknameCancel = () => {
+  nicknameModalVisible.value = false
+  nicknameFormRef.value?.resetFields()
+  // 即使取消，也刷新列表，因为用户已经创建了
+  loadUsers()
 }
 
 onMounted(() => {

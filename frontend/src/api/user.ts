@@ -4,6 +4,7 @@ export interface User {
   id: number
   wechat_open_id?: string
   username: string
+  nickname?: string
   email?: string
   avatar?: string
   phone?: string
@@ -61,6 +62,7 @@ export interface UserListResponse {
 
 export interface CreateUserRequest {
   username: string
+  nickname?: string
   password?: string
   email?: string
   phone?: string
@@ -113,6 +115,7 @@ export interface AddUserByWeChatResponse {
   user: {
     id: number
     username: string
+    nickname?: string
     email?: string
     avatar?: string
     wechat_open_id?: string

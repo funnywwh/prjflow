@@ -60,9 +60,16 @@ func (h *InitCallbackHandlerImpl) Process(ctx *WeChatCallbackContext) (interface
 	// 生成唯一的用户名（如果昵称已存在，自动添加数字后缀）
 	adminUsername := GenerateUniqueUsername(tx, ctx.UserInfo.Nickname, ctx.UserInfo.OpenID)
 	
+	// 确保昵称不为空（如果微信昵称为空，使用用户名作为默认昵称）
+	adminNickname := ctx.UserInfo.Nickname
+	if adminNickname == "" {
+		adminNickname = adminUsername
+	}
+	
 	adminUser := model.User{
 		WeChatOpenID: ctx.UserInfo.OpenID,
 		Username:     adminUsername,
+		Nickname:     adminNickname, // 设置昵称（从微信昵称获取，如果为空则使用用户名）
 		Avatar:       ctx.UserInfo.HeadImgURL,
 		Status:       1,
 	}

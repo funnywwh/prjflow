@@ -76,7 +76,7 @@ func (h *AddUserCallbackHandler) Process(ctx *WeChatCallbackContext) (interface{
 			}, nil
 		} else {
 			// 用户已存在且未删除
-			return nil, &CallbackError{Message: "该微信用户已存在"}
+		return nil, &CallbackError{Message: "该微信用户已存在"}
 		}
 	} else if result.Error != gorm.ErrRecordNotFound {
 		// 查询出错
@@ -93,7 +93,7 @@ func (h *AddUserCallbackHandler) Process(ctx *WeChatCallbackContext) (interface{
 	var user model.User
 	maxRetries := 5
 	for i := 0; i < maxRetries; i++ {
-		// 生成唯一的用户名（如果昵称已存在，自动添加数字后缀）
+	// 生成唯一的用户名（如果昵称已存在，自动添加数字后缀）
 		username := GenerateUniqueUsername(ctx.DB, nickname, ctx.UserInfo.OpenID)
 		
 		// 如果昵称为空，使用用户名
@@ -101,14 +101,14 @@ func (h *AddUserCallbackHandler) Process(ctx *WeChatCallbackContext) (interface{
 			nickname = username
 		}
 
-		// 创建新用户
+	// 创建新用户
 		user = model.User{
-			WeChatOpenID: ctx.UserInfo.OpenID,
-			Username:     username,
+		WeChatOpenID: ctx.UserInfo.OpenID,
+		Username:     username,
 			Nickname:     nickname, // 设置昵称（从微信昵称获取，如果为空则使用用户名）
-			Avatar:       ctx.UserInfo.HeadImgURL,
-			Status:       1,
-		}
+		Avatar:       ctx.UserInfo.HeadImgURL,
+		Status:       1,
+	}
 		
 		err := ctx.DB.Create(&user).Error
 		if err == nil {

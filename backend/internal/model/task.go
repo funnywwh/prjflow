@@ -33,6 +33,9 @@ type Task struct {
 
 	Progress int `gorm:"default:0" json:"progress"` // 进度：0-100
 
+	EstimatedHours *float64 `gorm:"default:0" json:"estimated_hours"` // 预估工时（小时）
+	ActualHours    *float64 `gorm:"default:0" json:"actual_hours"`    // 实际工时（小时），从资源分配自动计算
+
 	// 任务依赖关系（多对多）
 	Dependencies []Task `gorm:"many2many:task_dependencies;joinForeignKey:task_id;joinReferences:dependency_id" json:"dependencies,omitempty"`
 }

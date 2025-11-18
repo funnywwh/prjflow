@@ -14,6 +14,8 @@ export interface Bug {
   assignees?: any[]
   requirement_id?: number
   requirement?: any
+  estimated_hours?: number
+  actual_hours?: number
   created_at?: string
   updated_at?: string
 }
@@ -34,6 +36,9 @@ export interface CreateBugRequest {
   project_id: number
   requirement_id?: number
   assignee_ids?: number[]
+  estimated_hours?: number
+  actual_hours?: number
+  work_date?: string
 }
 
 export interface UpdateBugStatusRequest {

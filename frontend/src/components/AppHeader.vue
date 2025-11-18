@@ -49,6 +49,9 @@
         <a-menu-item key="test-report" @click="$router.push('/test-report')">
           测试报告
         </a-menu-item>
+        <a-menu-item key="resource-statistics" @click="$router.push('/resource/statistics')">
+          资源统计
+        </a-menu-item>
       </a-menu>
     </div>
     <div class="header-right">

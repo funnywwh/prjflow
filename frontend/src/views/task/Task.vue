@@ -101,6 +101,13 @@
                 <template v-else-if="column.key === 'progress'">
                   <a-progress :percent="record.progress" :status="record.status === 'done' ? 'success' : 'active'" />
                 </template>
+                <template v-else-if="column.key === 'hours'">
+                  <div>
+                    <div v-if="record.estimated_hours">预估: {{ record.estimated_hours.toFixed(2) }}h</div>
+                    <div v-if="record.actual_hours">实际: {{ record.actual_hours.toFixed(2) }}h</div>
+                    <span v-if="!record.estimated_hours && !record.actual_hours">-</span>
+                  </div>
+                </template>
                 <template v-else-if="column.key === 'dates'">
                   <div>
                     <div v-if="record.start_date">开始: {{ record.start_date }}</div>
@@ -256,6 +263,34 @@
           />
           <span style="margin-left: 8px">{{ formData.progress }}%</span>
         </a-form-item>
+        <a-form-item label="预估工时" name="estimated_hours">
+          <a-input-number
+            v-model:value="formData.estimated_hours"
+            placeholder="预估工时（小时）"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
+        </a-form-item>
+        <a-form-item label="实际工时" name="actual_hours">
+          <a-input-number
+            v-model:value="formData.actual_hours"
+            placeholder="实际工时（小时）"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
+          <span style="margin-left: 8px; color: #999">更新实际工时会自动创建资源分配</span>
+        </a-form-item>
+        <a-form-item label="工作日期" name="work_date" v-if="formData.actual_hours">
+          <a-date-picker
+            v-model:value="formData.work_date"
+            placeholder="选择工作日期（可选）"
+            style="width: 100%"
+            format="YYYY-MM-DD"
+          />
+          <span style="margin-left: 8px; color: #999">不填则使用任务开始日期或今天</span>
+        </a-form-item>
         <a-form-item label="依赖任务" name="dependency_ids">
           <a-select
             v-model:value="formData.dependency_ids"
@@ -299,8 +334,37 @@
             :min="0"
             :max="100"
             :marks="{ 0: '0%', 50: '50%', 100: '100%' }"
+            :disabled="autoProgress"
           />
-          <span style="margin-left: 8px">{{ progressFormData.progress }}%</span>
+          <span style="margin-left: 8px">{{ progressFormData.progress || 0 }}%</span>
+          <span v-if="autoProgress" style="margin-left: 8px; color: #999">（根据工时自动计算）</span>
+        </a-form-item>
+        <a-form-item label="预估工时" name="estimated_hours">
+          <a-input-number
+            v-model:value="progressFormData.estimated_hours"
+            placeholder="预估工时（小时）"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
+        </a-form-item>
+        <a-form-item label="实际工时" name="actual_hours">
+          <a-input-number
+            v-model:value="progressFormData.actual_hours"
+            placeholder="实际工时（小时）"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
+          <span style="margin-left: 8px; color: #999">更新实际工时会自动创建资源分配并计算进度</span>
+        </a-form-item>
+        <a-form-item label="工作日期" name="work_date" v-if="progressFormData.actual_hours">
+          <a-date-picker
+            v-model:value="progressFormData.work_date"
+            placeholder="选择工作日期（默认今天）"
+            style="width: 100%"
+            format="YYYY-MM-DD"
+          />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -308,7 +372,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch, nextTick } from 'vue'
+import { ref, reactive, onMounted, watch, nextTick, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { PlusOutlined, DownOutlined } from '@ant-design/icons-vue'
@@ -324,7 +388,8 @@ import {
   updateTaskStatus,
   updateTaskProgress,
   type Task,
-  type CreateTaskRequest
+  type CreateTaskRequest,
+  type UpdateTaskProgressRequest
 } from '@/api/task'
 import { getProjects, type Project } from '@/api/project'
 import { getUsers, type User } from '@/api/user'
@@ -361,6 +426,7 @@ const columns = [
   { title: '优先级', key: 'priority', width: 100 },
   { title: '负责人', key: 'assignee', width: 150 },
   { title: '进度', key: 'progress', width: 150 },
+  { title: '工时', key: 'hours', width: 150 },
   { title: '日期', key: 'dates', width: 200 },
   { title: '创建时间', dataIndex: 'created_at', key: 'created_at', width: 180 },
   { title: '操作', key: 'action', width: 300, fixed: 'right' as const }
@@ -369,7 +435,7 @@ const columns = [
 const modalVisible = ref(false)
 const modalTitle = ref('新增任务')
 const formRef = ref()
-const formData = reactive<CreateTaskRequest & { id?: number; start_date?: Dayjs; end_date?: Dayjs; due_date?: Dayjs }>({
+const formData = reactive<CreateTaskRequest & { id?: number; start_date?: Dayjs; end_date?: Dayjs; due_date?: Dayjs; actual_hours?: number; work_date?: Dayjs }>({
   title: '',
   description: '',
   status: 'todo',
@@ -380,6 +446,9 @@ const formData = reactive<CreateTaskRequest & { id?: number; start_date?: Dayjs;
   end_date: undefined,
   due_date: undefined,
   progress: 0,
+  estimated_hours: undefined,
+  actual_hours: undefined,
+  work_date: undefined,
   dependency_ids: []
 })
 
@@ -390,14 +459,41 @@ const formRules = {
 
 const progressModalVisible = ref(false)
 const progressFormRef = ref()
-const progressFormData = reactive({
+const progressFormData = reactive<{
+  task_id: number
+  progress?: number
+  estimated_hours?: number
+  actual_hours?: number
+  work_date?: Dayjs
+}>({
   task_id: 0,
-  progress: 0
+  progress: undefined,
+  estimated_hours: undefined,
+  actual_hours: undefined,
+  work_date: undefined
 })
 
 const progressFormRules = {
-  progress: [{ required: true, message: '请设置进度', trigger: 'change' }]
+  // progress不再是必填项，因为可以通过工时自动计算
 }
+
+// 自动计算进度（实际工时/预估工时 * 100）
+const autoProgress = computed(() => {
+  if (progressFormData.estimated_hours && progressFormData.estimated_hours > 0 && progressFormData.actual_hours) {
+    const progress = Math.min(100, Math.max(0, Math.round((progressFormData.actual_hours / progressFormData.estimated_hours) * 100)))
+    progressFormData.progress = progress
+    return true
+  }
+  return false
+})
+
+// 监听实际工时和预估工时的变化，自动计算进度
+watch([() => progressFormData.actual_hours, () => progressFormData.estimated_hours], () => {
+  if (progressFormData.estimated_hours && progressFormData.estimated_hours > 0 && progressFormData.actual_hours) {
+    const progress = Math.min(100, Math.max(0, Math.round((progressFormData.actual_hours / progressFormData.estimated_hours) * 100)))
+    progressFormData.progress = progress
+  }
+})
 
 // 加载任务列表
 const loadTasks = async () => {
@@ -516,6 +612,7 @@ const handleCreate = () => {
   formData.end_date = undefined
   formData.due_date = undefined
   formData.progress = 0
+  formData.estimated_hours = undefined
   formData.dependency_ids = []
   modalVisible.value = true
   // 如果预填充了项目ID，加载该项目的任务列表（用于依赖任务选择）
@@ -554,6 +651,9 @@ const handleEdit = (record: Task) => {
     formData.due_date = undefined
   }
   formData.progress = record.progress
+  formData.estimated_hours = record.estimated_hours
+  formData.actual_hours = record.actual_hours
+  formData.work_date = undefined
   formData.dependency_ids = record.dependencies?.map(d => d.id) || []
   modalVisible.value = true
   if (formData.project_id) {
@@ -586,6 +686,9 @@ const handleSubmit = async () => {
       end_date: formData.end_date && formData.end_date.isValid() ? formData.end_date.format('YYYY-MM-DD') : undefined,
       due_date: formData.due_date && formData.due_date.isValid() ? formData.due_date.format('YYYY-MM-DD') : undefined,
       progress: formData.progress,
+      estimated_hours: formData.estimated_hours,
+      actual_hours: formData.actual_hours,
+      work_date: formData.work_date && formData.work_date.isValid() ? formData.work_date.format('YYYY-MM-DD') : undefined,
       dependency_ids: formData.dependency_ids
     }
     if (formData.id) {
@@ -637,6 +740,9 @@ const handleStatusChange = async (id: number, status: string) => {
 const handleUpdateProgress = (record: Task) => {
   progressFormData.task_id = record.id
   progressFormData.progress = record.progress
+  progressFormData.estimated_hours = record.estimated_hours
+  progressFormData.actual_hours = record.actual_hours // 显示当前实际工时
+  progressFormData.work_date = dayjs() // 默认今天
   progressModalVisible.value = true
 }
 
@@ -644,7 +750,13 @@ const handleUpdateProgress = (record: Task) => {
 const handleProgressSubmit = async () => {
   try {
     await progressFormRef.value.validate()
-    await updateTaskProgress(progressFormData.task_id, { progress: progressFormData.progress })
+    const data: UpdateTaskProgressRequest = {
+      progress: progressFormData.progress,
+      estimated_hours: progressFormData.estimated_hours,
+      actual_hours: progressFormData.actual_hours,
+      work_date: progressFormData.work_date && progressFormData.work_date.isValid() ? progressFormData.work_date.format('YYYY-MM-DD') : undefined
+    }
+    await updateTaskProgress(progressFormData.task_id, data)
     message.success('进度更新成功')
     progressModalVisible.value = false
     loadTasks()

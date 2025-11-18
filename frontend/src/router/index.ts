@@ -180,6 +180,12 @@ const routes: RouteRecordRaw[] = [
     name: 'Board',
     component: () => import('../views/board/Board.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/resource/statistics',
+    name: 'ResourceStatistics',
+    component: () => import('../views/resource/ResourceStatistics.vue'),
+    meta: { requiresAuth: true }
   }
 ]
 

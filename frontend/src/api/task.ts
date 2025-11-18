@@ -16,6 +16,8 @@ export interface Task {
   end_date?: string
   due_date?: string
   progress: number
+  estimated_hours?: number
+  actual_hours?: number
   dependencies?: Task[]
   created_at?: string
   updated_at?: string
@@ -39,6 +41,9 @@ export interface CreateTaskRequest {
   end_date?: string
   due_date?: string
   progress?: number
+  estimated_hours?: number
+  actual_hours?: number
+  work_date?: string
   dependency_ids?: number[]
 }
 
@@ -47,7 +52,10 @@ export interface UpdateTaskStatusRequest {
 }
 
 export interface UpdateTaskProgressRequest {
-  progress: number
+  progress?: number
+  estimated_hours?: number
+  actual_hours?: number
+  work_date?: string
 }
 
 // 任务相关API

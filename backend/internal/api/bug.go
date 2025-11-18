@@ -1,6 +1,9 @@
 package api
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 	"project-management/internal/model"
@@ -91,14 +94,15 @@ func (h *BugHandler) GetBug(c *gin.Context) {
 // CreateBug 创建Bug
 func (h *BugHandler) CreateBug(c *gin.Context) {
 	var req struct {
-		Title        string  `json:"title" binding:"required"`
-		Description  string  `json:"description"`
-		Status       string  `json:"status"`
-		Priority     string  `json:"priority"`
-		Severity     string  `json:"severity"`
-		ProjectID    uint    `json:"project_id" binding:"required"`
-		RequirementID *uint  `json:"requirement_id"`
-		AssigneeIDs  []uint  `json:"assignee_ids"`
+		Title         string   `json:"title" binding:"required"`
+		Description   string   `json:"description"`
+		Status        string   `json:"status"`
+		Priority      string   `json:"priority"`
+		Severity      string   `json:"severity"`
+		ProjectID     uint     `json:"project_id" binding:"required"`
+		RequirementID *uint    `json:"requirement_id"`
+		AssigneeIDs   []uint   `json:"assignee_ids"`
+		EstimatedHours *float64 `json:"estimated_hours"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -185,14 +189,15 @@ func (h *BugHandler) CreateBug(c *gin.Context) {
 	}
 
 	bug := model.Bug{
-		Title:        req.Title,
-		Description:  req.Description,
-		Status:       req.Status,
-		Priority:     req.Priority,
-		Severity:     req.Severity,
-		ProjectID:    req.ProjectID,
-		RequirementID: req.RequirementID,
-		CreatorID:    userID.(uint),
+		Title:          req.Title,
+		Description:    req.Description,
+		Status:         req.Status,
+		Priority:       req.Priority,
+		Severity:       req.Severity,
+		ProjectID:      req.ProjectID,
+		RequirementID:  req.RequirementID,
+		CreatorID:      userID.(uint),
+		EstimatedHours: req.EstimatedHours,
 	}
 
 	if err := h.db.Create(&bug).Error; err != nil {
@@ -231,14 +236,17 @@ func (h *BugHandler) UpdateBug(c *gin.Context) {
 	}
 
 	var req struct {
-		Title        *string `json:"title"`
-		Description  *string `json:"description"`
-		Status       *string `json:"status"`
-		Priority     *string `json:"priority"`
-		Severity     *string `json:"severity"`
-		ProjectID    *uint   `json:"project_id"`
-		RequirementID *uint  `json:"requirement_id"`
-		AssigneeIDs  *[]uint `json:"assignee_ids"`
+		Title          *string  `json:"title"`
+		Description    *string  `json:"description"`
+		Status         *string  `json:"status"`
+		Priority       *string  `json:"priority"`
+		Severity       *string  `json:"severity"`
+		ProjectID      *uint    `json:"project_id"`
+		RequirementID  *uint    `json:"requirement_id"`
+		AssigneeIDs    *[]uint  `json:"assignee_ids"`
+		EstimatedHours *float64 `json:"estimated_hours"`
+		ActualHours    *float64 `json:"actual_hours"` // 实际工时，会自动创建资源分配
+		WorkDate       *string  `json:"work_date"`     // 工作日期（YYYY-MM-DD），用于资源分配
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -318,7 +326,54 @@ func (h *BugHandler) UpdateBug(c *gin.Context) {
 			bug.RequirementID = nil
 		}
 	}
-
+	if req.EstimatedHours != nil {
+		if *req.EstimatedHours < 0 {
+			utils.Error(c, 400, "预估工时不能为负数")
+			return
+		}
+		bug.EstimatedHours = req.EstimatedHours
+	}
+	
+	// 如果更新了实际工时，自动创建或更新资源分配
+	if req.ActualHours != nil {
+		if *req.ActualHours < 0 {
+			utils.Error(c, 400, "实际工时不能为负数")
+			return
+		}
+		// 先加载分配人信息
+		h.db.Preload("Assignees").First(&bug, bug.ID)
+		
+		// Bug可能有多个分配人，需要为每个分配人创建资源分配
+		// 这里先处理第一个分配人，或者需要前端指定分配人
+		// 暂时使用第一个分配人，如果没有分配人则直接设置actual_hours
+		if len(bug.Assignees) > 0 {
+			// 确定工作日期
+			var workDate time.Time
+			if req.WorkDate != nil && *req.WorkDate != "" {
+				if t, err := time.Parse("2006-01-02", *req.WorkDate); err == nil {
+					workDate = t
+				} else {
+					utils.Error(c, 400, "工作日期格式错误，应为 YYYY-MM-DD")
+					return
+				}
+			} else {
+				workDate = time.Now()
+			}
+			workDate = time.Date(workDate.Year(), workDate.Month(), workDate.Day(), 0, 0, 0, 0, workDate.Location())
+			
+			// 为第一个分配人同步到资源分配
+			if err := h.syncBugActualHours(&bug, *req.ActualHours, workDate, bug.Assignees[0].ID); err != nil {
+				utils.Error(c, utils.CodeError, "同步资源分配失败: "+err.Error())
+				return
+			}
+			// 从资源分配中汇总实际工时（确保actual_hours正确）
+			h.calculateAndUpdateActualHours(&bug)
+		} else {
+			// 如果没有分配人，直接设置actual_hours，但不创建资源分配
+			bug.ActualHours = req.ActualHours
+		}
+	}
+	
 	if err := h.db.Save(&bug).Error; err != nil {
 		utils.Error(c, utils.CodeError, "更新失败")
 		return
@@ -508,3 +563,57 @@ func (h *BugHandler) AssignBug(c *gin.Context) {
 	utils.Success(c, bug)
 }
 
+// syncBugActualHours 同步Bug实际工时到资源分配
+func (h *BugHandler) syncBugActualHours(bug *model.Bug, actualHours float64, workDate time.Time, assigneeID uint) error {
+	// 查找或创建资源
+	var resource model.Resource
+	err := h.db.Where("user_id = ? AND project_id = ?", assigneeID, bug.ProjectID).First(&resource).Error
+	if err != nil {
+		// 资源不存在，创建资源
+		resource = model.Resource{
+			UserID:    assigneeID,
+			ProjectID: bug.ProjectID,
+		}
+		if err := h.db.Create(&resource).Error; err != nil {
+			return err
+		}
+	}
+
+	// 查找是否已存在该Bug和日期的资源分配
+	var allocation model.ResourceAllocation
+	err = h.db.Where("resource_id = ? AND bug_id = ? AND date = ?", resource.ID, bug.ID, workDate).First(&allocation).Error
+	if err != nil {
+		// 不存在，创建新的资源分配
+		allocation = model.ResourceAllocation{
+			ResourceID:  resource.ID,
+			BugID:       &bug.ID,
+			ProjectID:   &bug.ProjectID,
+			Date:        workDate,
+			Hours:       actualHours,
+			Description: fmt.Sprintf("Bug: %s", bug.Title),
+		}
+		if err := h.db.Create(&allocation).Error; err != nil {
+			return err
+		}
+	} else {
+		// 存在，更新工时
+		allocation.Hours = actualHours
+		if err := h.db.Save(&allocation).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// calculateAndUpdateActualHours 计算并更新Bug的实际工时（从资源分配中汇总）
+func (h *BugHandler) calculateAndUpdateActualHours(bug *model.Bug) {
+	var totalHours float64
+	h.db.Model(&model.ResourceAllocation{}).
+		Where("bug_id = ?", bug.ID).
+		Select("COALESCE(SUM(hours), 0)").
+		Scan(&totalHours)
+
+	bug.ActualHours = &totalHours
+	h.db.Model(bug).Update("actual_hours", totalHours)
+}

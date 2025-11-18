@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -88,17 +89,18 @@ func (h *TaskHandler) GetTask(c *gin.Context) {
 // CreateTask 创建任务
 func (h *TaskHandler) CreateTask(c *gin.Context) {
 	var req struct {
-		Title         string    `json:"title" binding:"required"`
-		Description   string    `json:"description"`
-		Status        string    `json:"status"`
-		Priority      string    `json:"priority"`
-		ProjectID     uint      `json:"project_id" binding:"required"`
-		AssigneeID    *uint     `json:"assignee_id"`
-		StartDate     *string   `json:"start_date"`
-		EndDate       *string   `json:"end_date"`
-		DueDate       *string   `json:"due_date"`
-		Progress      int       `json:"progress"`
-		DependencyIDs []uint    `json:"dependency_ids"`
+		Title          string    `json:"title" binding:"required"`
+		Description    string    `json:"description"`
+		Status         string    `json:"status"`
+		Priority       string    `json:"priority"`
+		ProjectID      uint      `json:"project_id" binding:"required"`
+		AssigneeID     *uint     `json:"assignee_id"`
+		StartDate      *string   `json:"start_date"`
+		EndDate        *string   `json:"end_date"`
+		DueDate        *string   `json:"due_date"`
+		Progress       int       `json:"progress"`
+		EstimatedHours *float64  `json:"estimated_hours"`
+		DependencyIDs  []uint    `json:"dependency_ids"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -184,17 +186,18 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 	}
 
 	task := model.Task{
-		Title:       req.Title,
-		Description: req.Description,
-		Status:      req.Status,
-		Priority:    req.Priority,
-		ProjectID:   req.ProjectID,
-		CreatorID:   userID.(uint),
-		AssigneeID:  req.AssigneeID,
-		StartDate:   startDate,
-		EndDate:     endDate,
-		DueDate:     dueDate,
-		Progress:    req.Progress,
+		Title:          req.Title,
+		Description:    req.Description,
+		Status:         req.Status,
+		Priority:       req.Priority,
+		ProjectID:      req.ProjectID,
+		CreatorID:      userID.(uint),
+		AssigneeID:     req.AssigneeID,
+		StartDate:      startDate,
+		EndDate:        endDate,
+		DueDate:        dueDate,
+		Progress:       req.Progress,
+		EstimatedHours: req.EstimatedHours,
 	}
 
 	if err := h.db.Create(&task).Error; err != nil {
@@ -238,17 +241,20 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 	}
 
 	var req struct {
-		Title         *string  `json:"title"`
-		Description   *string  `json:"description"`
-		Status        *string  `json:"status"`
-		Priority      *string  `json:"priority"`
-		ProjectID     *uint    `json:"project_id"`
-		AssigneeID    *uint    `json:"assignee_id"`
-		StartDate     *string  `json:"start_date"`
-		EndDate       *string  `json:"end_date"`
-		DueDate       *string  `json:"due_date"`
-		Progress      *int     `json:"progress"`
-		DependencyIDs *[]uint  `json:"dependency_ids"`
+		Title          *string  `json:"title"`
+		Description    *string  `json:"description"`
+		Status         *string  `json:"status"`
+		Priority       *string  `json:"priority"`
+		ProjectID      *uint    `json:"project_id"`
+		AssigneeID     *uint    `json:"assignee_id"`
+		StartDate      *string  `json:"start_date"`
+		EndDate        *string  `json:"end_date"`
+		DueDate        *string  `json:"due_date"`
+		Progress       *int     `json:"progress"`
+		EstimatedHours *float64 `json:"estimated_hours"`
+		ActualHours    *float64 `json:"actual_hours"` // 实际工时，会自动创建资源分配
+		WorkDate       *string  `json:"work_date"`     // 工作日期（YYYY-MM-DD），用于资源分配
+		DependencyIDs  *[]uint  `json:"dependency_ids"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -347,11 +353,57 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 		}
 		task.Progress = *req.Progress
 	}
+	if req.EstimatedHours != nil {
+		if *req.EstimatedHours < 0 {
+			utils.Error(c, 400, "预估工时不能为负数")
+			return
+		}
+		task.EstimatedHours = req.EstimatedHours
+	}
+	// 如果更新了实际工时，自动创建或更新资源分配
+	if req.ActualHours != nil {
+		if *req.ActualHours < 0 {
+			utils.Error(c, 400, "实际工时不能为负数")
+			return
+		}
+		// 确定工作日期
+		var workDate time.Time
+		if req.WorkDate != nil && *req.WorkDate != "" {
+			if t, err := time.Parse("2006-01-02", *req.WorkDate); err == nil {
+				workDate = t
+			} else {
+				utils.Error(c, 400, "工作日期格式错误，应为 YYYY-MM-DD")
+				return
+			}
+		} else {
+			// 默认使用任务的开始日期或结束日期，如果都没有则使用今天
+			if task.StartDate != nil {
+				workDate = *task.StartDate
+			} else if task.EndDate != nil {
+				workDate = *task.EndDate
+			} else {
+				workDate = time.Now()
+			}
+		}
+		workDate = time.Date(workDate.Year(), workDate.Month(), workDate.Day(), 0, 0, 0, 0, workDate.Location())
+		
+		// 同步到资源分配
+		if err := h.syncTaskActualHours(&task, *req.ActualHours, workDate); err != nil {
+			utils.Error(c, utils.CodeError, "同步资源分配失败: "+err.Error())
+			return
+		}
+	}
 
 	if err := h.db.Save(&task).Error; err != nil {
 		utils.Error(c, utils.CodeError, "更新失败")
 		return
 	}
+
+	// 计算并更新实际工时（从资源分配中汇总）
+	h.calculateAndUpdateActualHours(&task)
+	
+	// 根据实际工时和预估工时自动计算进度
+	h.calculateProgressFromHours(&task)
 
 	// 更新任务依赖关系
 	if req.DependencyIDs != nil {
@@ -460,7 +512,10 @@ func (h *TaskHandler) UpdateTaskProgress(c *gin.Context) {
 	}
 
 	var req struct {
-		Progress int `json:"progress" binding:"required"`
+		Progress       *int     `json:"progress"`
+		EstimatedHours *float64 `json:"estimated_hours"`
+		ActualHours    *float64 `json:"actual_hours"` // 消耗工时
+		WorkDate       *string  `json:"work_date"`    // 工作日期（YYYY-MM-DD）
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -468,25 +523,82 @@ func (h *TaskHandler) UpdateTaskProgress(c *gin.Context) {
 		return
 	}
 
-	// 验证进度
-	if req.Progress < 0 || req.Progress > 100 {
-		utils.Error(c, 400, "进度值必须在0-100之间")
-		return
+	// 更新进度
+	if req.Progress != nil {
+		// 验证进度
+		if *req.Progress < 0 || *req.Progress > 100 {
+			utils.Error(c, 400, "进度值必须在0-100之间")
+			return
+		}
+		task.Progress = *req.Progress
+		// 如果进度为100，自动设置状态为done
+		if *req.Progress == 100 {
+			task.Status = "done"
+		}
+		// 如果进度大于0且状态为todo，自动设置为in_progress
+		if *req.Progress > 0 && task.Status == "todo" {
+			task.Status = "in_progress"
+		}
 	}
 
-	task.Progress = req.Progress
-	// 如果进度为100，自动设置状态为done
-	if req.Progress == 100 {
-		task.Status = "done"
+	// 更新预估工时
+	if req.EstimatedHours != nil {
+		if *req.EstimatedHours < 0 {
+			utils.Error(c, 400, "预估工时不能为负数")
+			return
+		}
+		task.EstimatedHours = req.EstimatedHours
 	}
-	// 如果进度大于0且状态为todo，自动设置为in_progress
-	if req.Progress > 0 && task.Status == "todo" {
-		task.Status = "in_progress"
+
+	// 更新实际工时
+	if req.ActualHours != nil {
+		if *req.ActualHours < 0 {
+			utils.Error(c, 400, "实际工时不能为负数")
+			return
+		}
+		// 确定工作日期
+		var workDate time.Time
+		if req.WorkDate != nil && *req.WorkDate != "" {
+			if t, err := time.Parse("2006-01-02", *req.WorkDate); err == nil {
+				workDate = t
+			} else {
+				utils.Error(c, 400, "工作日期格式错误，应为 YYYY-MM-DD")
+				return
+			}
+		} else {
+			// 默认使用任务的开始日期或结束日期，如果都没有则使用今天
+			if task.StartDate != nil {
+				workDate = *task.StartDate
+			} else if task.EndDate != nil {
+				workDate = *task.EndDate
+			} else {
+				workDate = time.Now()
+			}
+		}
+		workDate = time.Date(workDate.Year(), workDate.Month(), workDate.Day(), 0, 0, 0, 0, workDate.Location())
+		
+		// 同步到资源分配
+		if err := h.syncTaskActualHours(&task, *req.ActualHours, workDate); err != nil {
+			utils.Error(c, utils.CodeError, "同步资源分配失败: "+err.Error())
+			return
+		}
 	}
 
 	if err := h.db.Save(&task).Error; err != nil {
 		utils.Error(c, utils.CodeError, "更新失败")
 		return
+	}
+
+	// 计算并更新实际工时（从资源分配中汇总）
+	h.calculateAndUpdateActualHours(&task)
+	
+	// 如果更新了实际工时或预估工时，自动根据工时计算进度
+	// 进度 = 实际工时 / 预估工时 * 100，范围0-100%
+	if req.ActualHours != nil || req.EstimatedHours != nil {
+		h.calculateProgressFromHours(&task)
+	} else if req.Progress == nil {
+		// 如果没有更新工时，且没有手动设置进度，则根据当前工时计算进度
+		h.calculateProgressFromHours(&task)
 	}
 
 	// 重新加载关联数据
@@ -495,3 +607,108 @@ func (h *TaskHandler) UpdateTaskProgress(c *gin.Context) {
 	utils.Success(c, task)
 }
 
+
+// syncTaskActualHours 同步任务实际工时到资源分配
+func (h *TaskHandler) syncTaskActualHours(task *model.Task, actualHours float64, workDate time.Time) error {
+	// 如果任务没有负责人，无法创建资源分配
+	if task.AssigneeID == nil {
+		return nil // 没有负责人时，不创建资源分配，但不报错
+	}
+
+	// 查找或创建资源
+	var resource model.Resource
+	err := h.db.Where("user_id = ? AND project_id = ?", *task.AssigneeID, task.ProjectID).First(&resource).Error
+	if err != nil {
+		// 资源不存在，创建资源
+		resource = model.Resource{
+			UserID:    *task.AssigneeID,
+			ProjectID: task.ProjectID,
+		}
+		if err := h.db.Create(&resource).Error; err != nil {
+			return err
+		}
+	}
+
+	// 查找是否已存在该任务和日期的资源分配
+	var allocation model.ResourceAllocation
+	err = h.db.Where("resource_id = ? AND task_id = ? AND date = ?", resource.ID, task.ID, workDate).First(&allocation).Error
+	if err != nil {
+		// 不存在，创建新的资源分配
+		allocation = model.ResourceAllocation{
+			ResourceID:  resource.ID,
+			TaskID:      &task.ID,
+			ProjectID:   &task.ProjectID,
+			Date:        workDate,
+			Hours:       actualHours,
+			Description: fmt.Sprintf("任务: %s", task.Title),
+		}
+		if err := h.db.Create(&allocation).Error; err != nil {
+			return err
+		}
+	} else {
+		// 存在，更新工时
+		allocation.Hours = actualHours
+		if err := h.db.Save(&allocation).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// calculateAndUpdateActualHours 计算并更新任务的实际工时（从资源分配中汇总）
+func (h *TaskHandler) calculateAndUpdateActualHours(task *model.Task) {
+	var totalHours float64
+	h.db.Model(&model.ResourceAllocation{}).
+		Where("task_id = ?", task.ID).
+		Select("COALESCE(SUM(hours), 0)").
+		Scan(&totalHours)
+
+	task.ActualHours = &totalHours
+	h.db.Model(task).Update("actual_hours", totalHours)
+}
+
+// calculateProgressFromHours 根据实际工时和预估工时自动计算进度
+func (h *TaskHandler) calculateProgressFromHours(task *model.Task) {
+	// 如果预估工时未设置或为0，无法自动计算进度
+	if task.EstimatedHours == nil || *task.EstimatedHours <= 0 {
+		return
+	}
+
+	// 如果实际工时未设置，使用0
+	actualHours := 0.0
+	if task.ActualHours != nil {
+		actualHours = *task.ActualHours
+	}
+
+	// 计算进度：实际工时 / 预估工时 * 100
+	progress := int((actualHours / *task.EstimatedHours) * 100)
+	
+	// 进度不能超过100%
+	if progress > 100 {
+		progress = 100
+	}
+	
+	// 如果进度小于0，设为0
+	if progress < 0 {
+		progress = 0
+	}
+
+	// 更新进度
+	task.Progress = progress
+	
+	// 如果进度为100，自动设置状态为done
+	if progress == 100 && task.Status != "done" {
+		task.Status = "done"
+	}
+	// 如果进度大于0且状态为todo，自动设置为in_progress
+	if progress > 0 && task.Status == "todo" {
+		task.Status = "in_progress"
+	}
+
+	// 保存更新
+	h.db.Model(task).Updates(map[string]interface{}{
+		"progress": progress,
+		"status":   task.Status,
+	})
+}

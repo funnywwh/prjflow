@@ -54,6 +54,9 @@ type Bug struct {
 
 	RequirementID *uint       `gorm:"index" json:"requirement_id"` // 关联需求
 	Requirement   *Requirement `gorm:"foreignKey:RequirementID" json:"requirement,omitempty"`
+
+	EstimatedHours *float64 `gorm:"default:0" json:"estimated_hours"` // 预估工时（小时）
+	ActualHours    *float64 `gorm:"default:0" json:"actual_hours"`    // 实际工时（小时），从资源分配自动计算
 }
 
 // BugAssignee Bug分配表

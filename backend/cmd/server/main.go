@@ -325,6 +325,32 @@ func main() {
 		testReportGroup.DELETE("/:id", testReportHandler.DeleteTestReport)
 	}
 
+	// 资源管理路由
+	resourceHandler := api.NewResourceHandler(db)
+	resourceGroup := r.Group("/api/resources", middleware.Auth())
+	{
+		resourceGroup.GET("/statistics", resourceHandler.GetResourceStatistics)
+		resourceGroup.GET("/utilization", resourceHandler.GetResourceUtilization)
+		resourceGroup.GET("", resourceHandler.GetResources)
+		resourceGroup.GET("/:id", resourceHandler.GetResource)
+		resourceGroup.POST("", resourceHandler.CreateResource)
+		resourceGroup.PUT("/:id", resourceHandler.UpdateResource)
+		resourceGroup.DELETE("/:id", resourceHandler.DeleteResource)
+	}
+
+	// 资源分配管理路由
+	resourceAllocationHandler := api.NewResourceAllocationHandler(db)
+	resourceAllocationGroup := r.Group("/api/resource-allocations", middleware.Auth())
+	{
+		resourceAllocationGroup.GET("/calendar", resourceAllocationHandler.GetResourceCalendar)
+		resourceAllocationGroup.GET("/conflict", resourceAllocationHandler.CheckResourceConflict)
+		resourceAllocationGroup.GET("", resourceAllocationHandler.GetResourceAllocations)
+		resourceAllocationGroup.GET("/:id", resourceAllocationHandler.GetResourceAllocation)
+		resourceAllocationGroup.POST("", resourceAllocationHandler.CreateResourceAllocation)
+		resourceAllocationGroup.PUT("/:id", resourceAllocationHandler.UpdateResourceAllocation)
+		resourceAllocationGroup.DELETE("/:id", resourceAllocationHandler.DeleteResourceAllocation)
+	}
+
 	// 创建HTTP服务器
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", config.AppConfig.Server.Port),

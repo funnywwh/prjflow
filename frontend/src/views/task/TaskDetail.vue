@@ -140,8 +140,37 @@
             :min="0"
             :max="100"
             :marks="{ 0: '0%', 50: '50%', 100: '100%' }"
+            :disabled="autoProgress"
           />
-          <span style="margin-left: 8px">{{ progressFormData.progress }}%</span>
+          <span style="margin-left: 8px">{{ progressFormData.progress || 0 }}%</span>
+          <span v-if="autoProgress" style="margin-left: 8px; color: #999">（根据工时自动计算）</span>
+        </a-form-item>
+        <a-form-item label="预估工时" name="estimated_hours">
+          <a-input-number
+            v-model:value="progressFormData.estimated_hours"
+            placeholder="预估工时（小时）"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
+        </a-form-item>
+        <a-form-item label="实际工时" name="actual_hours">
+          <a-input-number
+            v-model:value="progressFormData.actual_hours"
+            placeholder="实际工时（小时）"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
+          <span style="margin-left: 8px; color: #999">更新实际工时会自动创建资源分配并计算进度</span>
+        </a-form-item>
+        <a-form-item label="工作日期" name="work_date" v-if="progressFormData.actual_hours">
+          <a-date-picker
+            v-model:value="progressFormData.work_date"
+            placeholder="选择工作日期（默认今天）"
+            style="width: 100%"
+            format="YYYY-MM-DD"
+          />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -153,7 +182,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { DownOutlined } from '@ant-design/icons-vue'
-import dayjs from 'dayjs'
+import dayjs, { type Dayjs } from 'dayjs'
 import AppHeader from '@/components/AppHeader.vue'
 import MarkdownEditor from '@/components/MarkdownEditor.vue'
 import {
@@ -171,13 +200,39 @@ const loading = ref(false)
 const task = ref<Task | null>(null)
 const progressModalVisible = ref(false)
 const progressFormRef = ref()
-const progressFormData = reactive({
-  progress: 0
+const progressFormData = reactive<{
+  progress?: number
+  estimated_hours?: number
+  actual_hours?: number
+  work_date?: Dayjs
+}>({
+  progress: undefined,
+  estimated_hours: undefined,
+  actual_hours: undefined,
+  work_date: undefined
 })
 
 const progressFormRules = {
-  progress: [{ required: true, message: '请设置进度', trigger: 'change' }]
+  // progress不再是必填项，因为可以通过工时自动计算
 }
+
+// 自动计算进度（实际工时/预估工时 * 100）
+const autoProgress = computed(() => {
+  if (progressFormData.estimated_hours && progressFormData.estimated_hours > 0 && progressFormData.actual_hours) {
+    const progress = Math.min(100, Math.max(0, Math.round((progressFormData.actual_hours / progressFormData.estimated_hours) * 100)))
+    progressFormData.progress = progress
+    return true
+  }
+  return false
+})
+
+// 监听实际工时和预估工时的变化，自动计算进度
+watch([() => progressFormData.actual_hours, () => progressFormData.estimated_hours], () => {
+  if (progressFormData.estimated_hours && progressFormData.estimated_hours > 0 && progressFormData.actual_hours) {
+    const progress = Math.min(100, Math.max(0, Math.round((progressFormData.actual_hours / progressFormData.estimated_hours) * 100)))
+    progressFormData.progress = progress
+  }
+})
 
 // 加载任务详情
 const loadTask = async () => {
@@ -208,6 +263,9 @@ const handleEdit = () => {
 const handleUpdateProgress = () => {
   if (!task.value) return
   progressFormData.progress = task.value.progress
+  progressFormData.estimated_hours = task.value.estimated_hours
+  progressFormData.actual_hours = task.value.actual_hours // 显示当前实际工时
+  progressFormData.work_date = dayjs() // 默认今天
   progressModalVisible.value = true
 }
 
@@ -216,7 +274,13 @@ const handleProgressSubmit = async () => {
   if (!task.value) return
   try {
     await progressFormRef.value.validate()
-    await updateTaskProgress(task.value.id, { progress: progressFormData.progress })
+    const data: UpdateTaskProgressRequest = {
+      progress: progressFormData.progress,
+      estimated_hours: progressFormData.estimated_hours,
+      actual_hours: progressFormData.actual_hours,
+      work_date: progressFormData.work_date && progressFormData.work_date.isValid() ? progressFormData.work_date.format('YYYY-MM-DD') : undefined
+    }
+    await updateTaskProgress(task.value.id, data)
     message.success('进度更新成功')
     progressModalVisible.value = false
     loadTask()

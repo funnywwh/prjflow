@@ -239,6 +239,13 @@
                 <template v-else-if="column.key === 'requirement'">
                   {{ record.requirement?.title || '-' }}
                 </template>
+                <template v-else-if="column.key === 'hours'">
+                  <div>
+                    <div v-if="record.estimated_hours">预估: {{ record.estimated_hours.toFixed(2) }}h</div>
+                    <div v-if="record.actual_hours">实际: {{ record.actual_hours.toFixed(2) }}h</div>
+                    <span v-if="!record.estimated_hours && !record.actual_hours">-</span>
+                  </div>
+                </template>
                 <template v-else-if="column.key === 'action'">
                   <a-space>
                     <a-button type="link" size="small" @click="handleView(record)">
@@ -382,6 +389,34 @@
             </a-select-option>
           </a-select>
         </a-form-item>
+        <a-form-item label="预估工时" name="estimated_hours">
+          <a-input-number
+            v-model:value="formData.estimated_hours"
+            placeholder="预估工时（小时）"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
+        </a-form-item>
+        <a-form-item label="实际工时" name="actual_hours">
+          <a-input-number
+            v-model:value="formData.actual_hours"
+            placeholder="实际工时（小时）"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
+          <span style="margin-left: 8px; color: #999">更新实际工时会自动创建资源分配（使用第一个分配人）</span>
+        </a-form-item>
+        <a-form-item label="工作日期" name="work_date" v-if="formData.actual_hours">
+          <a-date-picker
+            v-model:value="formData.work_date"
+            placeholder="选择工作日期（可选）"
+            style="width: 100%"
+            format="YYYY-MM-DD"
+          />
+          <span style="margin-left: 8px; color: #999">不填则使用今天</span>
+        </a-form-item>
       </a-form>
     </a-modal>
 
@@ -425,6 +460,8 @@
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
+import type { FormInstance } from 'ant-design-vue'
+import dayjs, { type Dayjs } from 'dayjs'
 import { PlusOutlined, DownOutlined } from '@ant-design/icons-vue'
 import AppHeader from '@/components/AppHeader.vue'
 import MarkdownEditor from '@/components/MarkdownEditor.vue'
@@ -477,6 +514,7 @@ const columns = [
   { title: '优先级', key: 'priority', width: 100 },
   { title: '严重程度', key: 'severity', width: 100 },
   { title: '分配人', key: 'assignees', width: 200 },
+  { title: '工时', key: 'hours', width: 150 },
   { title: '关联需求', key: 'requirement', width: 150, ellipsis: true },
   { title: '创建时间', dataIndex: 'created_at', key: 'created_at', width: 180 },
   { title: '操作', key: 'action', width: 300, fixed: 'right' as const }
@@ -493,7 +531,8 @@ const formData = reactive<CreateBugRequest & { id?: number }>({
   severity: 'medium',
   project_id: 0,
   requirement_id: undefined,
-  assignee_ids: []
+  assignee_ids: [],
+  estimated_hours: undefined
 })
 
 const formRules = {
@@ -646,6 +685,9 @@ const handleCreate = () => {
   formData.project_id = 0
   formData.requirement_id = undefined
   formData.assignee_ids = []
+  formData.estimated_hours = undefined
+  formData.actual_hours = undefined
+  formData.work_date = undefined
   modalVisible.value = true
 }
 
@@ -661,6 +703,9 @@ const handleEdit = (record: Bug) => {
   formData.project_id = record.project_id
   formData.requirement_id = record.requirement_id
   formData.assignee_ids = record.assignees?.map(a => a.id) || []
+  formData.estimated_hours = record.estimated_hours
+  formData.actual_hours = record.actual_hours
+  formData.work_date = undefined
   modalVisible.value = true
   if (formData.project_id) {
     loadRequirementsForProject()
@@ -684,7 +729,10 @@ const handleSubmit = async () => {
       severity: formData.severity,
       project_id: formData.project_id,
       requirement_id: formData.requirement_id,
-      assignee_ids: formData.assignee_ids
+      assignee_ids: formData.assignee_ids,
+      estimated_hours: formData.estimated_hours,
+      actual_hours: formData.actual_hours,
+      work_date: formData.work_date && formData.work_date.isValid() ? formData.work_date.format('YYYY-MM-DD') : undefined
     }
     if (formData.id) {
       await updateBug(formData.id, data)

@@ -253,7 +253,8 @@ func (h *InitHandler) GetInitQRCode(c *gin.Context) {
 		if len(domain) > 0 && domain[len(domain)-1] != '/' {
 			domain += "/"
 		}
-		redirectURI = domain + "init/callback"
+		// 注意：回调路径需要包含 /api 前缀，因为后端路由都加了 /api 前缀
+		redirectURI = domain + "api/init/callback"
 	} else {
 		// 如果未配置 callback_domain，使用查询参数或 Referer
 		redirectURI = c.Query("redirect_uri")
@@ -261,9 +262,9 @@ func (h *InitHandler) GetInitQRCode(c *gin.Context) {
 			// 从 Referer 头获取
 			referer := c.GetHeader("Referer")
 			if referer != "" {
-				redirectURI = referer + "/init/callback"
+				redirectURI = referer + "/api/init/callback"
 			} else {
-				redirectURI = "http://localhost:3000/init/callback"
+				redirectURI = "http://localhost:8080/api/init/callback"
 			}
 		}
 	}

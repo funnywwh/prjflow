@@ -22,8 +22,8 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://localhost:8080',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '')
+        changeOrigin: true
+        // 不再去掉 /api 前缀，因为后端路由现在统一使用 /api 前缀
       }
     }
   }

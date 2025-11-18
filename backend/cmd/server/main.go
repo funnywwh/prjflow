@@ -70,7 +70,7 @@ func main() {
 	// 系统初始化路由（不需要认证）
 	initHandler := api.NewInitHandler(db)
 	initCallbackHandler := api.NewInitCallbackHandler(db)
-	initGroup := r.Group("/init")
+	initGroup := r.Group("/api/init")
 	{
 		initGroup.GET("/status", initHandler.CheckInitStatus)
 		initGroup.POST("/wechat-config", initHandler.SaveWeChatConfig) // 第一步：保存微信配置
@@ -82,7 +82,7 @@ func main() {
 	// 认证相关路由
 	authHandler := api.NewAuthHandler(db)
 	userHandler := api.NewUserHandler(db)
-	authGroup := r.Group("/auth")
+	authGroup := r.Group("/api/auth")
 	{
 		authGroup.GET("/wechat/qrcode", authHandler.GetQRCode)
 		authGroup.GET("/wechat/callback", authHandler.WeChatCallback)              // 微信登录回调接口（GET请求，微信直接重定向到这里）
@@ -94,7 +94,7 @@ func main() {
 
 	// 权限管理路由
 	permHandler := api.NewPermissionHandler(db)
-	permGroup := r.Group("/permissions", middleware.Auth())
+	permGroup := r.Group("/api/permissions", middleware.Auth())
 	{
 		permGroup.GET("/roles", permHandler.GetRoles)
 		permGroup.POST("/roles", permHandler.CreateRole)
@@ -107,7 +107,7 @@ func main() {
 	}
 
 	// 用户管理路由
-	userGroup := r.Group("/users", middleware.Auth())
+	userGroup := r.Group("/api/users", middleware.Auth())
 	{
 		userGroup.GET("", userHandler.GetUsers)
 		userGroup.GET("/:id", userHandler.GetUser)
@@ -119,7 +119,7 @@ func main() {
 
 	// 部门管理路由
 	deptHandler := api.NewDepartmentHandler(db)
-	deptGroup := r.Group("/departments", middleware.Auth())
+	deptGroup := r.Group("/api/departments", middleware.Auth())
 	{
 		deptGroup.GET("", deptHandler.GetDepartments)
 		deptGroup.POST("", deptHandler.CreateDepartment)
@@ -135,14 +135,14 @@ func main() {
 
 	// 个人工作台路由
 	dashboardHandler := api.NewDashboardHandler(db)
-	dashboardGroup := r.Group("/dashboard", middleware.Auth())
+	dashboardGroup := r.Group("/api/dashboard", middleware.Auth())
 	{
 		dashboardGroup.GET("", dashboardHandler.GetDashboard)
 	}
 
 	// 产品管理路由
 	productHandler := api.NewProductHandler(db)
-	productLineGroup := r.Group("/product-lines", middleware.Auth())
+	productLineGroup := r.Group("/api/product-lines", middleware.Auth())
 	{
 		productLineGroup.GET("", productHandler.GetProductLines)
 		productLineGroup.GET("/:id", productHandler.GetProductLine)
@@ -150,7 +150,7 @@ func main() {
 		productLineGroup.PUT("/:id", productHandler.UpdateProductLine)
 		productLineGroup.DELETE("/:id", productHandler.DeleteProductLine)
 	}
-	productGroup := r.Group("/products", middleware.Auth())
+	productGroup := r.Group("/api/products", middleware.Auth())
 	{
 		productGroup.GET("", productHandler.GetProducts)
 		productGroup.GET("/:id", productHandler.GetProduct)
@@ -161,7 +161,7 @@ func main() {
 
 	// 项目管理路由
 	projectHandler := api.NewProjectHandler(db)
-	projectGroupGroup := r.Group("/project-groups", middleware.Auth())
+	projectGroupGroup := r.Group("/api/project-groups", middleware.Auth())
 	{
 		projectGroupGroup.GET("", projectHandler.GetProjectGroups)
 		projectGroupGroup.GET("/:id", projectHandler.GetProjectGroup)
@@ -169,7 +169,7 @@ func main() {
 		projectGroupGroup.PUT("/:id", projectHandler.UpdateProjectGroup)
 		projectGroupGroup.DELETE("/:id", projectHandler.DeleteProjectGroup)
 	}
-	projectGroup := r.Group("/projects", middleware.Auth())
+	projectGroup := r.Group("/api/projects", middleware.Auth())
 	{
 		projectGroup.GET("", projectHandler.GetProjects)
 		projectGroup.GET("/:id", projectHandler.GetProject)

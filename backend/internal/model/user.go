@@ -13,7 +13,7 @@ type User struct {
 	UpdatedAt    time.Time      `json:"updated_at"`
 	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
 
-	WeChatOpenID string `gorm:"uniqueIndex;size:100" json:"wechat_open_id"` // 微信OpenID
+	WeChatOpenID string `gorm:"column:wechat_open_id;uniqueIndex;size:100" json:"wechat_open_id"` // 微信OpenID
 	Username     string `gorm:"size:50;not null" json:"username"`            // 用户名
 	Email        string `gorm:"size:100" json:"email"`                       // 邮箱
 	Avatar       string `gorm:"size:255" json:"avatar"`                     // 头像URL

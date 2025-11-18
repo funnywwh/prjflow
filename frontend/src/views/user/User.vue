@@ -473,7 +473,8 @@ const getAddUserQRCode = async () => {
   // 后端会优先使用配置文件中的 callback_domain
   // 但添加用户的回调路径不同，需要传递 redirect_uri（只传路径部分）
   // 后端会自动使用配置的域名拼接路径
-  const callbackPath = '/auth/wechat/add-user/callback'
+  // 注意：回调路径需要包含 /api 前缀，因为后端路由都加了 /api 前缀
+  const callbackPath = '/api/auth/wechat/add-user/callback'
   
   // 调用API时传递回调路径（后端会使用配置的域名）
   const data: any = await request.get('/auth/wechat/qrcode', {

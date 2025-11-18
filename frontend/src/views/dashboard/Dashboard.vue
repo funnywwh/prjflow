@@ -11,6 +11,15 @@
           <a-menu-item key="dashboard" @click="$router.push('/dashboard')">
             工作台
           </a-menu-item>
+          <a-menu-item key="user" @click="$router.push('/user')">
+            用户管理
+          </a-menu-item>
+          <a-menu-item key="permission" @click="$router.push('/permission')">
+            权限管理
+          </a-menu-item>
+          <a-menu-item key="department" @click="$router.push('/department')">
+            部门管理
+          </a-menu-item>
         </a-menu>
       </a-layout-header>
       <a-layout-content class="content">

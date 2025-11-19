@@ -772,6 +772,138 @@
 
 **说明**: 只有构建状态为`success`的版本才能发布，发布后状态自动变为`released`，并自动设置发布日期。
 
+## 测试单管理API ✅
+
+### 获取测试单列表
+
+**GET** `/test-cases?project_id=&status=&type=&keyword=&page=1&page_size=20`
+
+### 获取测试单统计
+
+**GET** `/test-cases/statistics?project_id=&keyword=`
+
+### 获取测试单详情
+
+**GET** `/test-cases/:id`
+
+### 创建测试单
+
+**POST** `/test-cases`
+
+**请求体**:
+```json
+{
+  "name": "测试单名称",
+  "description": "测试描述",
+  "test_steps": "测试步骤（Markdown）",
+  "types": ["functional", "performance"],
+  "status": "pending",
+  "project_id": 1,
+  "bug_ids": [1, 2]
+}
+```
+
+### 更新测试单
+
+**PUT** `/test-cases/:id`
+
+### 删除测试单
+
+**DELETE** `/test-cases/:id`
+
+### 更新测试单状态
+
+**PATCH** `/test-cases/:id/status`
+
+**请求体**:
+```json
+{
+  "status": "running"
+}
+```
+
+**状态值**:
+- `pending`: 待执行
+- `running`: 执行中
+- `passed`: 通过
+- `failed`: 失败
+
+## 测试报告管理API ✅
+
+### 获取测试报告列表
+
+**GET** `/test-reports?result=&keyword=&page=1&page_size=20`
+
+### 获取测试报告统计
+
+**GET** `/test-reports/statistics?keyword=`
+
+### 获取测试报告详情
+
+**GET** `/test-reports/:id`
+
+### 创建测试报告
+
+**POST** `/test-reports`
+
+**请求体**:
+```json
+{
+  "title": "测试报告标题",
+  "content": "报告内容（Markdown）",
+  "result": "passed",
+  "summary": "测试摘要",
+  "test_case_ids": [1, 2]
+}
+```
+
+### 更新测试报告
+
+**PUT** `/test-reports/:id`
+
+### 删除测试报告
+
+**DELETE** `/test-reports/:id`
+
+**结果值**:
+- `passed`: 通过
+- `failed`: 失败
+- `blocked`: 阻塞
+
+## 资源统计API ✅
+
+### 获取资源统计
+
+**GET** `/resources/statistics?user_id=&project_id=&start_date=&end_date=`
+
+**响应**:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "total_hours": 120.5,
+    "project_stats": [
+      {
+        "project_id": 1,
+        "project_name": "项目1",
+        "total_hours": 80.0
+      }
+    ],
+    "user_stats": [
+      {
+        "user_id": 1,
+        "username": "user1",
+        "nickname": "用户1",
+        "total_hours": 40.0
+      }
+    ]
+  }
+}
+```
+
+**说明**: 资源统计从任务和Bug的实际工时自动计算，资源分配通过更新任务和Bug的实际工时时自动创建。
+
 ## 个人工作台API（待实现）
 
 ### 获取工作台数据

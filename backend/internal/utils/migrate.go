@@ -184,15 +184,65 @@ func AutoMigrate(db *gorm.DB) error {
 		}
 	}
 
-	// 对于 SQLite，在 AutoMigrate 之前，手动使用 Migrator 接口同步 Version 表
+	// 对于 SQLite，在 AutoMigrate 之前，手动检查并修复 Version 表结构
 	// 这样可以确保表结构与模型完全匹配，避免 GORM 的 AutoMigrate 检测到差异并尝试重建表
+	// 注意：GORM 在重建表时可能只复制部分字段，导致 NOT NULL 约束失败
+	// 所以我们需要确保在 GORM 处理之前，表结构已经完全正确
 	if config.AppConfig.Database.Type == "sqlite" {
 		migrator := db.Migrator()
 		if migrator.HasTable(&model.Version{}) {
-			// 表存在，使用 Migrator 接口手动同步表结构
-			// 这样可以确保表结构与模型完全匹配，避免 GORM 的 AutoMigrate 检测到差异
-			// 注意：Migrator 的 AlterColumn 等方法在 SQLite 中可能不支持，所以我们只检查字段是否存在
-			// 如果字段不存在，使用 AddColumn 添加；如果存在，确保结构正确
+			// 表存在，检查表结构是否与模型完全匹配
+			// 如果表结构不匹配，GORM 可能会尝试重建表
+			// 我们需要确保表结构与模型完全匹配，包括所有字段和约束
+			
+			// 检查 project_id 是否有 NOT NULL 约束
+			var projectIDNotNull int64
+			db.Raw(`SELECT COUNT(*) FROM pragma_table_info('versions') WHERE name = 'project_id' AND "notnull" = 1`).Scan(&projectIDNotNull)
+			
+			// 如果 project_id 没有 NOT NULL 约束，需要修复
+			if projectIDNotNull == 0 {
+				// 修复表结构：重建表并添加 NOT NULL 约束
+				db.Exec("PRAGMA foreign_keys = OFF")
+				defer db.Exec("PRAGMA foreign_keys = ON")
+				
+				// 删除关联表
+				db.Exec("DROP TABLE IF EXISTS version_requirements")
+				db.Exec("DROP TABLE IF EXISTS version_bugs")
+				
+				// 创建新表（包含 NOT NULL 约束，但不包含外键约束，避免 GORM 检测到差异）
+				if err := db.Exec(`
+					CREATE TABLE versions_sync (
+						id INTEGER PRIMARY KEY AUTOINCREMENT,
+						created_at DATETIME,
+						updated_at DATETIME,
+						deleted_at DATETIME,
+						version_number TEXT NOT NULL,
+						release_notes TEXT,
+						status TEXT DEFAULT 'draft',
+						project_id INTEGER NOT NULL,
+						release_date DATETIME
+					)
+				`).Error; err == nil {
+					// 复制数据（只复制有效的记录，确保包含所有字段）
+					if err := db.Exec(`
+						INSERT INTO versions_sync (id, created_at, updated_at, deleted_at, version_number, release_notes, status, project_id, release_date)
+						SELECT id, created_at, updated_at, deleted_at, version_number, release_notes, status, project_id, release_date
+						FROM versions
+						WHERE project_id IS NOT NULL AND version_number IS NOT NULL AND version_number != ''
+					`).Error; err == nil {
+						// 删除旧表
+						db.Exec("DROP TABLE versions")
+						// 重命名新表
+						db.Exec("ALTER TABLE versions_sync RENAME TO versions")
+						// 重新创建索引
+						db.Exec("CREATE INDEX IF NOT EXISTS idx_versions_deleted_at ON versions(deleted_at)")
+						db.Exec("CREATE INDEX IF NOT EXISTS idx_versions_project_id ON versions(project_id)")
+					} else {
+						// 复制失败，删除临时表
+						db.Exec("DROP TABLE IF EXISTS versions_sync")
+					}
+				}
+			}
 			
 			// 检查并添加缺失的字段（如果不存在）
 			if !migrator.HasColumn(&model.Version{}, "version_number") {

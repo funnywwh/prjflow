@@ -100,7 +100,7 @@ func (h *PlanHandler) GetPlans(c *gin.Context) {
 func (h *PlanHandler) GetPlan(c *gin.Context) {
 	id := c.Param("id")
 	var plan model.Plan
-	if err := h.db.Preload("Product").Preload("Project").Preload("Creator").
+	if err := h.db.Preload("Project").Preload("Creator").
 		Preload("Executions", func(db *gorm.DB) *gorm.DB {
 			return db.Preload("Assignee").Order("created_at ASC")
 		}).

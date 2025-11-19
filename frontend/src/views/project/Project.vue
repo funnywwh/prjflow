@@ -248,6 +248,41 @@
         </a-table>
       </a-spin>
     </a-modal>
+
+    <!-- 标签管理对话框 -->
+    <a-modal
+      v-model:open="tagManageModalVisible"
+      title="创建标签"
+      @ok="handleTagManageSubmit"
+      @cancel="tagManageModalVisible = false"
+      :confirm-loading="tagSubmitting"
+      width="600px"
+    >
+      <a-form
+        ref="tagFormRef"
+        :model="tagFormData"
+        :label-col="{ span: 6 }"
+        :wrapper-col="{ span: 18 }"
+      >
+        <a-form-item label="标签名称" name="name" :rules="[{ required: true, message: '请输入标签名称' }]">
+          <a-input v-model:value="tagFormData.name" placeholder="请输入标签名称" />
+        </a-form-item>
+        <a-form-item label="标签描述" name="description">
+          <a-textarea v-model:value="tagFormData.description" placeholder="请输入标签描述" :rows="2" />
+        </a-form-item>
+        <a-form-item label="标签颜色" name="color">
+          <a-select v-model:value="tagFormData.color" placeholder="选择颜色">
+            <a-select-option value="blue">蓝色</a-select-option>
+            <a-select-option value="green">绿色</a-select-option>
+            <a-select-option value="red">红色</a-select-option>
+            <a-select-option value="orange">橙色</a-select-option>
+            <a-select-option value="purple">紫色</a-select-option>
+            <a-select-option value="cyan">青色</a-select-option>
+            <a-select-option value="magenta">品红色</a-select-option>
+          </a-select>
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -339,6 +374,17 @@ const projectFormRules = {
 const memberModalVisible = ref(false)
 const selectedUserIds = ref<number[]>([])
 const memberRole = ref('member')
+
+// 标签管理相关
+const tagManageModalVisible = ref(false)
+const tagSubmitting = ref(false)
+const tagFormRef = ref()
+const tagFormData = reactive({
+  name: '',
+  description: '',
+  color: 'blue'
+})
+const tagSearchKeyword = ref('')
 
 // 加载项目列表
 const loadProjects = async () => {
@@ -587,6 +633,90 @@ const handleCloseMemberModal = () => {
   memberModalVisible.value = false
   selectedUserIds.value = []
   memberRole.value = 'member'
+}
+
+// 标签搜索
+const handleTagSearch = (value: string) => {
+  tagSearchKeyword.value = value
+}
+
+// 标签下拉框显示/隐藏
+const handleTagDropdownVisibleChange = (open: boolean) => {
+  if (!open) {
+    tagSearchKeyword.value = ''
+  }
+}
+
+// 创建新标签（从搜索框）
+const handleCreateNewTag = async () => {
+  if (!tagSearchKeyword.value.trim()) {
+    message.warning('请输入标签名称')
+    return
+  }
+  
+  try {
+    tagSubmitting.value = true
+    const newTag = await createTag({
+      name: tagSearchKeyword.value.trim(),
+      color: 'blue'
+    })
+    // 添加到标签列表
+    tags.value.push(newTag)
+    // 自动选中新创建的标签
+    if (!projectFormData.tag_ids) {
+      projectFormData.tag_ids = []
+    }
+    projectFormData.tag_ids.push(newTag.id)
+    tagSearchKeyword.value = ''
+    message.success('标签创建成功')
+  } catch (error: any) {
+    message.error(error.message || '创建标签失败')
+  } finally {
+    tagSubmitting.value = false
+  }
+}
+
+// 打开标签管理对话框
+const handleOpenTagManageModal = () => {
+  tagFormData.name = ''
+  tagFormData.description = ''
+  tagFormData.color = 'blue'
+  tagManageModalVisible.value = true
+  nextTick(() => {
+    tagFormRef.value?.resetFields()
+  })
+}
+
+// 提交标签管理
+const handleTagManageSubmit = async () => {
+  try {
+    await tagFormRef.value.validate()
+    tagSubmitting.value = true
+    
+    const newTag = await createTag({
+      name: tagFormData.name,
+      description: tagFormData.description,
+      color: tagFormData.color
+    })
+    
+    // 添加到标签列表
+    tags.value.push(newTag)
+    // 自动选中新创建的标签
+    if (!projectFormData.tag_ids) {
+      projectFormData.tag_ids = []
+    }
+    projectFormData.tag_ids.push(newTag.id)
+    
+    tagManageModalVisible.value = false
+    message.success('标签创建成功')
+  } catch (error: any) {
+    if (error.errorFields) {
+      return
+    }
+    message.error(error.message || '创建标签失败')
+  } finally {
+    tagSubmitting.value = false
+  }
 }
 
 onMounted(() => {

@@ -33,7 +33,6 @@
                       allow-clear
                       style="width: 300px"
                       :options="tagOptions"
-                      :field-names="{ label: 'name', value: 'id' }"
                     >
                     </a-select>
                   </a-form-item>
@@ -125,7 +124,6 @@
               placeholder="选择标签（支持多选）"
               allow-clear
               :options="tagOptions"
-              :field-names="{ label: 'name', value: 'id' }"
               :filter-option="false"
               :show-search="true"
               @search="handleTagSearch"
@@ -328,7 +326,11 @@ const projectSearchForm = reactive({
 })
 
 const tags = ref<Tag[]>([])
-const tagOptions = computed(() => tags.value.map(tag => ({ label: tag.name, value: tag.id, color: tag.color })))
+const tagOptions = computed(() => tags.value.map(tag => ({ 
+  label: tag.name, 
+  value: tag.id, 
+  color: tag.color 
+})))
 
 const projectPagination = reactive({
   current: 1,

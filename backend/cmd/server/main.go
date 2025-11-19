@@ -142,6 +142,17 @@ func main() {
 		dashboardGroup.GET("", dashboardHandler.GetDashboard)
 	}
 
+	// 标签管理路由
+	tagHandler := api.NewTagHandler(db)
+	tagGroup := r.Group("/api/tags", middleware.Auth())
+	{
+		tagGroup.GET("", tagHandler.GetTags)
+		tagGroup.GET("/:id", tagHandler.GetTag)
+		tagGroup.POST("", tagHandler.CreateTag)
+		tagGroup.PUT("/:id", tagHandler.UpdateTag)
+		tagGroup.DELETE("/:id", tagHandler.DeleteTag)
+	}
+
 	// 项目管理路由
 	projectHandler := api.NewProjectHandler(db)
 	

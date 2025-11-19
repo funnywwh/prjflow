@@ -28,11 +28,12 @@
                   <a-form-item label="标签">
                     <a-select
                       v-model:value="projectSearchForm.tags"
-                      mode="tags"
-                      placeholder="选择或输入标签（支持多选）"
+                      mode="multiple"
+                      placeholder="选择标签（支持多选）"
                       allow-clear
                       style="width: 300px"
-                      :token-separators="[',']"
+                      :options="tagOptions"
+                      :field-names="{ label: 'name', value: 'id' }"
                     >
                     </a-select>
                   </a-form-item>
@@ -60,8 +61,8 @@
                     </template>
                     <template v-else-if="column.key === 'tags'">
                       <div v-if="record.tags && record.tags.length > 0" style="display: flex; flex-wrap: wrap; gap: 4px;">
-                        <a-tag v-for="tag in record.tags" :key="tag" style="margin: 0;">
-                          {{ tag }}
+                        <a-tag v-for="tag in record.tags" :key="tag.id" :color="tag.color || 'blue'" style="margin: 0;">
+                          {{ tag.name }}
                         </a-tag>
                       </div>
                       <span v-else>-</span>
@@ -117,11 +118,12 @@
         </a-form-item>
         <a-form-item label="标签">
           <a-select
-            v-model:value="projectFormData.tags"
-            mode="tags"
-            placeholder="输入标签后按回车添加（可选）"
+            v-model:value="projectFormData.tag_ids"
+            mode="multiple"
+            placeholder="选择标签（支持多选）"
             allow-clear
-            :token-separators="[',']"
+            :options="tagOptions"
+            :field-names="{ label: 'name', value: 'id' }"
           />
         </a-form-item>
         <a-row :gutter="16">
@@ -230,7 +232,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
@@ -251,6 +253,7 @@ import {
   type CreateProjectRequest
 } from '@/api/project'
 import { getUsers, type User } from '@/api/user'
+import { getTags, type Tag } from '@/api/tag'
 
 const route = useRoute()
 const router = useRouter()
@@ -266,8 +269,11 @@ const currentProjectId = ref<number>()
 
 const projectSearchForm = reactive({
   keyword: '',
-  tags: [] as string[]
+  tags: [] as number[] // 改为标签ID数组
 })
+
+const tags = ref<Tag[]>([])
+const tagOptions = computed(() => tags.value.map(tag => ({ label: tag.name, value: tag.id, color: tag.color })))
 
 const projectPagination = reactive({
   current: 1,
@@ -302,7 +308,7 @@ const projectFormData = reactive<CreateProjectRequest & { id?: number; start_dat
   code: '',
   description: '',
   status: 1,
-  tags: []
+  tag_ids: [] as number[] // 改为标签ID数组
 })
 
 const projectFormRules = {
@@ -369,7 +375,7 @@ const handleSearchProject = () => {
 // 项目重置
 const handleResetProject = () => {
   projectSearchForm.keyword = ''
-  projectSearchForm.tags = []
+  projectSearchForm.tags = [] as number[]
   handleSearchProject()
 }
 
@@ -388,7 +394,7 @@ const handleCreateProject = () => {
     code: '',
     description: '',
     status: 1,
-    tags: []
+    tag_ids: [] as number[]
   })
   delete projectFormData.id
   projectFormData.start_date = undefined
@@ -410,7 +416,7 @@ const handleEditProject = (record: Project) => {
     code: record.code,
     description: record.description || '',
     status: record.status,
-    tags: record.tags || []
+    tag_ids: record.tags ? record.tags.map(tag => tag.id) : []
   })
   if (record.start_date) {
     projectFormData.start_date = dayjs(record.start_date)
@@ -432,7 +438,7 @@ const handleProjectSubmit = async () => {
       code: projectFormData.code,
       description: projectFormData.description,
       status: projectFormData.status,
-      tags: projectFormData.tags || []
+      tag_ids: projectFormData.tag_ids || []
     }
     if (projectFormData.start_date) {
       data.start_date = projectFormData.start_date.format('YYYY-MM-DD')
@@ -540,6 +546,7 @@ const handleCloseMemberModal = () => {
 onMounted(() => {
   loadProjects()
   loadUsers()
+  loadTags()
 })
 </script>
 

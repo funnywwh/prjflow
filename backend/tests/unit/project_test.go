@@ -3,6 +3,7 @@ package unit
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -86,15 +87,19 @@ func TestProjectHandler_GetProjects(t *testing.T) {
 	})
 
 	t.Run("按单个标签搜索项目", func(t *testing.T) {
+		// 创建标签
+		tag1 := CreateTestTag(t, db, "前端")
+		tag2 := CreateTestTag(t, db, "重要")
+
 		// 创建带标签的项目
 		projectWithTag := CreateTestProject(t, db, "标签项目")
-		projectWithTag.Tags = model.StringArray{"前端", "重要"}
-		db.Save(&projectWithTag)
+		db.Model(&projectWithTag).Association("Tags").Append([]*model.Tag{tag1, tag2})
 
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest(http.MethodGet, "/api/projects?tag=前端", nil)
+		// 使用标签ID进行搜索
+		c.Request = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/projects?tag=%d", tag1.ID), nil)
 
 		handler.GetProjects(c)
 
@@ -111,20 +116,24 @@ func TestProjectHandler_GetProjects(t *testing.T) {
 	})
 
 	t.Run("按多个标签搜索项目（OR逻辑）", func(t *testing.T) {
+		// 创建标签
+		tag1 := CreateTestTag(t, db, "前端")
+		tag2 := CreateTestTag(t, db, "重要")
+		tag3 := CreateTestTag(t, db, "后端")
+		tag4 := CreateTestTag(t, db, "紧急")
+
 		// 创建带不同标签的项目
 		project1 := CreateTestProject(t, db, "标签项目1")
-		project1.Tags = model.StringArray{"前端", "重要"}
-		db.Save(&project1)
+		db.Model(&project1).Association("Tags").Append([]*model.Tag{tag1, tag2})
 
 		project2 := CreateTestProject(t, db, "标签项目2")
-		project2.Tags = model.StringArray{"后端", "紧急"}
-		db.Save(&project2)
+		db.Model(&project2).Association("Tags").Append([]*model.Tag{tag3, tag4})
 
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		// 使用QueryArray方式传递多个标签
-		c.Request = httptest.NewRequest(http.MethodGet, "/api/projects?tags=前端&tags=后端", nil)
+		// 使用QueryArray方式传递多个标签ID
+		c.Request = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/projects?tags=%d&tags=%d", tag1.ID, tag3.ID), nil)
 
 		handler.GetProjects(c)
 
@@ -197,6 +206,10 @@ func TestProjectHandler_CreateProject(t *testing.T) {
 	handler := api.NewProjectHandler(db)
 
 	t.Run("创建项目成功", func(t *testing.T) {
+		// 先创建标签
+		tag1 := CreateTestTag(t, db, "重要")
+		tag2 := CreateTestTag(t, db, "紧急")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
@@ -206,7 +219,7 @@ func TestProjectHandler_CreateProject(t *testing.T) {
 			"code":        "NEW001",
 			"description": "这是一个新项目",
 			"status":      1,
-			"tags":        []string{"重要", "紧急"},
+			"tag_ids":     []uint{tag1.ID, tag2.ID}, // 使用标签ID数组
 		}
 		jsonData, _ := json.Marshal(reqBody)
 		c.Request = httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewBuffer(jsonData))
@@ -223,11 +236,18 @@ func TestProjectHandler_CreateProject(t *testing.T) {
 
 		// 验证项目已创建
 		var project model.Project
-		err = db.Where("name = ?", "新项目").First(&project).Error
+		err = db.Preload("Tags").Where("name = ?", "新项目").First(&project).Error
 		assert.NoError(t, err)
 		assert.Equal(t, "新项目", project.Name)
 		assert.Equal(t, "NEW001", project.Code)
 		assert.Equal(t, 2, len(project.Tags))
+		// 验证标签关联正确
+		tagIDs := make([]uint, len(project.Tags))
+		for i, tag := range project.Tags {
+			tagIDs[i] = tag.ID
+		}
+		assert.Contains(t, tagIDs, tag1.ID)
+		assert.Contains(t, tagIDs, tag2.ID)
 	})
 
 	t.Run("创建项目失败-缺少必填字段", func(t *testing.T) {
@@ -258,6 +278,9 @@ func TestProjectHandler_UpdateProject(t *testing.T) {
 	handler := api.NewProjectHandler(db)
 
 	t.Run("更新项目成功", func(t *testing.T) {
+		// 先创建标签
+		tag := CreateTestTag(t, db, "已更新")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
@@ -265,12 +288,12 @@ func TestProjectHandler_UpdateProject(t *testing.T) {
 		reqBody := map[string]interface{}{
 			"name":        "已更新项目",
 			"description": "更新后的描述",
-			"tags":        []string{"已更新"},
+			"tag_ids":     []uint{tag.ID}, // 使用标签ID数组
 		}
 		jsonData, _ := json.Marshal(reqBody)
-		c.Request = httptest.NewRequest(http.MethodPut, "/api/projects/1", bytes.NewBuffer(jsonData))
+		c.Request = httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/projects/%d", project.ID), bytes.NewBuffer(jsonData))
 		c.Request.Header.Set("Content-Type", "application/json")
-		c.Params = gin.Params{gin.Param{Key: "id", Value: "1"}}
+		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", project.ID)}}
 
 		handler.UpdateProject(c)
 
@@ -278,11 +301,12 @@ func TestProjectHandler_UpdateProject(t *testing.T) {
 
 		// 验证项目已更新
 		var updatedProject model.Project
-		err := db.First(&updatedProject, project.ID).Error
+		err := db.Preload("Tags").First(&updatedProject, project.ID).Error
 		assert.NoError(t, err)
 		assert.Equal(t, "已更新项目", updatedProject.Name)
 		assert.Equal(t, "更新后的描述", updatedProject.Description)
 		assert.Equal(t, 1, len(updatedProject.Tags))
+		assert.Equal(t, tag.ID, updatedProject.Tags[0].ID)
 	})
 
 	t.Run("更新不存在的项目", func(t *testing.T) {

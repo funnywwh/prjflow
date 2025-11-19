@@ -1,7 +1,6 @@
 package api
 
 import (
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -21,7 +20,7 @@ func NewProjectHandler(db *gorm.DB) *ProjectHandler {
 // GetProjects 获取项目列表
 func (h *ProjectHandler) GetProjects(c *gin.Context) {
 	var projects []model.Project
-	query := h.db
+	query := h.db.Preload("Tags")
 
 	// 搜索
 	if keyword := c.Query("keyword"); keyword != "" {
@@ -30,29 +29,16 @@ func (h *ProjectHandler) GetProjects(c *gin.Context) {
 
 	// 标签筛选（支持多个标签，OR逻辑：包含任意一个标签即可）
 	// 支持两种方式：单个tag参数（向后兼容）和多个tags参数
-	if tags := c.QueryArray("tags"); len(tags) > 0 {
-		// 多个标签，使用OR逻辑
-		var conditions []string
-		var args []interface{}
-		for _, tag := range tags {
-			if tag != "" {
-				// 转义LIKE特殊字符：% 和 _
-				escapedTag := strings.ReplaceAll(tag, `%`, `\%`)
-				escapedTag = strings.ReplaceAll(escapedTag, `_`, `\_`)
-				// 构建LIKE模式：匹配JSON数组中的标签值
-				conditions = append(conditions, "tags LIKE ?")
-				args = append(args, "%\""+escapedTag+"\"%")
-			}
-		}
-		if len(conditions) > 0 {
-			query = query.Where("("+strings.Join(conditions, " OR ")+")", args...)
-		}
-	} else if tag := c.Query("tag"); tag != "" {
-		// 单个标签（向后兼容）
-		// 转义LIKE特殊字符
-		escapedTag := strings.ReplaceAll(tag, `%`, `\%`)
-		escapedTag = strings.ReplaceAll(escapedTag, `_`, `\_`)
-		query = query.Where("tags LIKE ?", "%\""+escapedTag+"\"%")
+	if tagIDs := c.QueryArray("tags"); len(tagIDs) > 0 {
+		// 多个标签ID，使用OR逻辑：通过JOIN查询包含任意一个标签的项目
+		query = query.Joins("JOIN project_tags ON project_tags.project_id = projects.id").
+			Where("project_tags.tag_id IN ?", tagIDs).
+			Group("projects.id")
+	} else if tagID := c.Query("tag"); tagID != "" {
+		// 单个标签ID（向后兼容）
+		query = query.Joins("JOIN project_tags ON project_tags.project_id = projects.id").
+			Where("project_tags.tag_id = ?", tagID).
+			Group("projects.id")
 	}
 
 	// 状态筛选
@@ -66,7 +52,24 @@ func (h *ProjectHandler) GetProjects(c *gin.Context) {
 	offset := (page - 1) * pageSize
 
 	var total int64
-	query.Model(&model.Project{}).Count(&total)
+	// 计算总数时需要去掉JOIN和GROUP BY的影响
+	countQuery := h.db.Model(&model.Project{})
+	if keyword := c.Query("keyword"); keyword != "" {
+		countQuery = countQuery.Where("name LIKE ? OR code LIKE ? OR description LIKE ?", "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
+	}
+	if tagIDs := c.QueryArray("tags"); len(tagIDs) > 0 {
+		countQuery = countQuery.Joins("JOIN project_tags ON project_tags.project_id = projects.id").
+			Where("project_tags.tag_id IN ?", tagIDs).
+			Group("projects.id")
+	} else if tagID := c.Query("tag"); tagID != "" {
+		countQuery = countQuery.Joins("JOIN project_tags ON project_tags.project_id = projects.id").
+			Where("project_tags.tag_id = ?", tagID).
+			Group("projects.id")
+	}
+	if status := c.Query("status"); status != "" {
+		countQuery = countQuery.Where("status = ?", status)
+	}
+	countQuery.Count(&total)
 
 	if err := query.Offset(offset).Limit(pageSize).Order("created_at DESC").Find(&projects).Error; err != nil {
 		utils.Error(c, utils.CodeError, "查询失败")
@@ -87,6 +90,7 @@ func (h *ProjectHandler) GetProject(c *gin.Context) {
 	var project model.Project
 	if err := h.db.
 		Preload("Members.User").
+		Preload("Tags").
 		First(&project, id).Error; err != nil {
 		utils.Error(c, 404, "项目不存在")
 		return
@@ -162,13 +166,13 @@ func (h *ProjectHandler) getProjectStatistics(projectID uint) gin.H {
 // CreateProject 创建项目
 func (h *ProjectHandler) CreateProject(c *gin.Context) {
 	var req struct {
-		Name        string   `json:"name" binding:"required"`
-		Code        string   `json:"code"`
-		Description string   `json:"description"`
-		Status      int      `json:"status"`
-		Tags        []string `json:"tags"`        // 标签数组
-		StartDate   *string  `json:"start_date"` // 接收字符串格式的日期
-		EndDate     *string  `json:"end_date"`   // 接收字符串格式的日期
+		Name        string  `json:"name" binding:"required"`
+		Code        string  `json:"code"`
+		Description string  `json:"description"`
+		Status      int     `json:"status"`
+		TagIDs      []uint  `json:"tag_ids"`     // 标签ID数组
+		StartDate   *string `json:"start_date"` // 接收字符串格式的日期
+		EndDate     *string `json:"end_date"`   // 接收字符串格式的日期
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -194,9 +198,22 @@ func (h *ProjectHandler) CreateProject(c *gin.Context) {
 		Code:        req.Code,
 		Description: req.Description,
 		Status:      req.Status,
-		Tags:        model.StringArray(req.Tags),
 		StartDate:   startDate,
 		EndDate:     endDate,
+	}
+
+	// 关联标签
+	if len(req.TagIDs) > 0 {
+		var tags []model.Tag
+		if err := h.db.Where("id IN ?", req.TagIDs).Find(&tags).Error; err != nil {
+			utils.Error(c, utils.CodeError, "标签查询失败")
+			return
+		}
+		if len(tags) != len(req.TagIDs) {
+			utils.Error(c, 400, "部分标签不存在")
+			return
+		}
+		project.Tags = tags
 	}
 
 	if err := h.db.Create(&project).Error; err != nil {
@@ -205,7 +222,7 @@ func (h *ProjectHandler) CreateProject(c *gin.Context) {
 	}
 
 	// 重新加载关联数据
-	h.db.Preload("Members.User").First(&project, project.ID)
+	h.db.Preload("Members.User").Preload("Tags").First(&project, project.ID)
 
 	utils.Success(c, project)
 }
@@ -220,13 +237,13 @@ func (h *ProjectHandler) UpdateProject(c *gin.Context) {
 	}
 
 	var req struct {
-		Name        *string  `json:"name"`
-		Code        *string  `json:"code"`
-		Description *string  `json:"description"`
-		Status      *int     `json:"status"`
-		Tags        *[]string `json:"tags"`        // 标签数组
-		StartDate   *string  `json:"start_date"` // 接收字符串格式的日期
-		EndDate     *string  `json:"end_date"`   // 接收字符串格式的日期
+		Name        *string `json:"name"`
+		Code        *string `json:"code"`
+		Description *string `json:"description"`
+		Status      *int    `json:"status"`
+		TagIDs      *[]uint `json:"tag_ids"`     // 标签ID数组
+		StartDate   *string `json:"start_date"` // 接收字符串格式的日期
+		EndDate     *string `json:"end_date"`   // 接收字符串格式的日期
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -247,8 +264,22 @@ func (h *ProjectHandler) UpdateProject(c *gin.Context) {
 	if req.Status != nil {
 		project.Status = *req.Status
 	}
-	if req.Tags != nil {
-		project.Tags = model.StringArray(*req.Tags)
+	
+	// 更新标签关联
+	if req.TagIDs != nil {
+		var tags []model.Tag
+		if len(*req.TagIDs) > 0 {
+			if err := h.db.Where("id IN ?", *req.TagIDs).Find(&tags).Error; err != nil {
+				utils.Error(c, utils.CodeError, "标签查询失败")
+				return
+			}
+			if len(tags) != len(*req.TagIDs) {
+				utils.Error(c, 400, "部分标签不存在")
+				return
+			}
+		}
+		// 使用Association替换标签
+		h.db.Model(&project).Association("Tags").Replace(tags)
 	}
 
 	// 解析日期

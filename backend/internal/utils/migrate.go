@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"strings"
+
 	"project-management/internal/config"
 	"project-management/internal/model"
 
@@ -16,6 +18,11 @@ func AutoMigrate(db *gorm.DB) error {
 
 	// 处理 Version 表的 project_id 字段迁移（从 build_id 迁移）
 	if err := migrateVersionProjectID(db); err != nil {
+		return err
+	}
+
+	// 处理项目标签迁移（从JSON字段迁移到关联表）
+	if err := migrateProjectTags(db); err != nil {
 		return err
 	}
 
@@ -213,6 +220,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.Role{},
 		&model.Permission{},
 
+		// 标签
+		&model.Tag{},
 		// 项目
 		&model.Project{},
 		&model.ProjectMember{},
@@ -443,6 +452,101 @@ func migrateVersionProjectID(db *gorm.DB) error {
 	// 在 SQLite 中，这需要重建表。由于我们已经删除了所有 NULL 记录，
 	// GORM 应该能够成功重建表并添加约束
 	// 如果仍然失败，可能需要手动重建表（但通常不需要）
+
+	return nil
+}
+
+// migrateProjectTags 迁移项目标签：从JSON字段迁移到关联表
+func migrateProjectTags(db *gorm.DB) error {
+	// 检查 projects 表是否存在 tags 字段（JSON格式）
+	if config.AppConfig.Database.Type == "sqlite" {
+		var tagsColumnExists int64
+		if err := db.Raw(`SELECT COUNT(*) FROM pragma_table_info('projects') WHERE name = 'tags'`).Scan(&tagsColumnExists).Error; err != nil {
+			// 表可能不存在，让 AutoMigrate 处理
+			return nil
+		}
+
+		if tagsColumnExists > 0 {
+			// tags 字段存在，需要迁移数据
+			// 1. 从 projects 表的 tags 字段中提取所有唯一的标签名称
+			// 2. 在 tags 表中创建这些标签
+			// 3. 在 project_tags 关联表中创建关联关系
+			// 4. 删除 projects 表的 tags 字段（由 GORM AutoMigrate 处理）
+
+			// 提取所有标签名称
+			var projects []struct {
+				ID   uint
+				Tags string
+			}
+			if err := db.Raw(`SELECT id, tags FROM projects WHERE tags IS NOT NULL AND tags != '' AND tags != '[]'`).Scan(&projects).Error; err != nil {
+				// 查询失败，可能表结构已改变，跳过迁移
+				return nil
+			}
+
+			// 解析JSON并收集所有唯一的标签名称
+			tagNameMap := make(map[string]bool)
+			for _, p := range projects {
+				if p.Tags != "" && p.Tags != "[]" {
+					// 简单的JSON解析：提取引号中的标签名称
+					// 格式：["tag1","tag2"] 或 ["tag1", "tag2"]
+					tagsStr := p.Tags
+					// 移除方括号和空格
+					tagsStr = strings.Trim(tagsStr, "[]")
+					// 按逗号分割
+					if tagsStr != "" {
+						tagParts := strings.Split(tagsStr, ",")
+						for _, part := range tagParts {
+							tagName := strings.Trim(part, `" `)
+							if tagName != "" {
+								tagNameMap[tagName] = true
+							}
+						}
+					}
+				}
+			}
+
+			// 在 tags 表中创建标签
+			for tagName := range tagNameMap {
+				var existingTag model.Tag
+				if err := db.Where("name = ?", tagName).First(&existingTag).Error; err != nil {
+					// 标签不存在，创建它
+					tag := model.Tag{
+						Name:  tagName,
+						Color: "blue",
+					}
+					if err := db.Create(&tag).Error; err != nil {
+						// 创建失败，继续处理其他标签
+						continue
+					}
+				}
+			}
+
+			// 为每个项目创建标签关联
+			for _, p := range projects {
+				if p.Tags != "" && p.Tags != "[]" {
+					tagsStr := strings.Trim(p.Tags, "[]")
+					if tagsStr != "" {
+						tagParts := strings.Split(tagsStr, ",")
+						for _, part := range tagParts {
+							tagName := strings.Trim(part, `" `)
+							if tagName != "" {
+								var tag model.Tag
+								if err := db.Where("name = ?", tagName).First(&tag).Error; err == nil {
+									// 检查关联是否已存在
+									var count int64
+									db.Raw(`SELECT COUNT(*) FROM project_tags WHERE project_id = ? AND tag_id = ?`, p.ID, tag.ID).Scan(&count)
+									if count == 0 {
+										// 创建关联
+										db.Exec(`INSERT INTO project_tags (project_id, tag_id) VALUES (?, ?)`, p.ID, tag.ID)
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 
 	return nil
 }

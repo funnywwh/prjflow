@@ -125,6 +125,27 @@ func CreateTestUser(t *testing.T, db *gorm.DB, username, nickname string) *model
 	return user
 }
 
+// CreateTestTag 创建测试标签
+func CreateTestTag(t *testing.T, db *gorm.DB, name string) *model.Tag {
+	// 确保标签名称唯一（添加时间戳）
+	uniqueName := name + "_" + time.Now().Format("20060102150405")
+	
+	// 检查是否已存在，如果存在则添加纳秒时间戳
+	var existingTag model.Tag
+	if err := db.Where("name = ?", uniqueName).First(&existingTag).Error; err == nil {
+		uniqueName = name + "_" + time.Now().Format("20060102150405000000")
+	}
+
+	tag := &model.Tag{
+		Name:  uniqueName,
+		Color: "blue",
+	}
+	if err := db.Create(tag).Error; err != nil {
+		t.Fatalf("Failed to create test tag: %v", err)
+	}
+	return tag
+}
+
 // CreateTestProject 创建测试项目
 func CreateTestProject(t *testing.T, db *gorm.DB, name string) *model.Project {
 	// 生成唯一的项目代码

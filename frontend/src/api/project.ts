@@ -6,7 +6,7 @@ export interface Project {
   code: string
   description?: string
   status: number
-  tags?: string[]  // 标签数组
+  tags?: Array<{ id: number; name: string; color?: string }>  // 标签对象数组
   start_date?: string
   end_date?: string
   created_at?: string
@@ -56,7 +56,7 @@ export interface CreateProjectRequest {
   code: string
   description?: string
   status?: number
-  tags?: string[]  // 标签数组
+  tag_ids?: number[]  // 标签ID数组
   start_date?: string
   end_date?: string
 }

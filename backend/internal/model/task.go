@@ -21,6 +21,9 @@ type Task struct {
 	ProjectID uint    `gorm:"index;not null" json:"project_id"`
 	Project   Project `gorm:"foreignKey:ProjectID" json:"project,omitempty"`
 
+	RequirementID *uint       `gorm:"index" json:"requirement_id"`
+	Requirement   *Requirement `gorm:"foreignKey:RequirementID" json:"requirement,omitempty"`
+
 	CreatorID uint `gorm:"index" json:"creator_id"`
 	Creator   User `gorm:"foreignKey:CreatorID" json:"creator,omitempty"`
 

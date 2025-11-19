@@ -36,6 +36,7 @@ export interface CreateTaskRequest {
   status?: 'todo' | 'in_progress' | 'done' | 'cancelled'
   priority?: 'low' | 'medium' | 'high' | 'urgent'
   project_id: number
+  requirement_id?: number
   assignee_id?: number
   start_date?: string
   end_date?: string

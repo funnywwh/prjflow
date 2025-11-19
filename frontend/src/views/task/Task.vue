@@ -95,6 +95,9 @@
                 <template v-else-if="column.key === 'project'">
                   {{ record.project?.name || '-' }}
                 </template>
+                <template v-else-if="column.key === 'requirement'">
+                  {{ record.requirement?.title || '-' }}
+                </template>
                 <template v-else-if="column.key === 'assignee'">
                   {{ record.assignee ? `${record.assignee.username}${record.assignee.nickname ? `(${record.assignee.nickname})` : ''}` : '-' }}
                 </template>
@@ -396,6 +399,7 @@ import {
   type UpdateTaskProgressRequest
 } from '@/api/task'
 import { getProjects, type Project } from '@/api/project'
+import { getRequirements, type Requirement } from '@/api/requirement'
 import { getUsers, type User } from '@/api/user'
 
 const route = useRoute()
@@ -403,6 +407,7 @@ const router = useRouter()
 const loading = ref(false)
 const tasks = ref<Task[]>([])
 const projects = ref<Project[]>([])
+const requirements = ref<Requirement[]>([])
 const users = ref<User[]>([])
 const availableTasks = ref<Task[]>([])
 const taskLoading = ref(false)
@@ -426,6 +431,7 @@ const pagination = reactive({
 const columns = [
   { title: '任务标题', dataIndex: 'title', key: 'title', ellipsis: true },
   { title: '项目', key: 'project', width: 120 },
+  { title: '需求', key: 'requirement', width: 150 },
   { title: '状态', key: 'status', width: 100 },
   { title: '优先级', key: 'priority', width: 100 },
   { title: '负责人', key: 'assignee', width: 150 },
@@ -445,6 +451,7 @@ const formData = reactive<CreateTaskRequest & { id?: number; start_date?: Dayjs;
   status: 'todo',
   priority: 'medium',
   project_id: 0,
+  requirement_id: undefined,
   assignee_id: undefined,
   start_date: undefined,
   end_date: undefined,
@@ -611,6 +618,7 @@ const handleCreate = () => {
   // 如果有路由查询参数中的 project_id，使用它；否则重置为 0
   const projectIdFromQuery = route.query.project_id
   formData.project_id = projectIdFromQuery ? Number(projectIdFromQuery) : 0
+  formData.requirement_id = undefined
   formData.assignee_id = undefined
   formData.start_date = undefined
   formData.end_date = undefined
@@ -634,6 +642,7 @@ const handleEdit = (record: Task) => {
   formData.status = record.status
   formData.priority = record.priority
   formData.project_id = record.project_id
+  formData.requirement_id = record.requirement_id
   formData.assignee_id = record.assignee_id
   // 解析日期，确保日期有效
   if (record.start_date) {
@@ -685,6 +694,7 @@ const handleSubmit = async () => {
       status: formData.status,
       priority: formData.priority,
       project_id: formData.project_id,
+      requirement_id: formData.requirement_id,
       assignee_id: formData.assignee_id,
       start_date: formData.start_date && formData.start_date.isValid() ? formData.start_date.format('YYYY-MM-DD') : undefined,
       end_date: formData.end_date && formData.end_date.isValid() ? formData.end_date.format('YYYY-MM-DD') : undefined,

@@ -21,7 +21,7 @@ func NewTaskHandler(db *gorm.DB) *TaskHandler {
 // GetTasks 获取任务列表
 func (h *TaskHandler) GetTasks(c *gin.Context) {
 	var tasks []model.Task
-	query := h.db.Preload("Project").Preload("Creator").Preload("Assignee").Preload("Dependencies")
+	query := h.db.Preload("Project").Preload("Requirement").Preload("Creator").Preload("Assignee").Preload("Dependencies")
 
 	// 搜索
 	if keyword := c.Query("keyword"); keyword != "" {
@@ -78,7 +78,7 @@ func (h *TaskHandler) GetTasks(c *gin.Context) {
 func (h *TaskHandler) GetTask(c *gin.Context) {
 	id := c.Param("id")
 	var task model.Task
-	if err := h.db.Preload("Project").Preload("Creator").Preload("Assignee").Preload("Dependencies").First(&task, id).Error; err != nil {
+	if err := h.db.Preload("Project").Preload("Requirement").Preload("Creator").Preload("Assignee").Preload("Dependencies").First(&task, id).Error; err != nil {
 		utils.Error(c, 404, "任务不存在")
 		return
 	}
@@ -94,6 +94,7 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 		Status         string    `json:"status"`
 		Priority       string    `json:"priority"`
 		ProjectID      uint      `json:"project_id" binding:"required"`
+		RequirementID  *uint     `json:"requirement_id"`
 		AssigneeID     *uint     `json:"assignee_id"`
 		StartDate      *string   `json:"start_date"`
 		EndDate        *string   `json:"end_date"`
@@ -158,6 +159,19 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 		return
 	}
 
+	// 如果指定了需求，验证需求是否存在且属于同一项目
+	if req.RequirementID != nil {
+		var requirement model.Requirement
+		if err := h.db.First(&requirement, *req.RequirementID).Error; err != nil {
+			utils.Error(c, 400, "需求不存在")
+			return
+		}
+		if requirement.ProjectID == nil || *requirement.ProjectID != req.ProjectID {
+			utils.Error(c, 400, "需求必须属于同一项目")
+			return
+		}
+	}
+
 	// 如果指定了负责人，验证用户是否存在
 	if req.AssigneeID != nil {
 		var user model.User
@@ -191,6 +205,7 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 		Status:         req.Status,
 		Priority:       req.Priority,
 		ProjectID:      req.ProjectID,
+		RequirementID:  req.RequirementID,
 		CreatorID:      userID.(uint),
 		AssigneeID:     req.AssigneeID,
 		StartDate:      startDate,
@@ -226,7 +241,7 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 	}
 
 	// 重新加载关联数据
-	h.db.Preload("Project").Preload("Creator").Preload("Assignee").Preload("Dependencies").First(&task, task.ID)
+	h.db.Preload("Project").Preload("Requirement").Preload("Creator").Preload("Assignee").Preload("Dependencies").First(&task, task.ID)
 
 	utils.Success(c, task)
 }
@@ -246,6 +261,7 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 		Status         *string  `json:"status"`
 		Priority       *string  `json:"priority"`
 		ProjectID      *uint    `json:"project_id"`
+		RequirementID  *uint    `json:"requirement_id"`
 		AssigneeID     *uint    `json:"assignee_id"`
 		StartDate      *string  `json:"start_date"`
 		EndDate        *string  `json:"end_date"`
@@ -305,6 +321,23 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 			return
 		}
 		task.ProjectID = *req.ProjectID
+	}
+	if req.RequirementID != nil {
+		// 验证需求是否存在且属于同一项目
+		if *req.RequirementID != 0 {
+			var requirement model.Requirement
+			if err := h.db.First(&requirement, *req.RequirementID).Error; err != nil {
+				utils.Error(c, 400, "需求不存在")
+				return
+			}
+			if requirement.ProjectID == nil || *requirement.ProjectID != task.ProjectID {
+				utils.Error(c, 400, "需求必须属于同一项目")
+				return
+			}
+			task.RequirementID = req.RequirementID
+		} else {
+			task.RequirementID = nil
+		}
 	}
 	if req.AssigneeID != nil {
 		// 验证负责人是否存在
@@ -428,7 +461,7 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 	}
 
 	// 重新加载关联数据
-	h.db.Preload("Project").Preload("Creator").Preload("Assignee").Preload("Dependencies").First(&task, task.ID)
+	h.db.Preload("Project").Preload("Requirement").Preload("Creator").Preload("Assignee").Preload("Dependencies").First(&task, task.ID)
 
 	utils.Success(c, task)
 }
@@ -497,7 +530,7 @@ func (h *TaskHandler) UpdateTaskStatus(c *gin.Context) {
 	}
 
 	// 重新加载关联数据
-	h.db.Preload("Project").Preload("Creator").Preload("Assignee").Preload("Dependencies").First(&task, task.ID)
+	h.db.Preload("Project").Preload("Requirement").Preload("Creator").Preload("Assignee").Preload("Dependencies").First(&task, task.ID)
 
 	utils.Success(c, task)
 }
@@ -602,7 +635,7 @@ func (h *TaskHandler) UpdateTaskProgress(c *gin.Context) {
 	}
 
 	// 重新加载关联数据
-	h.db.Preload("Project").Preload("Creator").Preload("Assignee").Preload("Dependencies").First(&task, task.ID)
+	h.db.Preload("Project").Preload("Requirement").Preload("Creator").Preload("Assignee").Preload("Dependencies").First(&task, task.ID)
 
 	utils.Success(c, task)
 }

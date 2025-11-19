@@ -18,7 +18,7 @@ type Version struct {
 	Status        string `gorm:"size:20;default:'draft'" json:"status"`   // 状态：draft, released, archived
 
 	ProjectID uint    `gorm:"index;not null" json:"project_id"` // 关联项目
-	Project   Project `gorm:"foreignKey:ProjectID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL" json:"project,omitempty"`
+	Project   Project `gorm:"foreignKey:ProjectID" json:"project,omitempty"`
 
 	ReleaseDate *time.Time `json:"release_date"` // 发布日期
 

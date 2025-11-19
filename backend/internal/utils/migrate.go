@@ -242,10 +242,10 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.BoardColumn{},
 
 
-		// 版本 - 手动处理，避免 GORM 重建表时只复制部分字段
-		// 注意：即使不在这里，GORM 仍然可能因为检测到差异而尝试重建表
-		// 所以我们需要在 AutoMigrate 之前确保表结构完全正确
-		// &model.Version{},
+		// 版本 - 由于 GORM 仍然会检测到差异并尝试重建表，我们将其加入 AutoMigrate
+		// 但在此之前，我们已经确保了表结构正确（包括 NOT NULL 约束）
+		// 这样 GORM 在重建表时应该能够正确复制所有字段
+		&model.Version{},
 
 		// 测试
 		&model.TestCase{},

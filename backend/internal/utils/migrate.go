@@ -277,40 +277,6 @@ func AutoMigrate(db *gorm.DB) error {
 		}
 	}
 	
-	// 关键修复：在 AutoMigrate 之前，手动使用 Migrator 接口同步 Version 表
-	// 这样可以确保表结构与模型完全匹配，避免 GORM 检测到差异
-	// 注意：即使 Version 表不在 AutoMigrate 中，GORM 仍然可能因为 Requirement 模型引用了 Version
-	// 而尝试重建 Version 表。所以我们需要确保 Version 表结构完全正确。
-	if config.AppConfig.Database.Type == "sqlite" {
-		migrator := db.Migrator()
-		if migrator.HasTable(&model.Version{}) {
-			// 使用 Migrator 接口手动同步表结构，确保与模型完全匹配
-			// 这样可以避免 GORM 的 AutoMigrate 检测到差异并尝试重建表
-			// 注意：Migrator 的 AlterColumn 等方法在 SQLite 中可能不支持，所以我们只检查字段是否存在
-			// 如果字段不存在，使用 AddColumn 添加；如果存在，确保结构正确
-			
-			// 检查并添加缺失的字段（如果不存在）
-			if !migrator.HasColumn(&model.Version{}, "version_number") {
-				migrator.AddColumn(&model.Version{}, "version_number")
-			}
-			if !migrator.HasColumn(&model.Version{}, "release_notes") {
-				migrator.AddColumn(&model.Version{}, "release_notes")
-			}
-			if !migrator.HasColumn(&model.Version{}, "status") {
-				migrator.AddColumn(&model.Version{}, "status")
-			}
-			if !migrator.HasColumn(&model.Version{}, "project_id") {
-				migrator.AddColumn(&model.Version{}, "project_id")
-			}
-			if !migrator.HasColumn(&model.Version{}, "release_date") {
-				migrator.AddColumn(&model.Version{}, "release_date")
-			}
-			
-			// 创建索引（如果不存在）
-			db.Exec("CREATE INDEX IF NOT EXISTS idx_versions_deleted_at ON versions(deleted_at)")
-			db.Exec("CREATE INDEX IF NOT EXISTS idx_versions_project_id ON versions(project_id)")
-		}
-	}
 
 	return db.AutoMigrate(
 		// 用户与权限

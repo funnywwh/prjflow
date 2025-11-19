@@ -594,15 +594,41 @@ const loadTasksForProject = async () => {
   }
 }
 
-// 监听项目变化，重新加载任务
+// 监听项目变化，重新加载任务和需求
 watch(() => formData.project_id, () => {
   formData.dependency_ids = []
+  formData.requirement_id = undefined
   if (formData.project_id) {
     loadTasksForProject()
+    loadRequirementsForProject()
   } else {
     availableTasks.value = []
+    requirements.value = []
   }
 })
+
+// 加载项目下的需求
+const loadRequirementsForProject = async () => {
+  if (!formData.project_id) {
+    requirements.value = []
+    return
+  }
+  try {
+    taskLoading.value = true
+    const response = await getRequirements({ project_id: formData.project_id, page_size: 1000 })
+    requirements.value = response.list || []
+  } catch (error: any) {
+    console.error('加载需求列表失败:', error)
+  } finally {
+    taskLoading.value = false
+  }
+}
+
+// 项目变更处理
+const handleProjectChange = () => {
+  formData.requirement_id = undefined
+  loadRequirementsForProject()
+}
 
 // 搜索
 const handleSearch = () => {

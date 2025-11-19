@@ -280,6 +280,99 @@ func TestProjectHandler_DeleteProject(t *testing.T) {
 	})
 }
 
+func TestProjectHandler_GetProjectGantt(t *testing.T) {
+	db := SetupTestDB(t)
+	defer TeardownTestDB(t, db)
+
+	project := CreateTestProject(t, db, "甘特图项目")
+	user := CreateTestUser(t, db, "ganttuser", "甘特图用户")
+
+	// 创建测试任务
+	task := &model.Task{
+		Title:     "甘特图任务",
+		ProjectID: project.ID,
+		CreatorID: user.ID,
+		Status:    "todo",
+	}
+	db.Create(&task)
+
+	handler := api.NewProjectHandler(db)
+
+	t.Run("获取项目甘特图数据", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, "/api/projects/1/gantt", nil)
+		c.Params = gin.Params{gin.Param{Key: "id", Value: "1"}}
+
+		handler.GetProjectGantt(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, float64(200), response["code"])
+
+		data := response["data"].(map[string]interface{})
+		assert.NotNil(t, data["tasks"])
+	})
+
+	t.Run("获取不存在的项目甘特图", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, "/api/projects/999/gantt", nil)
+		c.Params = gin.Params{gin.Param{Key: "id", Value: "999"}}
+
+		handler.GetProjectGantt(c)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+}
+
+func TestProjectHandler_GetProjectProgress(t *testing.T) {
+	db := SetupTestDB(t)
+	defer TeardownTestDB(t, db)
+
+	_ = CreateTestProject(t, db, "进度跟踪项目")
+	handler := api.NewProjectHandler(db)
+
+	t.Run("获取项目进度跟踪数据", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, "/api/projects/1/progress", nil)
+		c.Params = gin.Params{gin.Param{Key: "id", Value: "1"}}
+
+		handler.GetProjectProgress(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, float64(200), response["code"])
+
+		data := response["data"].(map[string]interface{})
+		assert.NotNil(t, data["statistics"])
+		assert.NotNil(t, data["task_progress_trend"])
+		assert.NotNil(t, data["task_status_distribution"])
+	})
+
+	t.Run("获取不存在的项目进度", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, "/api/projects/999/progress", nil)
+		c.Params = gin.Params{gin.Param{Key: "id", Value: "999"}}
+
+		handler.GetProjectProgress(c)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+}
+
 func TestProjectHandler_GetProjectStatistics(t *testing.T) {
 	db := SetupTestDB(t)
 	defer TeardownTestDB(t, db)

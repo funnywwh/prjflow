@@ -290,6 +290,56 @@ func TestTestCaseHandler_UpdateTestCase(t *testing.T) {
 	})
 }
 
+func TestTestCaseHandler_GetTestCaseStatistics(t *testing.T) {
+	db := SetupTestDB(t)
+	defer TeardownTestDB(t, db)
+
+	project := CreateTestProject(t, db, "测试统计项目")
+	user := CreateTestUser(t, db, "teststat", "测试统计用户")
+
+	// 创建测试数据
+	testCase1 := &model.TestCase{
+		Name:      "测试1",
+		ProjectID: project.ID,
+		CreatorID: user.ID,
+		Status:    "passed",
+		Types:     model.StringArray{"功能测试"},
+	}
+	db.Create(testCase1)
+
+	testCase2 := &model.TestCase{
+		Name:      "测试2",
+		ProjectID: project.ID,
+		CreatorID: user.ID,
+		Status:    "failed",
+		Types:     model.StringArray{"性能测试"},
+	}
+	db.Create(testCase2)
+
+	handler := api.NewTestCaseHandler(db)
+
+	t.Run("获取测试单统计", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, "/api/test-cases/statistics", nil)
+
+		handler.GetTestCaseStatistics(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, float64(200), response["code"])
+
+		data := response["data"].(map[string]interface{})
+		assert.NotNil(t, data["total"])
+		assert.NotNil(t, data["pass_rate"])
+		assert.NotNil(t, data["fail_rate"])
+	})
+}
+
 func TestTestCaseHandler_DeleteTestCase(t *testing.T) {
 	db := SetupTestDB(t)
 	defer TeardownTestDB(t, db)

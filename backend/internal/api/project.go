@@ -216,13 +216,17 @@ func (h *ProjectHandler) CreateProject(c *gin.Context) {
 		project.Tags = tags
 	}
 
+	// 创建项目（GORM会自动处理多对多关联）
 	if err := h.db.Create(&project).Error; err != nil {
-		utils.Error(c, utils.CodeError, "创建失败")
+		utils.Error(c, utils.CodeError, "创建失败: "+err.Error())
 		return
 	}
 
 	// 重新加载关联数据
-	h.db.Preload("Members.User").Preload("Tags").First(&project, project.ID)
+	if err := h.db.Preload("Members.User").Preload("Tags").First(&project, project.ID).Error; err != nil {
+		utils.Error(c, utils.CodeError, "查询失败")
+		return
+	}
 
 	utils.Success(c, project)
 }

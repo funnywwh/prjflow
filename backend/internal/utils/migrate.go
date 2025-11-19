@@ -460,9 +460,16 @@ func migrateVersionProjectID(db *gorm.DB) error {
 func migrateProjectTags(db *gorm.DB) error {
 	// 检查 projects 表是否存在 tags 字段（JSON格式）
 	if config.AppConfig.Database.Type == "sqlite" {
+		// 先检查表是否存在
+		var tableExists int64
+		if err := db.Raw(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='projects'`).Scan(&tableExists).Error; err != nil || tableExists == 0 {
+			// 表不存在，让 AutoMigrate 处理
+			return nil
+		}
+
 		var tagsColumnExists int64
 		if err := db.Raw(`SELECT COUNT(*) FROM pragma_table_info('projects') WHERE name = 'tags'`).Scan(&tagsColumnExists).Error; err != nil {
-			// 表可能不存在，让 AutoMigrate 处理
+			// 查询失败，可能表结构已改变，跳过迁移
 			return nil
 		}
 

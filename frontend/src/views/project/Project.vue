@@ -389,25 +389,22 @@ const handleProjectTableChange = (pag: any) => {
 
 // 新增项目
 const handleCreateProject = () => {
-  try {
-    projectModalTitle.value = '新增项目'
-    // 重置表单数据
-    projectFormData.name = ''
-    projectFormData.code = ''
-    projectFormData.description = ''
-    projectFormData.status = 1
-    projectFormData.tag_ids = []
-    delete projectFormData.id
-    projectFormData.start_date = undefined
-    projectFormData.end_date = undefined
-    // 打开对话框
-    projectModalVisible.value = true
-    // 重置表单验证状态
+  projectModalTitle.value = '新增项目'
+  // 重置表单数据
+  projectFormData.name = ''
+  projectFormData.code = ''
+  projectFormData.description = ''
+  projectFormData.status = 1
+  projectFormData.tag_ids = []
+  delete projectFormData.id
+  projectFormData.start_date = undefined
+  projectFormData.end_date = undefined
+  // 打开对话框
+  projectModalVisible.value = true
+  // 使用 nextTick 确保 DOM 更新后再重置表单
+  nextTick(() => {
     projectFormRef.value?.resetFields()
-  } catch (error) {
-    console.error('创建项目对话框打开失败:', error)
-    message.error('打开对话框失败')
-  }
+  })
 }
 
 // 查看项目详情

@@ -188,6 +188,13 @@ func AutoMigrate(db *gorm.DB) error {
 	// 这样可以确保表结构与模型完全匹配，避免 GORM 的 AutoMigrate 检测到差异并尝试重建表
 	// 注意：GORM 在重建表时可能只复制部分字段，导致 NOT NULL 约束失败
 	// 所以我们需要确保在 GORM 处理之前，表结构已经完全正确
+	// 
+	// 问题的根源：GORM 在检测到表结构差异（比如外键约束格式不同）时，会尝试重建表
+	// 但重建表时，GORM 的复制语句可能只包含"变化"的字段，而不是所有字段
+	// 这导致 NOT NULL 约束失败
+	// 
+	// 解决方案：在 AutoMigrate 之前，手动检查并修复表结构，确保它与模型完全匹配
+	// 包括所有字段、约束和索引，这样 GORM 就不会检测到差异，也就不会尝试重建表
 	if config.AppConfig.Database.Type == "sqlite" {
 		migrator := db.Migrator()
 		if migrator.HasTable(&model.Version{}) {

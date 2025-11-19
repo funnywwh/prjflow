@@ -369,10 +369,11 @@ func TestProjectHandler_GetProjectProgress(t *testing.T) {
 
 		handler.GetProjectProgress(c)
 
-		// GetProjectProgress在项目不存在时返回404或错误消息
+		// GetProjectProgress在项目不存在时返回错误消息（utils.Error返回200状态码但code不为200）
 		var response map[string]interface{}
 		json.Unmarshal(w.Body.Bytes(), &response)
-		assert.True(t, w.Code == http.StatusNotFound || (response["code"] != nil && response["code"] != float64(200)))
+		// utils.Error返回200状态码，但code字段不为200
+		assert.True(t, response["code"] != nil && response["code"] != float64(200))
 	})
 }
 

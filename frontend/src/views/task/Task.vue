@@ -193,6 +193,7 @@
             placeholder="选择项目"
             show-search
             :filter-option="filterProjectOption"
+            @change="handleProjectChange"
           >
             <a-select-option
               v-for="project in projects"
@@ -200,6 +201,25 @@
               :value="project.id"
             >
               {{ project.name }}
+            </a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item label="关联需求" name="requirement_id">
+          <a-select
+            v-model:value="formData.requirement_id"
+            placeholder="选择需求（可选）"
+            allow-clear
+            show-search
+            :filter-option="filterRequirementOption"
+            :loading="taskLoading"
+            :disabled="!formData.project_id"
+          >
+            <a-select-option
+              v-for="requirement in requirements"
+              :key="requirement.id"
+              :value="requirement.id"
+            >
+              {{ requirement.title }}
             </a-select-option>
           </a-select>
         </a-form-item>
@@ -850,6 +870,13 @@ const filterProjectOption = (input: string, option: any) => {
     project.name.toLowerCase().includes(searchText) ||
     (project.code && project.code.toLowerCase().includes(searchText))
   )
+}
+
+const filterRequirementOption = (input: string, option: any) => {
+  const requirement = requirements.value.find(r => r.id === option.value)
+  if (!requirement) return false
+  const searchText = input.toLowerCase()
+  return requirement.title.toLowerCase().includes(searchText)
 }
 
 // 任务筛选

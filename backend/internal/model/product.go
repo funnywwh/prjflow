@@ -25,7 +25,6 @@ type Project struct {
 	Bugs         []Bug           `gorm:"foreignKey:ProjectID" json:"bugs,omitempty"`
 	Requirements []Requirement   `gorm:"foreignKey:ProjectID" json:"requirements,omitempty"`
 	TestCases    []TestCase      `gorm:"foreignKey:ProjectID" json:"test_cases,omitempty"`
-	Plans        []Plan          `gorm:"foreignKey:ProjectID" json:"plans,omitempty"`
 	Boards       []Board         `gorm:"foreignKey:ProjectID" json:"boards,omitempty"`
 	Tags         []Tag           `gorm:"many2many:project_tags;" json:"tags,omitempty"` // 标签（多对多关联）
 }

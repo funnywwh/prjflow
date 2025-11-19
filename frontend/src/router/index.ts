@@ -128,18 +128,6 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true }
   },
   {
-    path: '/plan/:id',
-    name: 'PlanDetail',
-    component: () => import('../views/plan/PlanDetail.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/plan',
-    name: 'Plan',
-    component: () => import('../views/plan/Plan.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
     path: '/version/:id',
     name: 'VersionDetail',
     component: () => import('../views/version/VersionDetail.vue'),

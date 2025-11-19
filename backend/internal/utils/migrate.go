@@ -237,9 +237,6 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.Board{},
 		&model.BoardColumn{},
 
-		// 计划与执行
-		&model.Plan{},
-		&model.PlanExecution{},
 
 		// 版本 - 手动处理，避免 GORM 重建表时只复制部分字段
 		// &model.Version{},

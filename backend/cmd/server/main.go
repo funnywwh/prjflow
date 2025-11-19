@@ -233,33 +233,6 @@ func main() {
 		boardGroup.DELETE("/:id/columns/:column_id", boardHandler.DeleteBoardColumn)
 	}
 
-	// 计划管理路由
-	planHandler := api.NewPlanHandler(db)
-	planGroup := r.Group("/api/plans", middleware.Auth())
-	{
-		planGroup.GET("", planHandler.GetPlans)
-		planGroup.GET("/:id", planHandler.GetPlan)
-		planGroup.POST("", planHandler.CreatePlan)
-		planGroup.PUT("/:id", planHandler.UpdatePlan)
-		planGroup.DELETE("/:id", planHandler.DeletePlan)
-		planGroup.PATCH("/:id/status", planHandler.UpdatePlanStatus)
-	}
-
-	// 计划执行管理路由（使用独立的路由组避免参数冲突）
-	planExecutionHandler := api.NewPlanExecutionHandler(db)
-	planExecutionGroup := r.Group("/api/plans", middleware.Auth())
-	{
-		// 使用 :id 作为计划ID，与计划路由保持一致
-		planExecutionGroup.GET("/:id/executions", planExecutionHandler.GetPlanExecutions)
-		planExecutionGroup.GET("/:id/executions/:execution_id", planExecutionHandler.GetPlanExecution)
-		planExecutionGroup.POST("/:id/executions", planExecutionHandler.CreatePlanExecution)
-		planExecutionGroup.PUT("/:id/executions/:execution_id", planExecutionHandler.UpdatePlanExecution)
-		planExecutionGroup.DELETE("/:id/executions/:execution_id", planExecutionHandler.DeletePlanExecution)
-		planExecutionGroup.PATCH("/:id/executions/:execution_id/status", planExecutionHandler.UpdatePlanExecutionStatus)
-		planExecutionGroup.PATCH("/:id/executions/:execution_id/progress", planExecutionHandler.UpdatePlanExecutionProgress)
-	}
-
-
 	// 版本管理路由
 	versionHandler := api.NewVersionHandler(db)
 	versionGroup := r.Group("/api/versions", middleware.Auth())

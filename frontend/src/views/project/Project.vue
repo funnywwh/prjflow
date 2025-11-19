@@ -118,14 +118,33 @@
           <a-input v-model:value="projectFormData.code" placeholder="请输入项目编码" />
         </a-form-item>
         <a-form-item label="标签">
-          <a-select
-            v-model:value="projectFormData.tag_ids"
-            mode="multiple"
-            placeholder="选择标签（支持多选）"
-            allow-clear
-            :options="tagOptions"
-            :field-names="{ label: 'name', value: 'id' }"
-          />
+          <a-space style="width: 100%" direction="vertical">
+            <a-select
+              v-model:value="projectFormData.tag_ids"
+              mode="multiple"
+              placeholder="选择标签（支持多选）"
+              allow-clear
+              :options="tagOptions"
+              :field-names="{ label: 'name', value: 'id' }"
+              :filter-option="false"
+              :show-search="true"
+              @search="handleTagSearch"
+              @dropdown-visible-change="handleTagDropdownVisibleChange"
+            >
+              <template #notFoundContent>
+                <div style="padding: 8px; text-align: center;">
+                  <a-button type="link" size="small" @click="handleCreateNewTag">
+                    <template #icon><PlusOutlined /></template>
+                    创建标签 "{{ tagSearchKeyword }}"
+                  </a-button>
+                </div>
+              </template>
+            </a-select>
+            <a-button type="link" size="small" @click="handleOpenTagManageModal" style="padding: 0;">
+              <template #icon><PlusOutlined /></template>
+              管理标签
+            </a-button>
+          </a-space>
         </a-form-item>
         <a-row :gutter="16">
           <a-col :span="12">
@@ -254,7 +273,7 @@ import {
   type CreateProjectRequest
 } from '@/api/project'
 import { getUsers, type User } from '@/api/user'
-import { getTags, type Tag } from '@/api/tag'
+import { getTags, createTag, type Tag } from '@/api/tag'
 
 const route = useRoute()
 const router = useRouter()

@@ -355,6 +355,16 @@ const loadUsers = async () => {
   }
 }
 
+// 加载标签列表
+const loadTags = async () => {
+  try {
+    tags.value = await getTags()
+  } catch (error: any) {
+    console.error('加载标签列表失败:', error)
+    message.error('加载标签列表失败')
+  }
+}
+
 // 加载项目成员
 const loadProjectMembers = async (projectId: number) => {
   memberLoading.value = true

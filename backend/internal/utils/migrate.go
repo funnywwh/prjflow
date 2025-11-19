@@ -117,38 +117,23 @@ func AutoMigrate(db *gorm.DB) error {
 		}
 	}
 	
-	// 使用 Migrator 接口手动处理 Version 表，确保表结构与模型完全匹配
-	// 这样可以避免 GORM 的 AutoMigrate 尝试重建表
-	if config.AppConfig.Database.Type == "sqlite" {
-		migrator := db.Migrator()
-		if migrator.HasTable(&model.Version{}) {
-			// 表存在，使用 Migrator 接口手动同步表结构，确保与模型完全匹配
-			// 这样可以避免 GORM 的 AutoMigrate 检测到差异并尝试重建表
-			// 注意：Migrator 的 AlterColumn 等方法在 SQLite 中可能不支持，所以我们只检查字段是否存在
-			// 如果字段不存在，使用 AddColumn 添加；如果存在，确保结构正确
-			
-			// 检查并添加缺失的字段（如果不存在）
-			if !migrator.HasColumn(&model.Version{}, "version_number") {
-				migrator.AddColumn(&model.Version{}, "version_number")
-			}
-			if !migrator.HasColumn(&model.Version{}, "release_notes") {
-				migrator.AddColumn(&model.Version{}, "release_notes")
-			}
-			if !migrator.HasColumn(&model.Version{}, "status") {
-				migrator.AddColumn(&model.Version{}, "status")
-			}
-			if !migrator.HasColumn(&model.Version{}, "project_id") {
-				migrator.AddColumn(&model.Version{}, "project_id")
-			}
-			if !migrator.HasColumn(&model.Version{}, "release_date") {
-				migrator.AddColumn(&model.Version{}, "release_date")
-			}
-			
-			// 创建索引（如果不存在）
-			db.Exec("CREATE INDEX IF NOT EXISTS idx_versions_deleted_at ON versions(deleted_at)")
-			db.Exec("CREATE INDEX IF NOT EXISTS idx_versions_project_id ON versions(project_id)")
-		}
-	}
+	// 注意：由于 Version 表不在 AutoMigrate 中，GORM 不应该处理它
+	// 但如果 GORM 仍然检测到差异（比如外键约束格式不同），可能会尝试重建表
+	// 为了避免这个问题，我们需要确保表结构与模型完全匹配
+	// 但由于 Version 表不在 AutoMigrate 中，GORM 不应该处理它
+	// 如果仍然出现问题，可能是其他原因导致的
+	// 
+	// 实际上，问题的根源可能是：GORM 在检查表结构时，发现外键约束格式不匹配
+	// 所以尝试重建表。但重建表时，GORM 的复制语句没有包含所有字段。
+	// 
+	// 解决方案：完全排除 Version 表从 GORM 的迁移中，并确保表结构完全正确
+	// 由于 Version 表已经在 AutoMigrate 中被注释掉了，GORM 不应该处理它
+	// 但如果仍然出现问题，可能是 GORM 检测到了其他差异
+	// 
+	// 最好的解决方案是：在 AutoMigrate 之前，手动检查并修复表结构
+	// 确保它与模型完全匹配，包括外键约束格式
+	// 但由于 SQLite 的限制，我们无法直接修改外键约束
+	// 所以我们需要在 migrateVersionProjectID 中确保表结构完全正确
 	
 	// 创建关联表（如果不存在）
 	// Version 表有 many2many 关联，需要创建关联表

@@ -69,7 +69,8 @@ export interface AddProjectMembersRequest {
 // 项目相关API
 export const getProjects = async (params?: {
   keyword?: string
-  tag?: string
+  tag?: string  // 向后兼容单个标签
+  tags?: string[]  // 多个标签（优先使用）
   status?: number
   page?: number
   size?: number

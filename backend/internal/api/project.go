@@ -1,6 +1,7 @@
 package api
 
 import (
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -27,8 +28,23 @@ func (h *ProjectHandler) GetProjects(c *gin.Context) {
 		query = query.Where("name LIKE ? OR code LIKE ? OR description LIKE ?", "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
 	}
 
-	// 标签筛选
-	if tag := c.Query("tag"); tag != "" {
+	// 标签筛选（支持多个标签，OR逻辑：包含任意一个标签即可）
+	// 支持两种方式：单个tag参数（向后兼容）和多个tags参数
+	if tags := c.QueryArray("tags"); len(tags) > 0 {
+		// 多个标签，使用OR逻辑
+		var conditions []string
+		var args []interface{}
+		for _, tag := range tags {
+			if tag != "" {
+				conditions = append(conditions, "tags LIKE ?")
+				args = append(args, "%\""+tag+"\"%")
+			}
+		}
+		if len(conditions) > 0 {
+			query = query.Where("("+strings.Join(conditions, " OR ")+")", args...)
+		}
+	} else if tag := c.Query("tag"); tag != "" {
+		// 单个标签（向后兼容）
 		query = query.Where("tags LIKE ?", "%\""+tag+"\"%")
 	}
 

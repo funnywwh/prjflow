@@ -12,6 +12,9 @@ const request: AxiosInstance = axios.create({
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json'
+  },
+  paramsSerializer: {
+    indexes: null // 将数组序列化为 tags=value1&tags=value2 格式
   }
 })
 

@@ -26,12 +26,15 @@
                     />
                   </a-form-item>
                   <a-form-item label="标签">
-                    <a-input
-                      v-model:value="projectSearchForm.tag"
-                      placeholder="输入标签筛选"
+                    <a-select
+                      v-model:value="projectSearchForm.tags"
+                      mode="tags"
+                      placeholder="选择或输入标签（支持多选）"
                       allow-clear
-                      style="width: 200px"
-                    />
+                      style="width: 300px"
+                      :token-separators="[',']"
+                    >
+                    </a-select>
                   </a-form-item>
                   <a-form-item>
                     <a-button type="primary" @click="handleSearchProject">查询</a-button>
@@ -263,7 +266,7 @@ const currentProjectId = ref<number>()
 
 const projectSearchForm = reactive({
   keyword: '',
-  tag: undefined as string | undefined
+  tags: [] as string[]
 })
 
 const projectPagination = reactive({
@@ -322,8 +325,8 @@ const loadProjects = async () => {
     if (projectSearchForm.keyword) {
       params.keyword = projectSearchForm.keyword
     }
-    if (projectSearchForm.tag) {
-      params.tag = projectSearchForm.tag
+    if (projectSearchForm.tags && projectSearchForm.tags.length > 0) {
+      params.tags = projectSearchForm.tags
     }
     const response = await getProjects(params)
     projects.value = response.list
@@ -366,7 +369,7 @@ const handleSearchProject = () => {
 // 项目重置
 const handleResetProject = () => {
   projectSearchForm.keyword = ''
-  projectSearchForm.tag = undefined
+  projectSearchForm.tags = []
   handleSearchProject()
 }
 

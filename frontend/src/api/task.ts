@@ -8,6 +8,8 @@ export interface Task {
   priority: 'low' | 'medium' | 'high' | 'urgent'
   project_id: number
   project?: any
+  requirement_id?: number
+  requirement?: any
   creator_id: number
   creator?: any
   assignee_id?: number

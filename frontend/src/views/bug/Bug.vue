@@ -885,7 +885,11 @@ const handleOpenStatusModal = (record: Bug, status: string) => {
 
 // 加载项目下的版本列表
 const loadVersionsForProject = async (projectId?: number) => {
-  const pid = projectId || statusFormData.bug_id ? bugs.value.find(b => b.id === statusFormData.bug_id)?.project_id : undefined
+  let pid = projectId
+  if (!pid && statusFormData.bug_id) {
+    const bug = bugs.value.find(b => b.id === statusFormData.bug_id)
+    pid = bug?.project_id
+  }
   if (!pid) {
     versions.value = []
     return

@@ -381,6 +381,125 @@ func TestProjectHandler_GetProjectProgress(t *testing.T) {
 	})
 }
 
+func TestProjectHandler_AddProjectMembers(t *testing.T) {
+	db := SetupTestDB(t)
+	defer TeardownTestDB(t, db)
+
+	project := CreateTestProject(t, db, "添加成员项目")
+	user1 := CreateTestUser(t, db, "member1", "成员1")
+	user2 := CreateTestUser(t, db, "member2", "成员2")
+
+	handler := api.NewProjectHandler(db)
+
+	t.Run("添加项目成员成功", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
+		reqBody := map[string]interface{}{
+			"user_ids": []uint{user1.ID, user2.ID},
+			"role":     "developer",
+		}
+		jsonData, _ := json.Marshal(reqBody)
+		c.Request = httptest.NewRequest(http.MethodPost, "/api/projects/1/members", bytes.NewBuffer(jsonData))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Params = gin.Params{gin.Param{Key: "id", Value: "1"}}
+
+		handler.AddProjectMembers(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		// 验证成员已添加
+		var members []model.ProjectMember
+		err := db.Where("project_id = ?", project.ID).Find(&members).Error
+		assert.NoError(t, err)
+		assert.GreaterOrEqual(t, len(members), 2)
+	})
+}
+
+func TestProjectHandler_UpdateProjectMember(t *testing.T) {
+	db := SetupTestDB(t)
+	defer TeardownTestDB(t, db)
+
+	project := CreateTestProject(t, db, "更新成员项目")
+	user := CreateTestUser(t, db, "updatemember", "更新成员用户")
+
+	// 创建项目成员
+	member := &model.ProjectMember{
+		ProjectID: project.ID,
+		UserID:    user.ID,
+		Role:      "developer",
+	}
+	db.Create(&member)
+
+	handler := api.NewProjectHandler(db)
+
+	t.Run("更新项目成员成功", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
+		reqBody := map[string]interface{}{
+			"role": "manager",
+		}
+		jsonData, _ := json.Marshal(reqBody)
+		c.Request = httptest.NewRequest(http.MethodPut, "/api/projects/1/members/1", bytes.NewBuffer(jsonData))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Params = gin.Params{
+			gin.Param{Key: "id", Value: "1"},
+			gin.Param{Key: "member_id", Value: "1"},
+		}
+
+		handler.UpdateProjectMember(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		// 验证成员角色已更新
+		var updatedMember model.ProjectMember
+		err := db.First(&updatedMember, member.ID).Error
+		assert.NoError(t, err)
+		assert.Equal(t, "manager", updatedMember.Role)
+	})
+}
+
+func TestProjectHandler_RemoveProjectMember(t *testing.T) {
+	db := SetupTestDB(t)
+	defer TeardownTestDB(t, db)
+
+	project := CreateTestProject(t, db, "移除成员项目")
+	user := CreateTestUser(t, db, "removemember", "移除成员用户")
+
+	// 创建项目成员
+	member := &model.ProjectMember{
+		ProjectID: project.ID,
+		UserID:    user.ID,
+		Role:      "developer",
+	}
+	db.Create(&member)
+
+	handler := api.NewProjectHandler(db)
+
+	t.Run("移除项目成员成功", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodDelete, "/api/projects/1/members/1", nil)
+		c.Params = gin.Params{
+			gin.Param{Key: "id", Value: "1"},
+			gin.Param{Key: "member_id", Value: "1"},
+		}
+
+		handler.RemoveProjectMember(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		// 验证成员已删除
+		var deletedMember model.ProjectMember
+		err := db.First(&deletedMember, member.ID).Error
+		assert.Error(t, err) // 应该找不到
+	})
+}
+
 func TestProjectHandler_GetProjectStatistics(t *testing.T) {
 	db := SetupTestDB(t)
 	defer TeardownTestDB(t, db)

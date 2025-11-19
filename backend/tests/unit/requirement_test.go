@@ -265,6 +265,69 @@ func TestRequirementHandler_UpdateRequirement(t *testing.T) {
 	})
 }
 
+func TestRequirementHandler_UpdateRequirementStatus(t *testing.T) {
+	db := SetupTestDB(t)
+	defer TeardownTestDB(t, db)
+
+	project := CreateTestProject(t, db, "更新需求状态项目")
+	user := CreateTestUser(t, db, "updatereqstatus", "更新需求状态用户")
+
+	projectID := project.ID
+	requirement := &model.Requirement{
+		Title:     "更新状态需求",
+		ProjectID: &projectID,
+		CreatorID: user.ID,
+		Status:    "pending",
+	}
+	db.Create(&requirement)
+
+	handler := api.NewRequirementHandler(db)
+
+	t.Run("更新需求状态成功", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
+		reqBody := map[string]interface{}{
+			"status": "in_progress",
+		}
+		jsonData, _ := json.Marshal(reqBody)
+		c.Request = httptest.NewRequest(http.MethodPut, "/api/requirements/1/status", bytes.NewBuffer(jsonData))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Params = gin.Params{gin.Param{Key: "id", Value: "1"}}
+
+		handler.UpdateRequirementStatus(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		// 验证状态已更新
+		var updatedRequirement model.Requirement
+		err := db.First(&updatedRequirement, requirement.ID).Error
+		assert.NoError(t, err)
+		assert.Equal(t, "in_progress", updatedRequirement.Status)
+	})
+
+	t.Run("更新需求状态失败-无效状态", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
+		reqBody := map[string]interface{}{
+			"status": "invalid_status",
+		}
+		jsonData, _ := json.Marshal(reqBody)
+		c.Request = httptest.NewRequest(http.MethodPut, "/api/requirements/1/status", bytes.NewBuffer(jsonData))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Params = gin.Params{gin.Param{Key: "id", Value: "1"}}
+
+		handler.UpdateRequirementStatus(c)
+
+		var response map[string]interface{}
+		json.Unmarshal(w.Body.Bytes(), &response)
+		assert.True(t, response["code"] != nil && response["code"] != float64(200))
+	})
+}
+
 func TestRequirementHandler_DeleteRequirement(t *testing.T) {
 	db := SetupTestDB(t)
 	defer TeardownTestDB(t, db)

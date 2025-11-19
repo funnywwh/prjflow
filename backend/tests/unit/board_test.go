@@ -236,6 +236,211 @@ func TestBoardHandler_UpdateBoard(t *testing.T) {
 	})
 }
 
+func TestBoardHandler_CreateBoardColumn(t *testing.T) {
+	db := SetupTestDB(t)
+	defer TeardownTestDB(t, db)
+
+	project := CreateTestProject(t, db, "创建看板列项目")
+
+	board := &model.Board{
+		Name:      "创建列看板",
+		ProjectID: project.ID,
+	}
+	db.Create(&board)
+
+	handler := api.NewBoardHandler(db)
+
+	t.Run("创建看板列成功", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
+		reqBody := map[string]interface{}{
+			"name":   "新列",
+			"color":  "#1890ff",
+			"status": "todo",
+			"sort":   1,
+		}
+		jsonData, _ := json.Marshal(reqBody)
+		c.Request = httptest.NewRequest(http.MethodPost, "/api/boards/1/columns", bytes.NewBuffer(jsonData))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Params = gin.Params{gin.Param{Key: "id", Value: "1"}}
+
+		handler.CreateBoardColumn(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		// 验证列已创建
+		var column model.BoardColumn
+		err := db.Where("board_id = ?", board.ID).First(&column).Error
+		assert.NoError(t, err)
+		assert.Equal(t, "新列", column.Name)
+	})
+}
+
+func TestBoardHandler_UpdateBoardColumn(t *testing.T) {
+	db := SetupTestDB(t)
+	defer TeardownTestDB(t, db)
+
+	project := CreateTestProject(t, db, "更新看板列项目")
+
+	board := &model.Board{
+		Name:      "更新列看板",
+		ProjectID: project.ID,
+	}
+	db.Create(&board)
+
+	column := &model.BoardColumn{
+		Name:   "更新列",
+		BoardID: board.ID,
+		Status: "todo",
+	}
+	db.Create(&column)
+
+	handler := api.NewBoardHandler(db)
+
+	t.Run("更新看板列成功", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
+		reqBody := map[string]interface{}{
+			"name": "已更新列",
+		}
+		jsonData, _ := json.Marshal(reqBody)
+		c.Request = httptest.NewRequest(http.MethodPut, "/api/boards/1/columns/1", bytes.NewBuffer(jsonData))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Params = gin.Params{
+			gin.Param{Key: "id", Value: "1"},
+			gin.Param{Key: "column_id", Value: "1"},
+		}
+
+		handler.UpdateBoardColumn(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		// 验证列已更新
+		var updatedColumn model.BoardColumn
+		err := db.First(&updatedColumn, column.ID).Error
+		assert.NoError(t, err)
+		assert.Equal(t, "已更新列", updatedColumn.Name)
+	})
+}
+
+func TestBoardHandler_DeleteBoardColumn(t *testing.T) {
+	db := SetupTestDB(t)
+	defer TeardownTestDB(t, db)
+
+	project := CreateTestProject(t, db, "删除看板列项目")
+
+	board := &model.Board{
+		Name:      "删除列看板",
+		ProjectID: project.ID,
+	}
+	db.Create(&board)
+
+	column := &model.BoardColumn{
+		Name:   "删除列",
+		BoardID: board.ID,
+	}
+	db.Create(&column)
+
+	handler := api.NewBoardHandler(db)
+
+	t.Run("删除看板列成功", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodDelete, "/api/boards/1/columns/1", nil)
+		c.Params = gin.Params{
+			gin.Param{Key: "id", Value: "1"},
+			gin.Param{Key: "column_id", Value: "1"},
+		}
+
+		handler.DeleteBoardColumn(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		// 验证列已删除
+		var deletedColumn model.BoardColumn
+		err := db.First(&deletedColumn, column.ID).Error
+		assert.Error(t, err) // 应该找不到（软删除）
+
+		// 验证软删除后仍可通过Unscoped查询
+		err = db.Unscoped().First(&deletedColumn, column.ID).Error
+		assert.NoError(t, err)
+		assert.NotNil(t, deletedColumn.DeletedAt)
+	})
+}
+
+func TestBoardHandler_MoveTask(t *testing.T) {
+	db := SetupTestDB(t)
+	defer TeardownTestDB(t, db)
+
+	project := CreateTestProject(t, db, "移动任务项目")
+	user := CreateTestUser(t, db, "movetask", "移动任务用户")
+
+	board := &model.Board{
+		Name:      "移动任务看板",
+		ProjectID: project.ID,
+	}
+	db.Create(&board)
+
+	column1 := &model.BoardColumn{
+		Name:   "待办",
+		BoardID: board.ID,
+		Status: "todo",
+		Sort:   1,
+	}
+	db.Create(&column1)
+
+	column2 := &model.BoardColumn{
+		Name:   "进行中",
+		BoardID: board.ID,
+		Status: "in_progress",
+		Sort:   2,
+	}
+	db.Create(&column2)
+
+	task := &model.Task{
+		Title:     "移动任务",
+		ProjectID: project.ID,
+		CreatorID: user.ID,
+		Status:    "todo",
+	}
+	db.Create(&task)
+
+	handler := api.NewBoardHandler(db)
+
+	t.Run("移动任务成功", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
+		reqBody := map[string]interface{}{
+			"column_id": "2", // 移动到第二个列
+			"position":  0,
+		}
+		jsonData, _ := json.Marshal(reqBody)
+		c.Request = httptest.NewRequest(http.MethodPut, "/api/boards/1/tasks/1/move", bytes.NewBuffer(jsonData))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Params = gin.Params{
+			gin.Param{Key: "id", Value: "1"},
+			gin.Param{Key: "task_id", Value: "1"},
+		}
+
+		handler.MoveTask(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		// 验证任务状态已更新
+		var updatedTask model.Task
+		err := db.First(&updatedTask, task.ID).Error
+		assert.NoError(t, err)
+		assert.Equal(t, "in_progress", updatedTask.Status)
+	})
+}
+
 func TestBoardHandler_DeleteBoard(t *testing.T) {
 	db := SetupTestDB(t)
 	defer TeardownTestDB(t, db)

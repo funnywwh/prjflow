@@ -146,28 +146,66 @@ func AutoMigrate(db *gorm.DB) error {
 	// 但如果 GORM 仍然检测到差异（比如外键约束格式不同），它可能会尝试重建表
 	// 在这种情况下，我们需要确保在 GORM 迁移之前，表结构已经完全正确
 	
-	// 对于 SQLite，我们需要特别处理，因为 SQLite 不支持直接修改列约束
+	// 对于 SQLite，我们需要特别处理 Version 表，确保在 GORM AutoMigrate 之前表结构正确
+	// 这样可以避免 GORM 重建表时只复制部分字段导致约束失败
 	if config.AppConfig.Database.Type == "sqlite" {
 		// 检查 versions 表是否存在
 		var versionsTableExists int64
 		db.Raw(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='versions'`).Scan(&versionsTableExists)
 		
 		if versionsTableExists > 0 {
-			// 表存在，检查表结构是否与模型匹配
-			// 如果 project_id 没有 NOT NULL 约束，migrateVersionProjectID 应该已经处理了
-			// 这里我们只需要确保表结构正确，让 GORM 的 AutoMigrate 不会尝试重建表
-			
 			// 检查 project_id 列是否存在且有 NOT NULL 约束
 			var projectIDExists int64
 			var projectIDNotNull int64
 			db.Raw(`SELECT COUNT(*) FROM pragma_table_info('versions') WHERE name = 'project_id'`).Scan(&projectIDExists)
 			if projectIDExists > 0 {
 				db.Raw(`SELECT COUNT(*) FROM pragma_table_info('versions') WHERE name = 'project_id' AND "notnull" = 1`).Scan(&projectIDNotNull)
+				
+				// 如果 project_id 存在但没有 NOT NULL 约束，需要修复
+				if projectIDNotNull == 0 {
+					// 修复表结构：重建表并添加 NOT NULL 约束
+					db.Exec("PRAGMA foreign_keys = OFF")
+					defer db.Exec("PRAGMA foreign_keys = ON")
+					
+					// 删除关联表
+					db.Exec("DROP TABLE IF EXISTS version_requirements")
+					db.Exec("DROP TABLE IF EXISTS version_bugs")
+					
+					// 创建新表（包含 NOT NULL 约束）
+					if err := db.Exec(`
+						CREATE TABLE versions_autofix (
+							id INTEGER PRIMARY KEY AUTOINCREMENT,
+							created_at DATETIME,
+							updated_at DATETIME,
+							deleted_at DATETIME,
+							version_number TEXT NOT NULL,
+							release_notes TEXT,
+							status TEXT DEFAULT 'draft',
+							project_id INTEGER NOT NULL,
+							release_date DATETIME
+						)
+					`).Error; err == nil {
+						// 复制数据（只复制有效的记录）
+						if err := db.Exec(`
+							INSERT INTO versions_autofix (id, created_at, updated_at, deleted_at, version_number, release_notes, status, project_id, release_date)
+							SELECT id, created_at, updated_at, deleted_at, version_number, release_notes, status, project_id, release_date
+							FROM versions
+							WHERE project_id IS NOT NULL AND version_number IS NOT NULL AND version_number != ''
+						`).Error; err == nil {
+							// 删除旧表
+							db.Exec("DROP TABLE versions")
+							// 重命名新表
+							db.Exec("ALTER TABLE versions_autofix RENAME TO versions")
+							// 重新创建索引
+							db.Exec("CREATE INDEX IF NOT EXISTS idx_versions_deleted_at ON versions(deleted_at)")
+							db.Exec("CREATE INDEX IF NOT EXISTS idx_versions_project_id ON versions(project_id)")
+						} else {
+							// 复制失败，删除临时表
+							db.Exec("DROP TABLE IF EXISTS versions_autofix")
+						}
+					}
+				}
 			}
-			
-			// 如果 project_id 存在但没有 NOT NULL 约束，migrateVersionProjectID 应该已经处理了
-			// 如果仍然没有，说明 migrateVersionProjectID 没有成功执行，我们需要在这里处理
-			// 但为了避免重复处理，我们只检查，不执行迁移
 		}
 	}
 	

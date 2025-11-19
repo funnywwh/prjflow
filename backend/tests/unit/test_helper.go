@@ -3,6 +3,7 @@ package unit
 import (
 	"os"
 	"testing"
+	"time"
 
 	_ "modernc.org/sqlite"
 	"gorm.io/driver/sqlite"
@@ -126,8 +127,17 @@ func CreateTestUser(t *testing.T, db *gorm.DB, username, nickname string) *model
 
 // CreateTestProject 创建测试项目
 func CreateTestProject(t *testing.T, db *gorm.DB, name string) *model.Project {
+	// 生成唯一的项目代码
+	code := "TEST_" + name
+	// 如果代码已存在，添加时间戳确保唯一性
+	var existingProject model.Project
+	if err := db.Where("code = ?", code).First(&existingProject).Error; err == nil {
+		code = code + "_" + time.Now().Format("20060102150405")
+	}
+
 	project := &model.Project{
 		Name:        name,
+		Code:        code,
 		Description: "Test project",
 		Status:      1, // 1=active
 	}

@@ -16,6 +16,10 @@ export interface Bug {
   requirement?: any
   estimated_hours?: number
   actual_hours?: number
+  solution?: string
+  solution_note?: string
+  resolved_version_id?: number
+  resolved_version?: any
   created_at?: string
   updated_at?: string
 }
@@ -43,6 +47,11 @@ export interface CreateBugRequest {
 
 export interface UpdateBugStatusRequest {
   status: 'open' | 'assigned' | 'in_progress' | 'resolved' | 'closed'
+  solution?: string
+  solution_note?: string
+  resolved_version_id?: number
+  version_number?: string
+  create_version?: boolean
 }
 
 export interface AssignBugRequest {

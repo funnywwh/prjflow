@@ -54,6 +54,12 @@ type Bug struct {
 
 	EstimatedHours *float64 `gorm:"default:0" json:"estimated_hours"` // 预估工时（小时）
 	ActualHours    *float64 `gorm:"default:0" json:"actual_hours"`    // 实际工时（小时），从资源分配自动计算
+
+	// 解决方案相关
+	Solution       string `gorm:"size:50" json:"solution"`        // 解决方案：设计如此、重复Bug、外部原因、已解决、无法重现、延期处理、不予解决、转为研发需求
+	SolutionNote   string `gorm:"type:text" json:"solution_note"` // 解决方案备注
+	ResolvedVersionID *uint   `gorm:"index" json:"resolved_version_id"` // 解决版本ID
+	ResolvedVersion   *Version `gorm:"foreignKey:ResolvedVersionID" json:"resolved_version,omitempty"`
 }
 
 // BugAssignee Bug分配表

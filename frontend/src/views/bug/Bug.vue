@@ -265,7 +265,7 @@
                         状态 <DownOutlined />
                       </a-button>
                       <template #overlay>
-                        <a-menu @click="(e: any) => handleStatusChange(record.id, e.key as string)">
+                        <a-menu @click="(e: any) => handleOpenStatusModal(record, e.key as string)">
                           <a-menu-item key="open">待处理</a-menu-item>
                           <a-menu-item key="assigned">已分配</a-menu-item>
                           <a-menu-item key="in_progress">处理中</a-menu-item>
@@ -456,6 +456,85 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <!-- Bug状态更新模态框 -->
+    <a-modal
+      v-model:open="statusModalVisible"
+      title="更新Bug状态"
+      :width="600"
+      @ok="handleStatusSubmit"
+      @cancel="handleStatusCancel"
+    >
+      <a-form
+        ref="statusFormRef"
+        :model="statusFormData"
+        :label-col="{ span: 6 }"
+        :wrapper-col="{ span: 18 }"
+      >
+        <a-form-item label="新状态">
+          <a-select v-model:value="statusFormData.status" disabled>
+            <a-select-option value="open">待处理</a-select-option>
+            <a-select-option value="assigned">已分配</a-select-option>
+            <a-select-option value="in_progress">处理中</a-select-option>
+            <a-select-option value="resolved">已解决</a-select-option>
+            <a-select-option value="closed">已关闭</a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item label="解决方案" name="solution">
+          <a-select
+            v-model:value="statusFormData.solution"
+            placeholder="选择解决方案（可选）"
+            allow-clear
+          >
+            <a-select-option value="设计如此">设计如此</a-select-option>
+            <a-select-option value="重复Bug">重复Bug</a-select-option>
+            <a-select-option value="外部原因">外部原因</a-select-option>
+            <a-select-option value="已解决">已解决</a-select-option>
+            <a-select-option value="无法重现">无法重现</a-select-option>
+            <a-select-option value="延期处理">延期处理</a-select-option>
+            <a-select-option value="不予解决">不予解决</a-select-option>
+            <a-select-option value="转为研发需求">转为研发需求</a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item label="备注" name="solution_note">
+          <a-textarea
+            v-model:value="statusFormData.solution_note"
+            placeholder="请输入备注（可选）"
+            :rows="4"
+          />
+        </a-form-item>
+        <a-form-item label="解决版本" name="resolved_version_id">
+          <a-space direction="vertical" style="width: 100%">
+            <a-select
+              v-model:value="statusFormData.resolved_version_id"
+              placeholder="选择版本（可选）"
+              allow-clear
+              show-search
+              :filter-option="filterVersionOption"
+              :loading="versionLoading"
+              :disabled="statusFormData.create_version"
+              @focus="loadVersionsForProject"
+            >
+              <a-select-option
+                v-for="version in versions"
+                :key="version.id"
+                :value="version.id"
+              >
+                {{ version.version_number }}
+              </a-select-option>
+            </a-select>
+            <a-checkbox v-model:checked="statusFormData.create_version">
+              创建新版本
+            </a-checkbox>
+            <a-input
+              v-if="statusFormData.create_version"
+              v-model:value="statusFormData.version_number"
+              placeholder="请输入版本号（如：v1.0.0）"
+            />
+          </a-space>
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -484,6 +563,7 @@ import {
 import { getProjects, type Project } from '@/api/project'
 import { getUsers, type User } from '@/api/user'
 import { getRequirements, type Requirement } from '@/api/requirement'
+import { getVersions, type Version } from '@/api/version'
 
 const router = useRouter()
 const loading = ref(false)
@@ -492,6 +572,8 @@ const projects = ref<Project[]>([])
 const users = ref<User[]>([])
 const requirements = ref<Requirement[]>([])
 const requirementLoading = ref(false)
+const versions = ref<Version[]>([])
+const versionLoading = ref(false)
 const statistics = ref<BugStatistics | null>(null)
 
 const searchForm = reactive({
@@ -549,6 +631,18 @@ const assignFormRef = ref()
 const assignFormData = reactive({
   bug_id: 0,
   assignee_ids: [] as number[]
+})
+
+const statusModalVisible = ref(false)
+const statusFormRef = ref()
+const statusFormData = reactive({
+  bug_id: 0,
+  status: 'open' as string,
+  solution: undefined as string | undefined,
+  solution_note: undefined as string | undefined,
+  resolved_version_id: undefined as number | undefined,
+  version_number: undefined as string | undefined,
+  create_version: false
 })
 
 const assignFormRules = {
@@ -773,14 +867,85 @@ const handleDelete = async (id: number) => {
 }
 
 // 状态变更
-const handleStatusChange = async (id: number, status: string) => {
+// 打开状态更新对话框
+const handleOpenStatusModal = (record: Bug, status: string) => {
+  statusFormData.bug_id = record.id
+  statusFormData.status = status
+  statusFormData.solution = record.solution
+  statusFormData.solution_note = record.solution_note
+  statusFormData.resolved_version_id = record.resolved_version_id
+  statusFormData.version_number = undefined
+  statusFormData.create_version = false
+  // 加载项目下的版本列表
+  if (record.project_id) {
+    loadVersionsForProject(record.project_id)
+  }
+  statusModalVisible.value = true
+}
+
+// 加载项目下的版本列表
+const loadVersionsForProject = async (projectId?: number) => {
+  const pid = projectId || statusFormData.bug_id ? bugs.value.find(b => b.id === statusFormData.bug_id)?.project_id : undefined
+  if (!pid) {
+    versions.value = []
+    return
+  }
   try {
-    await updateBugStatus(id, { status: status as any })
+    versionLoading.value = true
+    const response = await getVersions({ project_id: pid, page_size: 1000 })
+    versions.value = response.list || []
+  } catch (error: any) {
+    console.error('加载版本列表失败:', error)
+  } finally {
+    versionLoading.value = false
+  }
+}
+
+// 状态更新提交
+const handleStatusSubmit = async () => {
+  try {
+    const data: any = {
+      status: statusFormData.status
+    }
+    if (statusFormData.solution) {
+      data.solution = statusFormData.solution
+    }
+    if (statusFormData.solution_note) {
+      data.solution_note = statusFormData.solution_note
+    }
+    if (statusFormData.create_version && statusFormData.version_number) {
+      data.create_version = true
+      data.version_number = statusFormData.version_number
+    } else if (statusFormData.resolved_version_id) {
+      data.resolved_version_id = statusFormData.resolved_version_id
+    }
+    await updateBugStatus(statusFormData.bug_id, data)
     message.success('状态更新成功')
+    statusModalVisible.value = false
     loadBugs()
   } catch (error: any) {
     message.error(error.message || '状态更新失败')
   }
+}
+
+// 状态更新取消
+const handleStatusCancel = () => {
+  statusModalVisible.value = false
+  statusFormData.bug_id = 0
+  statusFormData.status = 'open'
+  statusFormData.solution = undefined
+  statusFormData.solution_note = undefined
+  statusFormData.resolved_version_id = undefined
+  statusFormData.version_number = undefined
+  statusFormData.create_version = false
+}
+
+// 版本筛选
+const filterVersionOption = (input: string, option: any) => {
+  const version = versions.value.find(v => v.id === option.value)
+  if (!version) return false
+  const searchText = input.toLowerCase()
+  return version.version_number.toLowerCase().includes(searchText)
 }
 
 // 分配

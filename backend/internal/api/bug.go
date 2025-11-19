@@ -221,7 +221,7 @@ func (h *BugHandler) CreateBug(c *gin.Context) {
 	}
 
 	// 重新加载关联数据
-	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").First(&bug, bug.ID)
+	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").Preload("ResolvedVersion").First(&bug, bug.ID)
 
 	utils.Success(c, bug)
 }
@@ -400,7 +400,7 @@ func (h *BugHandler) UpdateBug(c *gin.Context) {
 	}
 
 	// 重新加载关联数据
-	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").First(&bug, bug.ID)
+	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").Preload("ResolvedVersion").First(&bug, bug.ID)
 
 	utils.Success(c, bug)
 }
@@ -427,7 +427,12 @@ func (h *BugHandler) UpdateBugStatus(c *gin.Context) {
 	}
 
 	var req struct {
-		Status string `json:"status" binding:"required"`
+		Status            string  `json:"status" binding:"required"`
+		Solution          *string `json:"solution"`           // 解决方案
+		SolutionNote      *string `json:"solution_note"`      // 解决方案备注
+		ResolvedVersionID *uint   `json:"resolved_version_id"` // 解决版本ID
+		VersionNumber     *string `json:"version_number"`     // 版本号（如果创建新版本）
+		CreateVersion     *bool   `json:"create_version"`     // 是否创建新版本
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -448,6 +453,68 @@ func (h *BugHandler) UpdateBugStatus(c *gin.Context) {
 		return
 	}
 
+	// 验证解决方案（如果提供了）
+	if req.Solution != nil {
+		validSolutions := map[string]bool{
+			"设计如此":     true,
+			"重复Bug":    true,
+			"外部原因":    true,
+			"已解决":      true,
+			"无法重现":    true,
+			"延期处理":    true,
+			"不予解决":    true,
+			"转为研发需求": true,
+		}
+		if !validSolutions[*req.Solution] {
+			utils.Error(c, 400, "解决方案值无效")
+			return
+		}
+		bug.Solution = *req.Solution
+	}
+
+	// 更新解决方案备注
+	if req.SolutionNote != nil {
+		bug.SolutionNote = *req.SolutionNote
+	}
+
+	// 处理版本号
+	var resolvedVersionID *uint
+	if req.CreateVersion != nil && *req.CreateVersion && req.VersionNumber != nil && *req.VersionNumber != "" {
+		// 创建新版本
+		version := model.Version{
+			VersionNumber: *req.VersionNumber,
+			ReleaseNotes:  "Bug修复版本",
+			Status:        "draft",
+			ProjectID:     bug.ProjectID,
+		}
+		if err := h.db.Create(&version).Error; err != nil {
+			utils.Error(c, utils.CodeError, "创建版本失败")
+			return
+		}
+		// 关联当前Bug到新版本
+		h.db.Model(&version).Association("Bugs").Append(&bug)
+		resolvedVersionID = &version.ID
+	} else if req.ResolvedVersionID != nil {
+		// 使用已有版本
+		// 验证版本是否存在且属于同一项目
+		var version model.Version
+		if err := h.db.First(&version, *req.ResolvedVersionID).Error; err != nil {
+			utils.Error(c, 400, "版本不存在")
+			return
+		}
+		if version.ProjectID != bug.ProjectID {
+			utils.Error(c, 400, "版本必须属于同一项目")
+			return
+		}
+		resolvedVersionID = req.ResolvedVersionID
+		// 关联当前Bug到版本
+		h.db.Model(&version).Association("Bugs").Append(&bug)
+	}
+
+	if resolvedVersionID != nil {
+		bug.ResolvedVersionID = resolvedVersionID
+	}
+
 	bug.Status = req.Status
 	if err := h.db.Save(&bug).Error; err != nil {
 		utils.Error(c, utils.CodeError, "更新失败")
@@ -455,7 +522,7 @@ func (h *BugHandler) UpdateBugStatus(c *gin.Context) {
 	}
 
 	// 重新加载关联数据
-	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").First(&bug, bug.ID)
+	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").Preload("ResolvedVersion").First(&bug, bug.ID)
 
 	utils.Success(c, bug)
 }
@@ -558,7 +625,7 @@ func (h *BugHandler) AssignBug(c *gin.Context) {
 	}
 
 	// 重新加载关联数据
-	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").First(&bug, bug.ID)
+	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").Preload("ResolvedVersion").First(&bug, bug.ID)
 
 	utils.Success(c, bug)
 }

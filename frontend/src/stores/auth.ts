@@ -19,8 +19,12 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = userData
     // 设置用户角色
     const permissionStore = usePermissionStore()
+    console.log('设置用户角色，roles:', userData.roles)
     if (userData.roles) {
       permissionStore.setRoles(userData.roles)
+      console.log('设置后的角色列表:', permissionStore.roles.value)
+    } else {
+      console.warn('用户数据中没有角色信息')
     }
   }
 
@@ -45,10 +49,13 @@ export const useAuthStore = defineStore('auth', () => {
     
     try {
       const userData = await getUserInfo()
+      console.log('获取到的用户信息:', userData)
       setUser(userData)
       // 加载用户权限
       const permissionStore = usePermissionStore()
       await permissionStore.loadPermissions()
+      console.log('加载权限后的权限列表:', permissionStore.permissions.value)
+      console.log('加载权限后的角色列表:', permissionStore.roles.value)
     } catch (error) {
       console.error('Failed to load user info:', error)
       logout()

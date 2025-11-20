@@ -74,84 +74,187 @@ func AutoMigrate(db *gorm.DB) error {
 		// 系统配置
 		&model.SystemConfig{},
 	)
-	
+
 	// AutoMigrate 之后，再次清理可能产生的临时表
 	if config.AppConfig.Database.Type == "sqlite" {
 		cleanupTemporaryTables(db)
 	}
-	
+
 	// 初始化默认权限和角色
 	if err := initDefaultPermissionsAndRoles(db); err != nil {
 		return err
 	}
-	
+
 	return err
 }
 
 // initDefaultPermissionsAndRoles 初始化默认权限和角色
 func initDefaultPermissionsAndRoles(db *gorm.DB) error {
-	// 定义默认权限
+	// 定义默认权限（包括菜单权限）
 	defaultPermissions := []model.Permission{
-		// 项目管理权限
+		// 工作台（菜单，无权限要求）
+		{Code: "dashboard", Name: "工作台", Resource: "dashboard", Action: "read", Description: "工作台", Status: 1, IsMenu: true, MenuPath: "/dashboard", MenuIcon: "DashboardOutlined", MenuTitle: "工作台", MenuOrder: 0},
+
+		// 项目管理权限（操作权限）
 		{Code: "project:create", Name: "创建项目", Resource: "project", Action: "create", Description: "创建新项目", Status: 1},
 		{Code: "project:read", Name: "查看项目", Resource: "project", Action: "read", Description: "查看项目信息", Status: 1},
 		{Code: "project:update", Name: "更新项目", Resource: "project", Action: "update", Description: "更新项目信息", Status: 1},
 		{Code: "project:delete", Name: "删除项目", Resource: "project", Action: "delete", Description: "删除项目", Status: 1},
 		{Code: "project:manage", Name: "管理项目", Resource: "project", Action: "manage", Description: "管理项目成员和设置", Status: 1},
-		
-		// 需求管理权限
+
+		// 项目管理菜单（父菜单）
+		{Code: "project-management", Name: "项目管理", Resource: "project", Action: "read", Description: "项目管理", Status: 1, IsMenu: true, MenuIcon: "ProjectOutlined", MenuTitle: "项目管理", MenuOrder: 1},
+		// 项目列表（子菜单）
+		{Code: "project:list", Name: "项目列表", Resource: "project", Action: "read", Description: "项目列表", Status: 1, IsMenu: true, MenuPath: "/project", MenuTitle: "项目列表", MenuOrder: 0},
+		// 需求管理（子菜单）
+		{Code: "requirement:read", Name: "查看需求", Resource: "requirement", Action: "read", Description: "查看需求信息", Status: 1, IsMenu: true, MenuPath: "/requirement", MenuTitle: "需求管理", MenuOrder: 1},
+		// 任务管理（子菜单）
+		{Code: "task:read", Name: "查看任务", Resource: "task", Action: "read", Description: "查看任务信息", Status: 1, IsMenu: true, MenuPath: "/task", MenuTitle: "任务管理", MenuOrder: 2},
+
+		// 测试管理 (父菜单，新建)
+		{Code: "test-management", Name: "测试管理", Resource: "test", Action: "read", Description: "测试管理", Status: 1, IsMenu: true, MenuIcon: "ExperimentOutlined", MenuTitle: "测试管理", MenuOrder: 2},
+		// 测试单管理（子菜单，将移动到测试管理下）
+		{Code: "test-case:read", Name: "查看测试用例", Resource: "testcase", Action: "read", Description: "查看测试用例", Status: 1, IsMenu: true, MenuPath: "/test-case", MenuTitle: "测试单管理", MenuOrder: 0},
+		// Bug管理（子菜单，将移动到测试管理下）
+		{Code: "bug:read", Name: "查看Bug", Resource: "bug", Action: "read", Description: "查看Bug信息", Status: 1, IsMenu: true, MenuPath: "/bug", MenuTitle: "Bug管理", MenuOrder: 1},
+		// 版本管理（子菜单，将移动到测试管理下）
+		{Code: "version:read", Name: "查看版本", Resource: "version", Action: "read", Description: "查看版本信息", Status: 1, IsMenu: true, MenuPath: "/version", MenuTitle: "版本管理", MenuOrder: 2},
+
+		// 需求管理权限（操作权限）
 		{Code: "requirement:create", Name: "创建需求", Resource: "requirement", Action: "create", Description: "创建新需求", Status: 1},
-		{Code: "requirement:read", Name: "查看需求", Resource: "requirement", Action: "read", Description: "查看需求信息", Status: 1},
 		{Code: "requirement:update", Name: "更新需求", Resource: "requirement", Action: "update", Description: "更新需求信息", Status: 1},
 		{Code: "requirement:delete", Name: "删除需求", Resource: "requirement", Action: "delete", Description: "删除需求", Status: 1},
-		
-		// Bug管理权限
+
+		// Bug管理权限（操作权限）
 		{Code: "bug:create", Name: "创建Bug", Resource: "bug", Action: "create", Description: "创建新Bug", Status: 1},
-		{Code: "bug:read", Name: "查看Bug", Resource: "bug", Action: "read", Description: "查看Bug信息", Status: 1},
 		{Code: "bug:update", Name: "更新Bug", Resource: "bug", Action: "update", Description: "更新Bug信息", Status: 1},
 		{Code: "bug:delete", Name: "删除Bug", Resource: "bug", Action: "delete", Description: "删除Bug", Status: 1},
 		{Code: "bug:assign", Name: "分配Bug", Resource: "bug", Action: "assign", Description: "分配Bug给处理人", Status: 1},
-		
-		// 任务管理权限
+
+		// 任务管理权限（操作权限）
 		{Code: "task:create", Name: "创建任务", Resource: "task", Action: "create", Description: "创建新任务", Status: 1},
-		{Code: "task:read", Name: "查看任务", Resource: "task", Action: "read", Description: "查看任务信息", Status: 1},
 		{Code: "task:update", Name: "更新任务", Resource: "task", Action: "update", Description: "更新任务信息", Status: 1},
 		{Code: "task:delete", Name: "删除任务", Resource: "task", Action: "delete", Description: "删除任务", Status: 1},
-		
-		// 用户管理权限
+
+		// 资源管理菜单（父菜单）
+		{Code: "resource-management", Name: "资源管理", Resource: "resource", Action: "read", Description: "资源管理", Status: 1, IsMenu: true, MenuIcon: "TeamOutlined", MenuTitle: "资源管理", MenuOrder: 3},
+		// 资源统计（子菜单）
+		{Code: "resource:read", Name: "查看资源", Resource: "resource", Action: "read", Description: "查看资源统计", Status: 1, IsMenu: true, MenuPath: "/resource/statistics", MenuTitle: "资源统计", MenuOrder: 0},
+		// 资源管理权限（操作权限）
+		{Code: "resource:manage", Name: "管理资源", Resource: "resource", Action: "manage", Description: "管理资源分配", Status: 1},
+
+		// 系统管理菜单（父菜单）
+		{Code: "system-management", Name: "系统管理", Resource: "system", Action: "read", Description: "系统管理", Status: 1, IsMenu: true, MenuIcon: "SettingOutlined", MenuTitle: "系统管理", MenuOrder: 4},
+		// 用户管理（子菜单）
+		{Code: "user:read", Name: "查看用户", Resource: "user", Action: "read", Description: "查看用户信息", Status: 1, IsMenu: true, MenuPath: "/user", MenuTitle: "用户管理", MenuOrder: 0},
+		// 部门管理（子菜单）
+		{Code: "department:read", Name: "查看部门", Resource: "department", Action: "read", Description: "查看部门信息", Status: 1, IsMenu: true, MenuPath: "/department", MenuTitle: "部门管理", MenuOrder: 1},
+		// 权限管理（子菜单）
+		{Code: "permission:manage", Name: "管理权限", Resource: "permission", Action: "manage", Description: "管理角色和权限", Status: 1, IsMenu: true, MenuPath: "/permission", MenuTitle: "权限管理", MenuOrder: 2},
+
+		// 用户管理权限（操作权限）
 		{Code: "user:create", Name: "创建用户", Resource: "user", Action: "create", Description: "创建新用户", Status: 1},
-		{Code: "user:read", Name: "查看用户", Resource: "user", Action: "read", Description: "查看用户信息", Status: 1},
 		{Code: "user:update", Name: "更新用户", Resource: "user", Action: "update", Description: "更新用户信息", Status: 1},
 		{Code: "user:delete", Name: "删除用户", Resource: "user", Action: "delete", Description: "删除用户", Status: 1},
-		
-		// 权限管理权限
-		{Code: "permission:manage", Name: "管理权限", Resource: "permission", Action: "manage", Description: "管理角色和权限", Status: 1},
-		
-		// 部门管理权限
+
+		// 部门管理权限（操作权限）
 		{Code: "department:create", Name: "创建部门", Resource: "department", Action: "create", Description: "创建新部门", Status: 1},
-		{Code: "department:read", Name: "查看部门", Resource: "department", Action: "read", Description: "查看部门信息", Status: 1},
 		{Code: "department:update", Name: "更新部门", Resource: "department", Action: "update", Description: "更新部门信息", Status: 1},
 		{Code: "department:delete", Name: "删除部门", Resource: "department", Action: "delete", Description: "删除部门", Status: 1},
-		
-		// 资源管理权限
-		{Code: "resource:read", Name: "查看资源", Resource: "resource", Action: "read", Description: "查看资源统计", Status: 1},
-		{Code: "resource:manage", Name: "管理资源", Resource: "resource", Action: "manage", Description: "管理资源分配", Status: 1},
 	}
 
 	// 创建或更新权限
-	for _, perm := range defaultPermissions {
+	permMap := make(map[string]*model.Permission) // 用于存储权限代码到权限的映射
+	for i := range defaultPermissions {
+		perm := &defaultPermissions[i]
 		var existingPerm model.Permission
 		if err := db.Where("code = ?", perm.Code).First(&existingPerm).Error; err != nil {
 			// 权限不存在，创建
-			if err := db.Create(&perm).Error; err != nil {
+			if err := db.Create(perm).Error; err != nil {
 				return err
 			}
+			permMap[perm.Code] = perm
 		} else {
 			// 权限已存在，更新（保留现有ID）
 			perm.ID = existingPerm.ID
-			if err := db.Save(&perm).Error; err != nil {
+			// 更新菜单相关字段
+			updates := map[string]interface{}{
+				"is_menu":    perm.IsMenu,
+				"menu_path":  perm.MenuPath,
+				"menu_icon":  perm.MenuIcon,
+				"menu_title": perm.MenuTitle,
+				"menu_order": perm.MenuOrder,
+			}
+			if err := db.Model(&existingPerm).Updates(updates).Error; err != nil {
 				return err
 			}
+			// 重新加载以获取最新数据
+			db.First(&existingPerm, existingPerm.ID)
+			permMap[perm.Code] = &existingPerm
+		}
+	}
+
+	// 设置父子菜单关系
+	// 项目管理菜单的子菜单
+	if projectManagement, ok := permMap["project-management"]; ok {
+		parentID := projectManagement.ID
+		// 项目列表
+		if projectList, ok := permMap["project:list"]; ok {
+			projectList.ParentMenuID = &parentID
+			db.Model(projectList).Select("parent_menu_id").Updates(projectList)
+		}
+		// 需求管理
+		if requirementRead, ok := permMap["requirement:read"]; ok {
+			requirementRead.ParentMenuID = &parentID
+			db.Model(requirementRead).Select("parent_menu_id").Updates(requirementRead)
+		}
+		// 任务管理
+		if taskRead, ok := permMap["task:read"]; ok {
+			taskRead.ParentMenuID = &parentID
+			db.Model(taskRead).Select("parent_menu_id").Updates(taskRead)
+		}
+	}
+
+	// 测试管理菜单的子菜单
+	if testManagement, ok := permMap["test-management"]; ok {
+		parentID := testManagement.ID
+		// 测试管理（子菜单）
+		if testCaseRead, ok := permMap["test-case:read"]; ok {
+			db.Model(testCaseRead).Select("parent_menu_id").Updates(map[string]interface{}{"parent_menu_id": &parentID})
+		}
+		// Bug管理
+		if bugRead, ok := permMap["bug:read"]; ok {
+			db.Model(bugRead).Select("parent_menu_id").Updates(map[string]interface{}{"parent_menu_id": &parentID})
+		}
+		// 版本管理
+		if versionRead, ok := permMap["version:read"]; ok {
+			db.Model(versionRead).Select("parent_menu_id").Updates(map[string]interface{}{"parent_menu_id": &parentID})
+		}
+	}
+
+	// 资源管理菜单的子菜单
+	if resourceManagement, ok := permMap["resource-management"]; ok {
+		parentID := resourceManagement.ID
+		if resourceRead, ok := permMap["resource:read"]; ok {
+			resourceRead.ParentMenuID = &parentID
+			db.Model(resourceRead).Select("parent_menu_id").Updates(resourceRead)
+		}
+	}
+
+	// 系统管理菜单的子菜单
+	if systemManagement, ok := permMap["system-management"]; ok {
+		parentID := systemManagement.ID
+		if userRead, ok := permMap["user:read"]; ok {
+			userRead.ParentMenuID = &parentID
+			db.Model(userRead).Select("parent_menu_id").Updates(userRead)
+		}
+		if departmentRead, ok := permMap["department:read"]; ok {
+			departmentRead.ParentMenuID = &parentID
+			db.Model(departmentRead).Select("parent_menu_id").Updates(departmentRead)
+		}
+		if permissionManage, ok := permMap["permission:manage"]; ok {
+			permissionManage.ParentMenuID = &parentID
+			db.Model(permissionManage).Select("parent_menu_id").Updates(permissionManage)
 		}
 	}
 
@@ -214,7 +317,7 @@ func migrateModuleTable(db *gorm.DB) {
 		Name string
 	}
 	db.Raw("PRAGMA table_info(modules)").Scan(&columns)
-	
+
 	hasProjectID := false
 	for _, col := range columns {
 		if col.Name == "project_id" {
@@ -259,4 +362,3 @@ func migrateModuleTable(db *gorm.DB) {
 		db.Exec("CREATE INDEX IF NOT EXISTS idx_modules_deleted_at ON modules(deleted_at)")
 	}
 }
-

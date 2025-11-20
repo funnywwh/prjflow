@@ -24,7 +24,9 @@ export const usePermissionStore = defineStore('permission', () => {
   const loadPermissions = async () => {
     try {
       const permCodes = await getUserPermissions()
+      console.log('从API获取的权限代码:', permCodes)
       setPermissions(permCodes)
+      console.log('设置后的权限列表:', permissions.value)
     } catch (error) {
       console.error('加载权限失败:', error)
       permissions.value = []

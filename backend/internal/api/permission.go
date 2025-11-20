@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/gin-gonic/gin"
@@ -511,6 +512,7 @@ func (h *PermissionHandler) GetMenus(c *gin.Context) {
 			return
 		}
 	}
+	// 管理员获取所有 is_menu = true 的权限（不进行权限代码过滤）
 	
 	if err := query.Order("menu_order ASC, id ASC").Find(&menuPermissions).Error; err != nil {
 		utils.Error(c, utils.CodeError, "查询菜单失败")
@@ -551,19 +553,44 @@ func (h *PermissionHandler) GetMenus(c *gin.Context) {
 	}
 
 	// 第二遍：建立父子关系
-	var rootMenus []MenuItem
+	// 先收集所有根菜单（parent_menu_id 为 nil 的菜单）
+	rootMenuSet := make(map[uint]bool)
+	for _, perm := range menuPermissions {
+		if perm.ParentMenuID == nil {
+			rootMenuSet[perm.ID] = true
+		}
+	}
+	
+	// 建立父子关系
 	for _, perm := range menuPermissions {
 		menuItem := menuMap[perm.ID]
 		if perm.ParentMenuID != nil {
 			if parent, exists := menuMap[*perm.ParentMenuID]; exists {
 				parent.Children = append(parent.Children, *menuItem)
+				// 调试日志
+				fmt.Printf("菜单构建: 将子菜单 %s (ID:%d) 添加到父菜单 %s (ID:%d)\n", menuItem.Title, menuItem.ID, parent.Title, parent.ID)
 			} else {
 				// 父菜单不存在或不在权限范围内，作为根菜单
-				rootMenus = append(rootMenus, *menuItem)
+				fmt.Printf("菜单构建: 父菜单 ID:%d 不存在，将 %s (ID:%d) 作为根菜单\n", *perm.ParentMenuID, menuItem.Title, menuItem.ID)
+				rootMenuSet[perm.ID] = true
 			}
-		} else {
-			// 根菜单
-			rootMenus = append(rootMenus, *menuItem)
+		}
+	}
+	
+	// 从 menuMap 中提取根菜单（确保使用最新的 Children 数据）
+	var rootMenus []MenuItem
+	for rootID := range rootMenuSet {
+		if rootMenu, exists := menuMap[rootID]; exists {
+			rootMenus = append(rootMenus, *rootMenu)
+		}
+	}
+	
+	// 调试日志：输出最终菜单结构
+	fmt.Printf("菜单构建完成: 根菜单数量=%d\n", len(rootMenus))
+	for _, root := range rootMenus {
+		fmt.Printf("  根菜单: %s (ID:%d), 子菜单数量=%d\n", root.Title, root.ID, len(root.Children))
+		for _, child := range root.Children {
+			fmt.Printf("    子菜单: %s (ID:%d)\n", child.Title, child.ID)
 		}
 	}
 

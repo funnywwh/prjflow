@@ -107,7 +107,6 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import { usePermissionStore } from '@/stores/permission'
 import { changePassword } from '@/api/auth'
-import { menuConfig, filterMenuByPermission, type MenuItem as ConfigMenuItem } from '@/config/menu'
 import { getMenus, type MenuItem } from '@/api/permission'
 
 const route = useRoute()
@@ -119,103 +118,36 @@ const permissionStore = usePermissionStore()
 const menuItems = ref<MenuItem[]>([])
 const useBackendMenu = ref(false) // 标记是否使用后端菜单
 
-// 加载菜单
+// 加载菜单（完全由后端控制）
 const loadMenus = async () => {
   try {
     const menus = await getMenus()
     console.log('后端返回的菜单:', menus)
-    console.log('用户权限:', permissionStore.permissions)
-    console.log('用户角色:', permissionStore.roles)
-    // 如果后端返回了菜单（即使为空），标记为使用后端菜单
-    // 但如果为空数组，则回退到静态配置
-    if (menus && menus.length > 0) {
-      menuItems.value = menus
-      useBackendMenu.value = true
-      console.log('使用后端菜单，数量:', menus.length)
-    } else {
-      // 后端返回空数组，使用静态配置
-      menuItems.value = []
-      useBackendMenu.value = false
-      console.log('后端菜单为空，使用静态配置')
-    }
+    console.log('用户权限:', permissionStore.permissions.value)
+    console.log('用户角色:', permissionStore.roles.value)
+    // 完全使用后端返回的菜单
+    menuItems.value = menus || []
+    useBackendMenu.value = true
+    console.log('加载菜单完成，数量:', menuItems.value.length)
   } catch (error) {
     console.error('加载菜单失败:', error)
-    // 如果后端菜单加载失败，使用静态配置作为后备
+    // 如果后端菜单加载失败，返回空数组
     menuItems.value = []
     useBackendMenu.value = false
   }
 }
 
-// 将静态配置转换为菜单项（后备方案）
-const convertConfigToMenuItems = (config: ConfigMenuItem[]): MenuItem[] => {
-  return config.map(item => ({
-    key: item.key,
-    title: item.title,
-    icon: item.icon,
-    path: item.path,
-    permission: Array.isArray(item.permission) ? item.permission[0] : item.permission,
-    order: item.order,
-    children: item.children ? convertConfigToMenuItems(item.children) : undefined
-  }))
-}
 
-// 根据权限过滤菜单（如果使用静态配置）
-const filteredMenu = computed<(MenuItem | ConfigMenuItem)[]>(() => {
-  // 如果从后端加载了菜单且不为空，合并后端菜单和静态配置
-  if (useBackendMenu.value && menuItems.value.length > 0) {
-    // 获取静态配置菜单（根据权限过滤）
-    const staticMenus = filterMenuByPermission(menuConfig, (code: string) => {
-      // 如果没有权限要求，始终显示（如工作台）
-      if (!code) {
-        return true
-      }
-      return permissionStore.hasPermission(code)
-    })
-    console.log('静态配置菜单（过滤后）:', staticMenus)
-    
-    // 创建后端菜单的key集合（包括所有子菜单的key）
-    const backendMenuKeys = new Set<string>()
-    const collectKeys = (menus: MenuItem[]) => {
-      menus.forEach(menu => {
-        backendMenuKeys.add(menu.key)
-        if (menu.children) {
-          collectKeys(menu.children)
-        }
-      })
-    }
-    collectKeys(menuItems.value)
-    console.log('后端菜单keys:', Array.from(backendMenuKeys))
-    
-    // 从静态配置中找出不在后端菜单中的菜单（包括所有菜单，不仅仅是基础菜单）
-    const additionalMenus = staticMenus.filter(menu => {
-      // 检查菜单及其子菜单是否在后端菜单中
-      const checkMenuInBackend = (m: ConfigMenuItem): boolean => {
-        if (backendMenuKeys.has(m.key)) {
-          return true
-        }
-        if (m.children) {
-          return m.children.some(child => checkMenuInBackend(child))
-        }
-        return false
-      }
-      return !checkMenuInBackend(menu)
-    })
-    console.log('补充的静态菜单:', additionalMenus)
-    
-    // 合并菜单：静态配置的菜单在前，后端菜单在后
-    // 这样可以确保即使后端没有配置某些菜单，静态配置的菜单也能显示
-    const result = [...additionalMenus, ...menuItems.value]
-    console.log('最终菜单:', result)
-    return result
+// 根据权限过滤菜单（完全由后端控制）
+const filteredMenu = computed<MenuItem[]>(() => {
+  // 完全使用后端返回的菜单
+  if (menuItems.value.length > 0) {
+    console.log('使用后端菜单:', menuItems.value)
+    return menuItems.value
   }
-  // 否则使用静态配置并过滤
-  // 注意：filterMenuByPermission 函数已经处理了没有权限要求的情况（如工作台）
-  const result = filterMenuByPermission(menuConfig, (code: string) => permissionStore.hasPermission(code))
-  console.log('使用静态配置菜单:', result)
-  console.log('用户权限列表:', permissionStore.permissions)
-  console.log('用户角色列表:', permissionStore.roles)
-  console.log('是否有权限 project:read:', permissionStore.hasPermission('project:read'))
-  return result
+  // 如果后端没有返回菜单，返回空数组
+  console.log('后端菜单为空，返回空数组')
+  return []
 })
 
 // 获取当前选中的菜单项（包括子菜单）
@@ -225,7 +157,7 @@ const selectedKeys = computed(() => {
   const keys: string[] = []
   
   // 查找匹配的菜单项
-  const findMenu = (items: (MenuItem | ConfigMenuItem)[], targetPath: string, targetName: string): string | undefined => {
+  const findMenu = (items: MenuItem[], targetPath: string, targetName: string): string | undefined => {
     for (const item of items) {
       const itemPath = 'path' in item ? item.path : undefined
       // 检查路径或key是否匹配

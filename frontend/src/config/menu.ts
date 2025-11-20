@@ -59,6 +59,12 @@ export const menuConfig: MenuItem[] = [
         title: '测试管理',
         path: '/test-case',
         permission: 'project:read' // 测试管理使用项目权限
+      },
+      {
+        key: 'product',
+        title: '产品',
+        path: '/product',
+        permission: 'project:read' // 产品管理使用项目权限
       }
     ]
   },

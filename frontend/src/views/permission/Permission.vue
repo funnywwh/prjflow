@@ -87,7 +87,7 @@
                       <a-tag v-if="record.is_menu" color="blue">是</a-tag>
                       <span v-else>-</span>
                     </template>
-                    <template v-else-if="column.key === 'action'">
+                    <template v-else-if="column.key === 'operation'">
                       <a-space>
                         <a-button type="link" size="small" @click="handleEditPermission(record)">
                           编辑
@@ -336,7 +336,7 @@ const permissionColumns = [
   { title: '操作类型', dataIndex: 'action', key: 'action' },
   { title: '描述', dataIndex: 'description', key: 'description' },
   { title: '状态', key: 'status', width: 80 },
-  { title: '操作', key: 'action', width: 150, fixed: 'right' as const }
+  { title: '操作', key: 'operation', width: 150, fixed: 'right' as const }
 ]
 
 const roleModalVisible = ref(false)

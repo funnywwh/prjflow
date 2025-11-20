@@ -14,6 +14,8 @@ export interface Bug {
   assignees?: any[]
   requirement_id?: number
   requirement?: any
+  module_id?: number
+  module?: any
   estimated_hours?: number
   actual_hours?: number
   solution?: string
@@ -39,6 +41,7 @@ export interface CreateBugRequest {
   severity?: 'low' | 'medium' | 'high' | 'critical'
   project_id: number
   requirement_id?: number
+  module_id?: number
   assignee_ids?: number[]
   estimated_hours?: number
   actual_hours?: number
@@ -69,6 +72,7 @@ export const getBugs = async (params?: {
   priority?: string
   severity?: string
   requirement_id?: number
+  module_id?: number
   creator_id?: number
   page?: number
   size?: number

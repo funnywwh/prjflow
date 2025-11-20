@@ -13,6 +13,8 @@ func AutoMigrate(db *gorm.DB) error {
 	// 这对于 SQLite 特别重要，因为 GORM 在重建表时可能只复制部分字段，导致失败
 	if config.AppConfig.Database.Type == "sqlite" {
 		cleanupTemporaryTables(db)
+		// 迁移 modules 表：移除 project_id 字段
+		migrateModuleTable(db)
 	}
 
 	// 执行 AutoMigrate
@@ -28,6 +30,8 @@ func AutoMigrate(db *gorm.DB) error {
 		// 项目
 		&model.Project{},
 		&model.ProjectMember{},
+		// 功能模块
+		&model.Module{},
 
 		// 需求与Bug
 		&model.Requirement{},
@@ -97,6 +101,64 @@ func cleanupTemporaryTables(db *gorm.DB) {
 	// 删除所有临时表
 	for _, tableName := range tempTables {
 		db.Exec("DROP TABLE IF EXISTS `" + tableName + "`")
+	}
+}
+
+// migrateModuleTable 迁移 modules 表：移除 project_id 字段
+// 功能模块改为系统资源，不再属于项目
+func migrateModuleTable(db *gorm.DB) {
+	if config.AppConfig.Database.Type != "sqlite" {
+		return
+	}
+
+	// 检查 modules 表是否存在 project_id 字段
+	var columns []struct {
+		Name string
+	}
+	db.Raw("PRAGMA table_info(modules)").Scan(&columns)
+	
+	hasProjectID := false
+	for _, col := range columns {
+		if col.Name == "project_id" {
+			hasProjectID = true
+			break
+		}
+	}
+
+	// 如果存在 project_id 字段，需要迁移
+	if hasProjectID {
+		// 1. 创建新表（不包含 project_id）
+		db.Exec(`
+			CREATE TABLE IF NOT EXISTS modules_new (
+				id integer PRIMARY KEY AUTOINCREMENT,
+				created_at datetime,
+				updated_at datetime,
+				deleted_at datetime,
+				name text NOT NULL,
+				code text,
+				description text,
+				status integer DEFAULT 1,
+				sort integer DEFAULT 0
+			)
+		`)
+
+		// 2. 复制数据（忽略 project_id）
+		db.Exec(`
+			INSERT INTO modules_new (id, created_at, updated_at, deleted_at, name, code, description, status, sort)
+			SELECT id, created_at, updated_at, deleted_at, name, code, description, status, sort
+			FROM modules
+		`)
+
+		// 3. 删除旧表
+		db.Exec("DROP TABLE modules")
+
+		// 4. 重命名新表
+		db.Exec("ALTER TABLE modules_new RENAME TO modules")
+
+		// 5. 创建索引（如果不存在）
+		db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_modules_name ON modules(name)")
+		db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_modules_code ON modules(code)")
+		db.Exec("CREATE INDEX IF NOT EXISTS idx_modules_deleted_at ON modules(deleted_at)")
 	}
 }
 

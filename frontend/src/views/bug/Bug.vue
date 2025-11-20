@@ -349,6 +349,25 @@
             </a-select-option>
           </a-select>
         </a-form-item>
+        <a-form-item label="功能模块" name="module_id">
+          <a-select
+            v-model:value="formData.module_id"
+            placeholder="选择功能模块（可选）"
+            allow-clear
+            show-search
+            :filter-option="filterModuleOption"
+            :loading="moduleLoading"
+            @focus="loadModulesForProject"
+          >
+            <a-select-option
+              v-for="module in modules"
+              :key="module.id"
+              :value="module.id"
+            >
+              {{ module.name }}
+            </a-select-option>
+          </a-select>
+        </a-form-item>
         <a-form-item label="状态" name="status">
           <a-select v-model:value="formData.status">
             <a-select-option value="open">待处理</a-select-option>
@@ -590,6 +609,7 @@ import {
 import { getProjects, type Project } from '@/api/project'
 import { getUsers, type User } from '@/api/user'
 import { getRequirements, type Requirement } from '@/api/requirement'
+import { getModules, type Module } from '@/api/module'
 import { getVersions, type Version } from '@/api/version'
 
 const router = useRouter()
@@ -599,6 +619,8 @@ const projects = ref<Project[]>([])
 const users = ref<User[]>([])
 const requirements = ref<Requirement[]>([])
 const requirementLoading = ref(false)
+const modules = ref<Module[]>([])
+const moduleLoading = ref(false)
 const versions = ref<Version[]>([])
 const versionLoading = ref(false)
 const statistics = ref<BugStatistics | null>(null)
@@ -644,6 +666,7 @@ const formData = reactive<CreateBugRequest & { id?: number }>({
   severity: 'medium',
   project_id: 0,
   requirement_id: undefined,
+  module_id: undefined,
   assignee_ids: [],
   estimated_hours: undefined
 })
@@ -767,9 +790,22 @@ const loadRequirementsForProject = async () => {
   }
 }
 
+const loadModulesForProject = async () => {
+  // 功能模块是系统资源，不需要项目ID
+  moduleLoading.value = true
+  try {
+    modules.value = await getModules()
+  } catch (error: any) {
+    console.error('加载模块列表失败:', error)
+  } finally {
+    moduleLoading.value = false
+  }
+}
+
 // 监听项目变化，重新加载需求
 watch(() => formData.project_id, () => {
   formData.requirement_id = undefined
+  // 功能模块是系统资源，不需要清空
   if (formData.project_id) {
     loadRequirementsForProject()
   } else {
@@ -812,6 +848,7 @@ const handleCreate = () => {
   formData.severity = 'medium'
   formData.project_id = 0
   formData.requirement_id = undefined
+  formData.module_id = undefined
   formData.assignee_ids = []
   formData.estimated_hours = undefined
   formData.actual_hours = undefined
@@ -830,6 +867,7 @@ const handleEdit = (record: Bug) => {
   formData.severity = record.severity
   formData.project_id = record.project_id
   formData.requirement_id = record.requirement_id
+  formData.module_id = record.module_id
   formData.assignee_ids = record.assignees?.map(a => a.id) || []
   formData.estimated_hours = record.estimated_hours
   formData.actual_hours = record.actual_hours
@@ -857,6 +895,7 @@ const handleSubmit = async () => {
       severity: formData.severity,
       project_id: formData.project_id,
       requirement_id: formData.requirement_id,
+      module_id: formData.module_id,
       assignee_ids: formData.assignee_ids,
       estimated_hours: formData.estimated_hours,
       actual_hours: formData.actual_hours,
@@ -1131,6 +1170,14 @@ const filterRequirementOption = (input: string, option: any) => {
   if (!requirement) return false
   const searchText = input.toLowerCase()
   return requirement.title.toLowerCase().includes(searchText)
+}
+
+const filterModuleOption = (input: string, option: any) => {
+  const module = modules.value.find(m => m.id === option.value)
+  if (!module) return false
+  const searchText = input.toLowerCase()
+  return module.name.toLowerCase().includes(searchText) ||
+    (module.code && module.code.toLowerCase().includes(searchText))
 }
 
 // 用户筛选

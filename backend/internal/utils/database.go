@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"strings"
 
 	_ "modernc.org/sqlite" // 纯Go SQLite驱动，支持静态编译，必须在 gorm.io/driver/sqlite 之前导入
 	
@@ -50,4 +51,35 @@ func InitDB() (*gorm.DB, error) {
 	}
 
 	return db, nil
+}
+
+// IsUniqueConstraintError 检查是否是唯一约束错误
+func IsUniqueConstraintError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	return strings.Contains(errStr, "UNIQUE constraint failed") ||
+		strings.Contains(errStr, "Duplicate entry") ||
+		strings.Contains(errStr, "duplicate key") ||
+		strings.Contains(errStr, "UNIQUE constraint")
+}
+
+// IsUniqueConstraintOnField 检查是否是特定字段的唯一约束错误
+func IsUniqueConstraintOnField(err error, fieldName string) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	// SQLite: UNIQUE constraint failed: modules.name
+	// MySQL: Duplicate entry 'xxx' for key 'modules.name'
+	return strings.Contains(errStr, fieldName) && IsUniqueConstraintError(err)
+}
+
+// IsRecordNotFound 检查是否是记录不存在错误
+func IsRecordNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+	return err == gorm.ErrRecordNotFound
 }

@@ -21,7 +21,7 @@ func NewBugHandler(db *gorm.DB) *BugHandler {
 // GetBugs 获取Bug列表
 func (h *BugHandler) GetBugs(c *gin.Context) {
 	var bugs []model.Bug
-	query := h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement")
+	query := h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").Preload("Module")
 
 	// 搜索
 	if keyword := c.Query("keyword"); keyword != "" {
@@ -51,6 +51,11 @@ func (h *BugHandler) GetBugs(c *gin.Context) {
 	// 需求筛选
 	if requirementID := c.Query("requirement_id"); requirementID != "" {
 		query = query.Where("requirement_id = ?", requirementID)
+	}
+
+	// 功能模块筛选
+	if moduleID := c.Query("module_id"); moduleID != "" {
+		query = query.Where("module_id = ?", moduleID)
 	}
 
 	// 创建人筛选
@@ -83,7 +88,7 @@ func (h *BugHandler) GetBugs(c *gin.Context) {
 func (h *BugHandler) GetBug(c *gin.Context) {
 	id := c.Param("id")
 	var bug model.Bug
-	if err := h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").First(&bug, id).Error; err != nil {
+	if err := h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").Preload("Module").First(&bug, id).Error; err != nil {
 		utils.Error(c, 404, "Bug不存在")
 		return
 	}
@@ -101,6 +106,7 @@ func (h *BugHandler) CreateBug(c *gin.Context) {
 		Severity      string   `json:"severity"`
 		ProjectID     uint     `json:"project_id" binding:"required"`
 		RequirementID *uint    `json:"requirement_id"`
+		ModuleID      *uint    `json:"module_id"`
 		AssigneeIDs   []uint   `json:"assignee_ids"`
 		EstimatedHours *float64 `json:"estimated_hours"`
 	}
@@ -179,6 +185,15 @@ func (h *BugHandler) CreateBug(c *gin.Context) {
 		}
 	}
 
+	// 如果指定了功能模块，验证模块是否存在
+	if req.ModuleID != nil {
+		var module model.Module
+		if err := h.db.First(&module, *req.ModuleID).Error; err != nil {
+			utils.Error(c, 400, "功能模块不存在")
+			return
+		}
+	}
+
 	// 验证分配人是否存在
 	if len(req.AssigneeIDs) > 0 {
 		var users []model.User
@@ -196,6 +211,7 @@ func (h *BugHandler) CreateBug(c *gin.Context) {
 		Severity:       req.Severity,
 		ProjectID:      req.ProjectID,
 		RequirementID:  req.RequirementID,
+		ModuleID:       req.ModuleID,
 		CreatorID:      userID.(uint),
 		EstimatedHours: req.EstimatedHours,
 	}
@@ -221,7 +237,7 @@ func (h *BugHandler) CreateBug(c *gin.Context) {
 	}
 
 	// 重新加载关联数据
-	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").Preload("ResolvedVersion").First(&bug, bug.ID)
+	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").Preload("Module").Preload("ResolvedVersion").First(&bug, bug.ID)
 
 	utils.Success(c, bug)
 }
@@ -243,6 +259,7 @@ func (h *BugHandler) UpdateBug(c *gin.Context) {
 		Severity       *string  `json:"severity"`
 		ProjectID      *uint    `json:"project_id"`
 		RequirementID  *uint    `json:"requirement_id"`
+		ModuleID       *uint    `json:"module_id"`
 		AssigneeIDs    *[]uint  `json:"assignee_ids"`
 		EstimatedHours *float64 `json:"estimated_hours"`
 		ActualHours    *float64 `json:"actual_hours"` // 实际工时，会自动创建资源分配
@@ -326,6 +343,19 @@ func (h *BugHandler) UpdateBug(c *gin.Context) {
 			bug.RequirementID = nil
 		}
 	}
+	if req.ModuleID != nil {
+		// 验证功能模块是否存在
+		if *req.ModuleID != 0 {
+			var module model.Module
+			if err := h.db.First(&module, *req.ModuleID).Error; err != nil {
+				utils.Error(c, 400, "功能模块不存在")
+				return
+			}
+			bug.ModuleID = req.ModuleID
+		} else {
+			bug.ModuleID = nil
+		}
+	}
 	if req.EstimatedHours != nil {
 		if *req.EstimatedHours < 0 {
 			utils.Error(c, 400, "预估工时不能为负数")
@@ -400,7 +430,7 @@ func (h *BugHandler) UpdateBug(c *gin.Context) {
 	}
 
 	// 重新加载关联数据
-	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").Preload("ResolvedVersion").First(&bug, bug.ID)
+	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").Preload("Module").Preload("ResolvedVersion").First(&bug, bug.ID)
 
 	utils.Success(c, bug)
 }
@@ -572,7 +602,7 @@ func (h *BugHandler) UpdateBugStatus(c *gin.Context) {
 	}
 
 	// 重新加载关联数据
-	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").Preload("ResolvedVersion").First(&bug, bug.ID)
+	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").Preload("Module").Preload("ResolvedVersion").First(&bug, bug.ID)
 
 	utils.Success(c, bug)
 }
@@ -675,7 +705,7 @@ func (h *BugHandler) AssignBug(c *gin.Context) {
 	}
 
 	// 重新加载关联数据
-	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").Preload("ResolvedVersion").First(&bug, bug.ID)
+	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").Preload("Module").Preload("ResolvedVersion").First(&bug, bug.ID)
 
 	utils.Success(c, bug)
 }

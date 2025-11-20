@@ -195,6 +195,17 @@ func main() {
 		requirementGroup.PATCH("/:id/status", requirementHandler.UpdateRequirementStatus)
 	}
 
+	// 功能模块管理路由
+	moduleHandler := api.NewModuleHandler(db)
+	moduleGroup := r.Group("/api/modules", middleware.Auth())
+	{
+		moduleGroup.GET("", moduleHandler.GetModules)
+		moduleGroup.GET("/:id", moduleHandler.GetModule)
+		moduleGroup.POST("", moduleHandler.CreateModule)
+		moduleGroup.PUT("/:id", moduleHandler.UpdateModule)
+		moduleGroup.DELETE("/:id", moduleHandler.DeleteModule)
+	}
+
 	// Bug管理路由
 	bugHandler := api.NewBugHandler(db)
 	bugGroup := r.Group("/api/bugs", middleware.Auth())

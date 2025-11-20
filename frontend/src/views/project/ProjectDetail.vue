@@ -14,6 +14,7 @@
                 <a-button @click="handleViewBoards">看板</a-button>
                 <a-button @click="handleViewGantt">甘特图</a-button>
                 <a-button @click="handleViewProgress">进度跟踪</a-button>
+                <a-button @click="handleManageModules">功能模块</a-button>
                 <a-button @click="handleEdit">编辑</a-button>
                 <a-button @click="handleManageMembers">成员管理</a-button>
               </a-space>
@@ -275,6 +276,14 @@ const handleManageMembers = () => {
   router.push({
     path: '/project',
     query: { manageMembers: project.value?.id }
+  })
+}
+
+// 功能模块管理
+const handleManageModules = () => {
+  router.push({
+    path: '/project',
+    query: { manageModules: project.value?.id }
   })
 }
 

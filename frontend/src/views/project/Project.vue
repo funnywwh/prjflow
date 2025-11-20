@@ -77,6 +77,9 @@
                         <a-button type="link" size="small" @click="handleManageMembers(record)">
                           成员管理
                         </a-button>
+                        <a-button type="link" size="small" @click="handleManageModules(record)">
+                          功能模块
+                        </a-button>
                         <a-popconfirm
                           title="确定要删除这个项目吗？"
                           @confirm="handleDeleteProject(record.id)"
@@ -247,6 +250,17 @@
       </a-spin>
     </a-modal>
 
+    <!-- 功能模块管理对话框 -->
+    <a-modal
+      v-model:open="moduleManageModalVisible"
+      title="功能模块管理（系统资源）"
+      @cancel="moduleManageModalVisible = false"
+      width="900px"
+      :footer="null"
+    >
+      <Module />
+    </a-modal>
+
     <!-- 标签管理对话框 -->
     <a-modal
       v-model:open="tagManageModalVisible"
@@ -307,6 +321,7 @@ import {
 } from '@/api/project'
 import { getUsers, type User } from '@/api/user'
 import { getTags, createTag, type Tag } from '@/api/tag'
+import Module from './Module.vue'
 
 const router = useRouter()
 
@@ -375,6 +390,9 @@ const projectFormRules = {
 const memberModalVisible = ref(false)
 const selectedUserIds = ref<number[]>([])
 const memberRole = ref('member')
+
+// 功能模块管理相关
+const moduleManageModalVisible = ref(false)
 
 // 标签管理相关
 const tagManageModalVisible = ref(false)
@@ -584,6 +602,12 @@ const handleManageMembers = async (record: Project) => {
   selectedUserIds.value = []
   memberRole.value = 'member'
   await loadProjectMembers(record.id)
+}
+
+// 功能模块管理
+const handleManageModules = async (record: Project) => {
+  currentProjectId.value = record.id
+  moduleManageModalVisible.value = true
 }
 
 // 添加成员

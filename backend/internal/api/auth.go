@@ -158,8 +158,9 @@ func (h *LoginCallbackHandler) Process(ctx *WeChatCallbackContext) (interface{},
 		}
 
 		// 创建新用户
+		wechatOpenID := ctx.UserInfo.OpenID
 		user = model.User{
-			WeChatOpenID: ctx.UserInfo.OpenID,
+			WeChatOpenID: &wechatOpenID,
 			Username:     username,
 			Nickname:     nickname, // 设置昵称（从微信昵称获取，如果为空则使用用户名）
 			Avatar:       ctx.UserInfo.HeadImgURL,
@@ -331,8 +332,9 @@ func (h *AuthHandler) WeChatLogin(c *gin.Context) {
 		}
 
 		// 创建新用户
+		wechatOpenID := userInfo.OpenID
 		user = model.User{
-			WeChatOpenID: userInfo.OpenID,
+			WeChatOpenID: &wechatOpenID,
 			Username:     username,
 			Nickname:     nickname, // 设置昵称（从微信昵称获取，如果为空则使用用户名）
 			Avatar:       userInfo.HeadImgURL,

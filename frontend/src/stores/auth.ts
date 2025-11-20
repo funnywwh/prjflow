@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { User } from '../types/user'
 import { getUserInfo, logout as logoutAPI } from '../api/auth'
+import { usePermissionStore } from './permission'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref<string | null>(localStorage.getItem('token'))
@@ -16,6 +17,11 @@ export const useAuthStore = defineStore('auth', () => {
 
   const setUser = (userData: User) => {
     user.value = userData
+    // 设置用户角色
+    const permissionStore = usePermissionStore()
+    if (userData.roles) {
+      permissionStore.setRoles(userData.roles)
+    }
   }
 
   const logout = async () => {
@@ -40,6 +46,9 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const userData = await getUserInfo()
       setUser(userData)
+      // 加载用户权限
+      const permissionStore = usePermissionStore()
+      await permissionStore.loadPermissions()
     } catch (error) {
       console.error('Failed to load user info:', error)
       logout()

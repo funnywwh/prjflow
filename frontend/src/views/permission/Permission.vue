@@ -83,6 +83,10 @@
                         {{ record.status === 1 ? '正常' : '禁用' }}
                       </a-tag>
                     </template>
+                    <template v-else-if="column.key === 'menu'">
+                      <a-tag v-if="record.is_menu" color="blue">是</a-tag>
+                      <span v-else>-</span>
+                    </template>
                     <template v-else-if="column.key === 'action'">
                       <a-space>
                         <a-button type="link" size="small" @click="handleEditPermission(record)">
@@ -168,6 +172,40 @@
         <a-form-item label="描述" name="description">
           <a-textarea v-model:value="permissionFormData.description" placeholder="请输入描述" :rows="3" />
         </a-form-item>
+        <a-form-item label="是否显示在菜单" name="is_menu">
+          <a-switch v-model:checked="permissionFormData.is_menu" />
+          <span style="margin-left: 8px; color: #999">开启后，该权限对应的菜单将显示在导航栏</span>
+        </a-form-item>
+        <template v-if="permissionFormData.is_menu">
+          <a-form-item label="菜单标题" name="menu_title">
+            <a-input v-model:value="permissionFormData.menu_title" placeholder="菜单显示名称（留空则使用权限名称）" />
+          </a-form-item>
+          <a-form-item label="菜单路径" name="menu_path">
+            <a-input v-model:value="permissionFormData.menu_path" placeholder="路由路径，如：/project" />
+          </a-form-item>
+          <a-form-item label="菜单图标" name="menu_icon">
+            <a-input v-model:value="permissionFormData.menu_icon" placeholder="图标名称，如：ProjectOutlined" />
+            <span style="margin-left: 8px; color: #999">Ant Design Vue 图标组件名称</span>
+          </a-form-item>
+          <a-form-item label="父菜单" name="parent_menu_id">
+            <a-select
+              v-model:value="permissionFormData.parent_menu_id"
+              placeholder="选择父菜单（留空则为顶级菜单）"
+              allow-clear
+            >
+              <a-select-option
+                v-for="perm in permissions.filter(p => p.is_menu && p.id !== permissionFormData.id)"
+                :key="perm.id"
+                :value="perm.id"
+              >
+                {{ perm.menu_title || perm.name }}
+              </a-select-option>
+            </a-select>
+          </a-form-item>
+          <a-form-item label="菜单排序" name="menu_order">
+            <a-input-number v-model:value="permissionFormData.menu_order" :min="0" placeholder="数字越小越靠前" />
+          </a-form-item>
+        </template>
         <a-form-item label="状态" name="status">
           <a-select v-model:value="permissionFormData.status" placeholder="选择状态">
             <a-select-option :value="1">正常</a-select-option>
@@ -275,7 +313,13 @@ const permissionFormData = reactive<Partial<Permission> & { id?: number }>({
   resource: '',
   action: '',
   description: '',
-  status: 1
+  status: 1,
+  is_menu: false,
+  menu_path: '',
+  menu_icon: '',
+  menu_title: '',
+  parent_menu_id: undefined,
+  menu_order: 0
 })
 
 const permissionFormRules = {
@@ -514,7 +558,13 @@ const handleEditPermission = (record: Permission) => {
     resource: record.resource || '',
     action: record.action || '',
     description: record.description || '',
-    status: record.status
+    status: record.status,
+    is_menu: record.is_menu || false,
+    menu_path: record.menu_path || '',
+    menu_icon: record.menu_icon || '',
+    menu_title: record.menu_title || '',
+    parent_menu_id: record.parent_menu_id,
+    menu_order: record.menu_order || 0
   })
   permissionModalVisible.value = true
 }
@@ -532,7 +582,13 @@ const handlePermissionSubmit = async () => {
         resource: permissionFormData.resource,
         action: permissionFormData.action,
         description: permissionFormData.description,
-        status: permissionFormData.status
+        status: permissionFormData.status,
+        is_menu: permissionFormData.is_menu,
+        menu_path: permissionFormData.menu_path,
+        menu_icon: permissionFormData.menu_icon,
+        menu_title: permissionFormData.menu_title,
+        parent_menu_id: permissionFormData.parent_menu_id,
+        menu_order: permissionFormData.menu_order
       })
       message.success('更新成功')
     } else {
@@ -542,7 +598,13 @@ const handlePermissionSubmit = async () => {
         resource: permissionFormData.resource,
         action: permissionFormData.action,
         description: permissionFormData.description,
-        status: permissionFormData.status
+        status: permissionFormData.status,
+        is_menu: permissionFormData.is_menu,
+        menu_path: permissionFormData.menu_path,
+        menu_icon: permissionFormData.menu_icon,
+        menu_title: permissionFormData.menu_title,
+        parent_menu_id: permissionFormData.parent_menu_id,
+        menu_order: permissionFormData.menu_order
       })
       message.success('创建成功')
     }

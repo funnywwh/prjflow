@@ -47,6 +47,12 @@ export const createPermission = async (data: {
   action?: string
   description?: string
   status?: number
+  is_menu?: boolean
+  menu_path?: string
+  menu_icon?: string
+  menu_title?: string
+  parent_menu_id?: number
+  menu_order?: number
 }): Promise<Permission> => {
   return request.post('/permissions/permissions', data)
 }
@@ -58,6 +64,12 @@ export const updatePermission = async (id: number, data: Partial<{
   action?: string
   description?: string
   status?: number
+  is_menu?: boolean
+  menu_path?: string
+  menu_icon?: string
+  menu_title?: string
+  parent_menu_id?: number
+  menu_order?: number
 }>): Promise<Permission> => {
   return request.put(`/permissions/permissions/${id}`, data)
 }
@@ -83,5 +95,26 @@ export const assignUserRoles = async (userId: number, roleIds: number[]): Promis
   return request.post(`/permissions/users/${userId}/roles`, {
     role_ids: roleIds
   })
+}
+
+// 获取当前用户的权限列表
+export const getUserPermissions = async (): Promise<string[]> => {
+  return request.get('/permissions/me')
+}
+
+// 获取菜单树
+export interface MenuItem {
+  id?: number
+  key: string
+  title: string
+  icon?: string
+  path?: string
+  permission?: string
+  order?: number
+  children?: MenuItem[]
+}
+
+export const getMenus = async (): Promise<MenuItem[]> => {
+  return request.get('/permissions/menus')
 }
 

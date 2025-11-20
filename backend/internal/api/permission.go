@@ -1,6 +1,8 @@
 package api
 
 import (
+	"sort"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 	"project-management/internal/model"
@@ -193,12 +195,18 @@ func (h *PermissionHandler) GetPermission(c *gin.Context) {
 // CreatePermission 创建权限
 func (h *PermissionHandler) CreatePermission(c *gin.Context) {
 	var req struct {
-		Code        string `json:"code" binding:"required"`
-		Name        string `json:"name" binding:"required"`
-		Resource    string `json:"resource"`
-		Action      string `json:"action"`
-		Description string `json:"description"`
-		Status      int    `json:"status"`
+		Code         string `json:"code" binding:"required"`
+		Name         string `json:"name" binding:"required"`
+		Resource     string `json:"resource"`
+		Action       string `json:"action"`
+		Description  string `json:"description"`
+		Status       int    `json:"status"`
+		MenuPath     string `json:"menu_path"`
+		MenuIcon     string `json:"menu_icon"`
+		MenuTitle    string `json:"menu_title"`
+		ParentMenuID *uint  `json:"parent_menu_id"`
+		MenuOrder    int    `json:"menu_order"`
+		IsMenu       bool   `json:"is_menu"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -219,12 +227,18 @@ func (h *PermissionHandler) CreatePermission(c *gin.Context) {
 	}
 
 	permission := model.Permission{
-		Code:        req.Code,
-		Name:        req.Name,
-		Resource:    req.Resource,
-		Action:      req.Action,
-		Description: req.Description,
-		Status:      req.Status,
+		Code:         req.Code,
+		Name:         req.Name,
+		Resource:     req.Resource,
+		Action:       req.Action,
+		Description:  req.Description,
+		Status:       req.Status,
+		MenuPath:     req.MenuPath,
+		MenuIcon:     req.MenuIcon,
+		MenuTitle:    req.MenuTitle,
+		ParentMenuID: req.ParentMenuID,
+		MenuOrder:    req.MenuOrder,
+		IsMenu:       req.IsMenu,
 	}
 
 	if err := h.db.Create(&permission).Error; err != nil {
@@ -249,11 +263,17 @@ func (h *PermissionHandler) UpdatePermission(c *gin.Context) {
 	}
 
 	var req struct {
-		Name        *string `json:"name"`
-		Resource    *string `json:"resource"`
-		Action      *string `json:"action"`
-		Description *string `json:"description"`
-		Status      *int    `json:"status"`
+		Name         *string `json:"name"`
+		Resource     *string `json:"resource"`
+		Action       *string `json:"action"`
+		Description  *string `json:"description"`
+		Status       *int    `json:"status"`
+		MenuPath     *string `json:"menu_path"`
+		MenuIcon     *string `json:"menu_icon"`
+		MenuTitle    *string `json:"menu_title"`
+		ParentMenuID *uint   `json:"parent_menu_id"`
+		MenuOrder    *int    `json:"menu_order"`
+		IsMenu       *bool   `json:"is_menu"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -275,6 +295,24 @@ func (h *PermissionHandler) UpdatePermission(c *gin.Context) {
 	}
 	if req.Status != nil {
 		permission.Status = *req.Status
+	}
+	if req.MenuPath != nil {
+		permission.MenuPath = *req.MenuPath
+	}
+	if req.MenuIcon != nil {
+		permission.MenuIcon = *req.MenuIcon
+	}
+	if req.MenuTitle != nil {
+		permission.MenuTitle = *req.MenuTitle
+	}
+	if req.ParentMenuID != nil {
+		permission.ParentMenuID = req.ParentMenuID
+	}
+	if req.MenuOrder != nil {
+		permission.MenuOrder = *req.MenuOrder
+	}
+	if req.IsMenu != nil {
+		permission.IsMenu = *req.IsMenu
 	}
 
 	if err := h.db.Save(&permission).Error; err != nil {
@@ -413,5 +451,131 @@ func (h *PermissionHandler) GetUserPermissions(c *gin.Context) {
 		permissions = append(permissions, perm)
 	}
 
-	utils.Success(c, permissions)
+	// 只返回权限代码列表
+	permCodes := make([]string, 0, len(permissions))
+	for _, perm := range permissions {
+		permCodes = append(permCodes, perm.Code)
+	}
+
+	utils.Success(c, permCodes)
+}
+
+// GetMenus 获取菜单树（根据当前用户的权限）
+func (h *PermissionHandler) GetMenus(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		utils.Error(c, 401, "未登录")
+		return
+	}
+
+	var user model.User
+	if err := h.db.Preload("Roles.Permissions").First(&user, userID).Error; err != nil {
+		utils.Error(c, 404, "用户不存在")
+		return
+	}
+
+	// 收集用户的所有权限代码
+	permCodes := make(map[string]bool)
+	isAdmin := false
+	for _, role := range user.Roles {
+		if role.Status == 0 {
+			continue // 跳过禁用的角色
+		}
+		// 管理员拥有所有权限
+		if role.Code == "admin" {
+			isAdmin = true
+			break
+		}
+		for _, perm := range role.Permissions {
+			if perm.Status == 1 {
+				permCodes[perm.Code] = true
+			}
+		}
+	}
+
+	// 获取所有菜单权限（is_menu = true）
+	var menuPermissions []model.Permission
+	query := h.db.Where("is_menu = ? AND status = ?", true, 1)
+	if !isAdmin {
+		// 非管理员只获取有权限的菜单
+		var codes []string
+		for code := range permCodes {
+			codes = append(codes, code)
+		}
+		if len(codes) > 0 {
+			query = query.Where("code IN ?", codes)
+		} else {
+			// 没有任何权限，返回空菜单（前端会使用静态配置作为后备）
+			// 注意：这里返回空数组，让前端使用静态配置
+			utils.Success(c, []interface{}{})
+			return
+		}
+	}
+	
+	if err := query.Order("menu_order ASC, id ASC").Find(&menuPermissions).Error; err != nil {
+		utils.Error(c, utils.CodeError, "查询菜单失败")
+		return
+	}
+
+	// 构建菜单树
+	type MenuItem struct {
+		ID          uint       `json:"id"`
+		Key         string     `json:"key"`
+		Title       string     `json:"title"`
+		Icon        string     `json:"icon"`
+		Path        string     `json:"path"`
+		Permission  string     `json:"permission"`
+		Order       int        `json:"order"`
+		Children    []MenuItem `json:"children,omitempty"`
+	}
+
+	// 创建菜单项映射（第一遍：创建所有菜单项）
+	menuMap := make(map[uint]*MenuItem)
+	for _, perm := range menuPermissions {
+		menuTitle := perm.MenuTitle
+		if menuTitle == "" {
+			menuTitle = perm.Name
+		}
+
+		menuItem := &MenuItem{
+			ID:         perm.ID,
+			Key:        perm.Code,
+			Title:      menuTitle,
+			Icon:       perm.MenuIcon,
+			Path:       perm.MenuPath,
+			Permission: perm.Code,
+			Order:      perm.MenuOrder,
+			Children:   []MenuItem{},
+		}
+		menuMap[perm.ID] = menuItem
+	}
+
+	// 第二遍：建立父子关系
+	var rootMenus []MenuItem
+	for _, perm := range menuPermissions {
+		menuItem := menuMap[perm.ID]
+		if perm.ParentMenuID != nil {
+			if parent, exists := menuMap[*perm.ParentMenuID]; exists {
+				parent.Children = append(parent.Children, *menuItem)
+			} else {
+				// 父菜单不存在或不在权限范围内，作为根菜单
+				rootMenus = append(rootMenus, *menuItem)
+			}
+		} else {
+			// 根菜单
+			rootMenus = append(rootMenus, *menuItem)
+		}
+	}
+
+	// 排序根菜单和子菜单
+	sort.Slice(rootMenus, func(i, j int) bool {
+		return rootMenus[i].Order < rootMenus[j].Order
+	})
+	for i := range rootMenus {
+		sort.Slice(rootMenus[i].Children, func(a, b int) bool {
+			return rootMenus[i].Children[a].Order < rootMenus[i].Children[b].Order
+		})
+	}
+
+	utils.Success(c, rootMenus)
 }

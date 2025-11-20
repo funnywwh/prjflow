@@ -13,7 +13,7 @@ type User struct {
 	UpdatedAt    time.Time      `json:"updated_at"`
 	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
 
-	WeChatOpenID string `gorm:"column:wechat_open_id;uniqueIndex;size:100" json:"wechat_open_id"` // 微信OpenID
+	WeChatOpenID *string `gorm:"column:wechat_open_id;uniqueIndex;size:100" json:"wechat_open_id"` // 微信OpenID（指针类型，允许NULL）
 	Username     string `gorm:"size:50;not null;uniqueIndex" json:"username"`            // 用户名（唯一，用于登录）
 	Nickname     string `gorm:"size:50" json:"nickname"`                       // 昵称（用于前端显示，不能为空，应用层保证）
 	Password     string `gorm:"size:255" json:"-"`                       // 密码（不返回给前端）
@@ -74,6 +74,14 @@ type Permission struct {
 	Action      string `gorm:"size:50" json:"action"`                      // 操作类型
 	Description string `gorm:"size:255" json:"description"`                // 描述
 	Status      int    `gorm:"default:1" json:"status"`                    // 状态：1-正常，0-禁用
+
+	// 菜单相关字段
+	MenuPath      string `gorm:"size:200" json:"menu_path"`       // 菜单路径（路由路径）
+	MenuIcon      string `gorm:"size:50" json:"menu_icon"`        // 菜单图标
+	MenuTitle     string `gorm:"size:100" json:"menu_title"`      // 菜单标题（如果为空则使用Name）
+	ParentMenuID  *uint  `gorm:"index" json:"parent_menu_id"`    // 父菜单ID（用于构建多级菜单）
+	MenuOrder     int    `gorm:"default:0" json:"menu_order"`     // 菜单排序
+	IsMenu        bool   `gorm:"default:false" json:"is_menu"`   // 是否显示在菜单中
 
 	Roles []Role `gorm:"many2many:role_permissions;" json:"roles,omitempty"`
 }

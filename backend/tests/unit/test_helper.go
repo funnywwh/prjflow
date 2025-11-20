@@ -112,12 +112,13 @@ func TeardownTestDBWithFile(t *testing.T, db *gorm.DB, filePath string) {
 
 // CreateTestUser 创建测试用户
 func CreateTestUser(t *testing.T, db *gorm.DB, username, nickname string) *model.User {
+	wechatOpenID := "test_openid_" + username
 	user := &model.User{
 		Username:     username,
 		Nickname:     nickname,
 		Email:        username + "@test.com",
 		Status:       1,
-		WeChatOpenID: "test_openid_" + username, // 设置唯一的wechat_open_id
+		WeChatOpenID: &wechatOpenID, // 设置唯一的wechat_open_id
 	}
 	if err := db.Create(user).Error; err != nil {
 		t.Fatalf("Failed to create test user: %v", err)

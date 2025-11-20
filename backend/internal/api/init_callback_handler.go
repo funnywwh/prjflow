@@ -66,8 +66,9 @@ func (h *InitCallbackHandlerImpl) Process(ctx *WeChatCallbackContext) (interface
 		adminNickname = adminUsername
 	}
 	
+	wechatOpenID := ctx.UserInfo.OpenID
 	adminUser := model.User{
-		WeChatOpenID: ctx.UserInfo.OpenID,
+		WeChatOpenID: &wechatOpenID,
 		Username:     adminUsername,
 		Nickname:     adminNickname, // 设置昵称（从微信昵称获取，如果为空则使用用户名）
 		Avatar:       ctx.UserInfo.HeadImgURL,

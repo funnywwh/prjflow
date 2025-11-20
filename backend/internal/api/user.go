@@ -82,7 +82,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.Error(c, 400, "参数错误")
+		utils.Error(c, 400, "参数错误: "+err.Error())
 		return
 	}
 
@@ -115,7 +115,22 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	}
 
 	if err := h.db.Create(&user).Error; err != nil {
-		utils.Error(c, utils.CodeError, "创建失败")
+		// 检查是否是唯一约束错误
+		if utils.IsUniqueConstraintError(err) {
+			// 检查是哪个字段的唯一约束
+			if utils.IsUniqueConstraintOnField(err, "username") {
+				utils.Error(c, 400, "用户名已存在")
+				return
+			}
+			if utils.IsUniqueConstraintOnField(err, "wechat_open_id") {
+				utils.Error(c, 400, "微信OpenID已存在")
+				return
+			}
+			utils.Error(c, 400, "数据已存在，请检查唯一性约束")
+			return
+		}
+		// 其他数据库错误
+		utils.Error(c, utils.CodeError, "创建失败: "+err.Error())
 		return
 	}
 

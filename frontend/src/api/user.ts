@@ -49,6 +49,12 @@ export interface Permission {
   action?: string
   description?: string
   status: number
+  menu_path?: string
+  menu_icon?: string
+  menu_title?: string
+  parent_menu_id?: number
+  menu_order?: number
+  is_menu?: boolean
   created_at?: string
   updated_at?: string
 }

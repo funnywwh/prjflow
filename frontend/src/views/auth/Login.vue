@@ -47,10 +47,12 @@ import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { getWeChatQRCode, passwordLogin } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
+import { usePermissionStore } from '@/stores/permission'
 import WeChatQRCode from '@/components/WeChatQRCode.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const permissionStore = usePermissionStore()
 
 const loginType = ref('password')
 const loading = ref(false)
@@ -81,11 +83,18 @@ const handlePasswordLogin = async () => {
 }
 
 // 处理登录成功
-const handleLoginSuccess = (data: any) => {
+const handleLoginSuccess = async (data: any) => {
   if (data.token && data.user) {
     // 保存token和用户信息
     authStore.setToken(data.token)
     authStore.setUser(data.user)
+    
+    // 加载用户权限
+    try {
+      await permissionStore.loadPermissions()
+    } catch (error) {
+      console.error('加载权限失败:', error)
+    }
     
     message.success('登录成功！')
     

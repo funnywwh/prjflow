@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { getUserPermissions } from '@/api/permission'
 
 export interface Permission {
   code: string
@@ -8,10 +9,10 @@ export interface Permission {
 }
 
 export const usePermissionStore = defineStore('permission', () => {
-  const permissions = ref<Permission[]>([])
+  const permissions = ref<string[]>([]) // 存储权限代码列表
   const roles = ref<string[]>([])
 
-  const setPermissions = (perms: Permission[]) => {
+  const setPermissions = (perms: string[]) => {
     permissions.value = perms
   }
 
@@ -19,8 +20,23 @@ export const usePermissionStore = defineStore('permission', () => {
     roles.value = roleList
   }
 
+  // 加载用户权限
+  const loadPermissions = async () => {
+    try {
+      const permCodes = await getUserPermissions()
+      setPermissions(permCodes)
+    } catch (error) {
+      console.error('加载权限失败:', error)
+      permissions.value = []
+    }
+  }
+
   const hasPermission = (code: string): boolean => {
-    return permissions.value.some(p => p.code === code)
+    // 管理员拥有所有权限
+    if (roles.value.includes('admin')) {
+      return true
+    }
+    return permissions.value.includes(code)
   }
 
   const hasRole = (role: string): boolean => {
@@ -35,15 +51,23 @@ export const usePermissionStore = defineStore('permission', () => {
     return roleList.some(role => hasRole(role))
   }
 
+  // 清空权限（退出登录时调用）
+  const clearPermissions = () => {
+    permissions.value = []
+    roles.value = []
+  }
+
   return {
     permissions,
     roles,
     setPermissions,
     setRoles,
+    loadPermissions,
     hasPermission,
     hasRole,
     hasAnyPermission,
-    hasAnyRole
+    hasAnyRole,
+    clearPermissions
   }
 })
 

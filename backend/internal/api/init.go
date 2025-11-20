@@ -177,8 +177,9 @@ func (h *InitHandler) InitSystem(c *gin.Context) {
 		adminNickname = adminUsername
 	}
 	
+	wechatOpenID := userInfo.OpenID
 	adminUser := model.User{
-		WeChatOpenID: userInfo.OpenID,
+		WeChatOpenID: &wechatOpenID,
 		Username:     adminUsername,
 		Nickname:     adminNickname, // 设置昵称（从微信昵称获取，如果为空则使用用户名）
 		Avatar:       userInfo.HeadImgURL,

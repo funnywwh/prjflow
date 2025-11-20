@@ -129,6 +129,9 @@ func main() {
 
 		// 当前用户权限
 		permGroup.GET("/me", permHandler.GetUserPermissions)
+
+		// 获取菜单树
+		permGroup.GET("/menus", permHandler.GetMenus)
 	}
 
 	// 用户管理路由

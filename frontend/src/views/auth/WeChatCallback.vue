@@ -14,10 +14,12 @@ import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { login } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
+import { usePermissionStore } from '@/stores/permission'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const permissionStore = usePermissionStore()
 
 const loading = ref(true)
 const messageText = ref('正在处理微信登录...')
@@ -42,6 +44,13 @@ onMounted(async () => {
     // 保存token和用户信息
     authStore.setToken(response.token)
     authStore.setUser(response.user)
+    
+    // 加载用户权限
+    try {
+      await permissionStore.loadPermissions()
+    } catch (error) {
+      console.error('加载权限失败:', error)
+    }
     
     message.success('登录成功！')
     messageText.value = '登录成功，正在跳转...'

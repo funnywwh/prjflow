@@ -32,7 +32,7 @@
 
 请求参数：
 - `page`: 页码（默认1）
-- `page_size`: 每页数量（默认20，最大100）
+- `size`: 每页数量（默认20，最大100）
 
 响应格式：
 ```json
@@ -44,6 +44,120 @@
     "total": 100,
     "page": 1,
     "size": 20
+  }
+}
+```
+
+## 系统初始化API
+
+### 检查初始化状态
+
+**GET** `/api/init/status`
+
+**响应**:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "initialized": false
+  }
+}
+```
+
+### 保存微信配置（第一步）
+
+**POST** `/api/init/wechat-config`
+
+**请求体**:
+```json
+{
+  "app_id": "wx_app_id",
+  "app_secret": "wx_app_secret"
+}
+```
+
+**响应**:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": null
+}
+```
+
+### 获取初始化二维码
+
+**GET** `/api/init/qrcode`
+
+**响应**:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "qr_code_url": "data:image/png;base64,...",
+    "ticket": "ticket_string"
+  }
+}
+```
+
+### 完成初始化（微信登录方式）
+
+**POST** `/api/init`
+
+**请求体**:
+```json
+{
+  "code": "wechat_auth_code",
+  "state": "optional_state"
+}
+```
+
+**响应**:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "token": "jwt_token_string",
+    "user": {
+      "id": 1,
+      "username": "管理员",
+      "nickname": "管理员昵称",
+      "avatar": "avatar_url",
+      "roles": ["admin"]
+    }
+  }
+}
+```
+
+### 完成初始化（密码登录方式）
+
+**POST** `/api/init/password`
+
+**请求体**:
+```json
+{
+  "username": "admin",
+  "password": "password123",
+  "nickname": "管理员"
+}
+```
+
+**响应**:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "token": "jwt_token_string",
+    "user": {
+      "id": 1,
+      "username": "admin",
+      "nickname": "管理员",
+      "roles": ["admin"]
+    }
   }
 }
 ```
@@ -69,7 +183,7 @@
 
 ### 微信登录
 
-**POST** `/auth/wechat/login`
+**POST** `/api/auth/wechat/login`
 
 **请求体**:
 ```json
@@ -202,20 +316,22 @@
 
 ### 获取用户列表
 
-**GET** `/users?keyword=&department_id=&page=1&page_size=20`
+**GET** `/api/users?keyword=&department_id=&page=1&size=20`
 
 ### 获取用户详情
 
-**GET** `/users/:id`
+**GET** `/api/users/:id`
 
 ### 创建用户
 
-**POST** `/users`
+**POST** `/api/users`
 
 **请求体**:
 ```json
 {
   "username": "用户名",
+  "password": "密码（可选，如果使用微信登录则不需要）",
+  "nickname": "昵称",
   "email": "email@example.com",
   "phone": "13800138000",
   "department_id": 1,
@@ -225,17 +341,17 @@
 
 ### 更新用户
 
-**PUT** `/users/:id`
+**PUT** `/api/users/:id`
 
 ### 删除用户
 
-**DELETE** `/users/:id`
+**DELETE** `/api/users/:id`
 
 ## 部门管理API
 
 ### 获取部门列表（树形结构）
 
-**GET** `/departments`
+**GET** `/api/departments`
 
 **响应**:
 ```json
@@ -265,11 +381,11 @@
 
 ### 获取部门详情
 
-**GET** `/departments/:id`
+**GET** `/api/departments/:id`
 
 ### 创建部门
 
-**POST** `/departments`
+**POST** `/api/departments`
 
 **请求体**:
 ```json
@@ -284,11 +400,11 @@
 
 ### 更新部门
 
-**PUT** `/departments/:id`
+**PUT** `/api/departments/:id`
 
 ### 删除部门
 
-**DELETE** `/departments/:id`
+**DELETE** `/api/departments/:id`
 
 ## 产品管理API（待实现）
 
@@ -302,7 +418,7 @@
 
 ### 获取产品列表
 
-**GET** `/products?product_line_id=&keyword=&page=1&page_size=20`
+**GET** `/api/products?product_line_id=&keyword=&page=1&size=20`
 
 ### 创建产品
 
@@ -327,7 +443,7 @@
 
 ### 获取项目列表
 
-**GET** `/projects?project_group_id=&product_id=&keyword=&page=1&page_size=20`
+**GET** `/api/projects?project_group_id=&product_id=&keyword=&page=1&size=20`
 
 ### 创建项目
 
@@ -363,7 +479,7 @@
 
 ### 获取需求列表
 
-**GET** `/requirements?product_id=&project_id=&status=&priority=&assignee_id=&creator_id=&keyword=&page=1&page_size=20`
+**GET** `/api/requirements?product_id=&project_id=&status=&priority=&assignee_id=&creator_id=&keyword=&page=1&size=20`
 
 ### 获取需求统计
 
@@ -413,7 +529,7 @@
 
 ### 获取Bug列表
 
-**GET** `/bugs?project_id=&status=&priority=&severity=&requirement_id=&creator_id=&keyword=&page=1&page_size=20`
+**GET** `/api/bugs?project_id=&status=&priority=&severity=&requirement_id=&creator_id=&keyword=&page=1&size=20`
 
 ### 获取Bug统计
 
@@ -475,7 +591,7 @@
 
 ### 获取任务列表
 
-**GET** `/tasks?project_id=&status=&assignee_id=&keyword=&page=1&page_size=20`
+**GET** `/api/tasks?project_id=&status=&assignee_id=&keyword=&page=1&size=20`
 
 ### 创建任务
 
@@ -668,7 +784,7 @@
 
 ### 获取构建列表
 
-**GET** `/builds?project_id=&status=&branch=&creator_id=&keyword=&page=1&page_size=20`
+**GET** `/api/builds?project_id=&status=&branch=&creator_id=&keyword=&page=1&size=20`
 
 ### 获取构建详情
 
@@ -719,7 +835,7 @@
 
 ### 获取版本列表
 
-**GET** `/versions?build_id=&project_id=&status=&keyword=&page=1&page_size=20`
+**GET** `/api/versions?build_id=&project_id=&status=&keyword=&page=1&size=20`
 
 ### 获取版本详情
 
@@ -776,7 +892,7 @@
 
 ### 获取测试单列表
 
-**GET** `/test-cases?project_id=&status=&type=&keyword=&page=1&page_size=20`
+**GET** `/api/test-cases?project_id=&status=&type=&keyword=&page=1&size=20`
 
 ### 获取测试单统计
 
@@ -832,7 +948,7 @@
 
 ### 获取测试报告列表
 
-**GET** `/test-reports?result=&keyword=&page=1&page_size=20`
+**GET** `/api/test-reports?result=&keyword=&page=1&size=20`
 
 ### 获取测试报告统计
 

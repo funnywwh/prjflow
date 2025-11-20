@@ -43,9 +43,18 @@ func Auth() gin.HandlerFunc {
 		if db, exists := c.Get("db"); exists {
 			if dbConn, ok := db.(*gorm.DB); ok {
 				// 加载用户权限到上下文（提高性能）
-				permCodes, err := permission.GetRolePermissions(dbConn, claims.Roles)
-				if err == nil {
-					c.Set("permissions", permCodes)
+				// 如果用户有角色，加载角色权限；如果没有角色，设置空权限列表
+				if len(claims.Roles) > 0 {
+					permCodes, err := permission.GetRolePermissions(dbConn, claims.Roles)
+					if err == nil {
+						c.Set("permissions", permCodes)
+					} else {
+						// 如果加载失败，设置空权限列表
+						c.Set("permissions", []string{})
+					}
+				} else {
+					// 用户没有角色，设置空权限列表
+					c.Set("permissions", []string{})
 				}
 			}
 		}
@@ -85,9 +94,18 @@ func AuthWithDB(db *gorm.DB) gin.HandlerFunc {
 		c.Set("roles", claims.Roles)
 
 		// 加载用户权限到上下文
-		permCodes, err := permission.GetRolePermissions(db, claims.Roles)
-		if err == nil {
-			c.Set("permissions", permCodes)
+		// 如果用户有角色，加载角色权限；如果没有角色，设置空权限列表
+		if len(claims.Roles) > 0 {
+			permCodes, err := permission.GetRolePermissions(db, claims.Roles)
+			if err == nil {
+				c.Set("permissions", permCodes)
+			} else {
+				// 如果加载失败，设置空权限列表
+				c.Set("permissions", []string{})
+			}
+		} else {
+			// 用户没有角色，设置空权限列表
+			c.Set("permissions", []string{})
 		}
 
 		c.Next()

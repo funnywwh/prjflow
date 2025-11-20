@@ -107,7 +107,7 @@ func initDefaultPermissionsAndRoles(db *gorm.DB) error {
 		// 项目列表（子菜单）
 		{Code: "project:list", Name: "项目列表", Resource: "project", Action: "read", Description: "项目列表", Status: 1, IsMenu: true, MenuPath: "/project", MenuTitle: "项目列表", MenuOrder: 0},
 		// 需求管理（子菜单）
-		{Code: "requirement:read", Name: "查看需求", Resource: "requirement", Action: "read", Description: "查看需求信息", Status: 1, IsMenu: true, MenuPath: "/requirement", MenuTitle: "需求管理", MenuOrder: 1},
+		{Code: "requirement:menu", Name: "需求管理", Resource: "requirement", Action: "menu", Description: "需求管理菜单", Status: 1, IsMenu: true, MenuPath: "/requirement", MenuTitle: "需求管理", MenuOrder: 1},
 		// 任务管理（子菜单）
 		{Code: "task:read", Name: "查看任务", Resource: "task", Action: "read", Description: "查看任务信息", Status: 1, IsMenu: true, MenuPath: "/task", MenuTitle: "任务管理", MenuOrder: 2},
 
@@ -121,6 +121,7 @@ func initDefaultPermissionsAndRoles(db *gorm.DB) error {
 		{Code: "version:read", Name: "查看版本", Resource: "version", Action: "read", Description: "查看版本信息", Status: 1, IsMenu: true, MenuPath: "/version", MenuTitle: "版本管理", MenuOrder: 2},
 
 		// 需求管理权限（操作权限）
+		{Code: "requirement:read", Name: "查看需求", Resource: "requirement", Action: "read", Description: "查看需求信息", Status: 1},
 		{Code: "requirement:create", Name: "创建需求", Resource: "requirement", Action: "create", Description: "创建新需求", Status: 1},
 		{Code: "requirement:update", Name: "更新需求", Resource: "requirement", Action: "update", Description: "更新需求信息", Status: 1},
 		{Code: "requirement:delete", Name: "删除需求", Resource: "requirement", Action: "delete", Description: "删除需求", Status: 1},
@@ -146,13 +147,14 @@ func initDefaultPermissionsAndRoles(db *gorm.DB) error {
 		// 系统管理菜单（父菜单）
 		{Code: "system-management", Name: "系统管理", Resource: "system", Action: "read", Description: "系统管理", Status: 1, IsMenu: true, MenuIcon: "SettingOutlined", MenuTitle: "系统管理", MenuOrder: 4},
 		// 用户管理（子菜单）
-		{Code: "user:read", Name: "查看用户", Resource: "user", Action: "read", Description: "查看用户信息", Status: 1, IsMenu: true, MenuPath: "/user", MenuTitle: "用户管理", MenuOrder: 0},
+		{Code: "user:menu", Name: "用户管理", Resource: "user", Action: "menu", Description: "用户管理菜单", Status: 1, IsMenu: true, MenuPath: "/user", MenuTitle: "用户管理", MenuOrder: 0},
 		// 部门管理（子菜单）
 		{Code: "department:read", Name: "查看部门", Resource: "department", Action: "read", Description: "查看部门信息", Status: 1, IsMenu: true, MenuPath: "/department", MenuTitle: "部门管理", MenuOrder: 1},
 		// 权限管理（子菜单）
 		{Code: "permission:manage", Name: "管理权限", Resource: "permission", Action: "manage", Description: "管理角色和权限", Status: 1, IsMenu: true, MenuPath: "/permission", MenuTitle: "权限管理", MenuOrder: 2},
 
 		// 用户管理权限（操作权限）
+		{Code: "user:read", Name: "查看用户", Resource: "user", Action: "read", Description: "查看用户信息", Status: 1},
 		{Code: "user:create", Name: "创建用户", Resource: "user", Action: "create", Description: "创建新用户", Status: 1},
 		{Code: "user:update", Name: "更新用户", Resource: "user", Action: "update", Description: "更新用户信息", Status: 1},
 		{Code: "user:delete", Name: "删除用户", Resource: "user", Action: "delete", Description: "删除用户", Status: 1},
@@ -204,9 +206,9 @@ func initDefaultPermissionsAndRoles(db *gorm.DB) error {
 			db.Model(projectList).Select("parent_menu_id").Updates(projectList)
 		}
 		// 需求管理
-		if requirementRead, ok := permMap["requirement:read"]; ok {
-			requirementRead.ParentMenuID = &parentID
-			db.Model(requirementRead).Select("parent_menu_id").Updates(requirementRead)
+		if requirementMenu, ok := permMap["requirement:menu"]; ok {
+			requirementMenu.ParentMenuID = &parentID
+			db.Model(requirementMenu).Select("parent_menu_id").Updates(requirementMenu)
 		}
 		// 任务管理
 		if taskRead, ok := permMap["task:read"]; ok {
@@ -244,9 +246,9 @@ func initDefaultPermissionsAndRoles(db *gorm.DB) error {
 	// 系统管理菜单的子菜单
 	if systemManagement, ok := permMap["system-management"]; ok {
 		parentID := systemManagement.ID
-		if userRead, ok := permMap["user:read"]; ok {
-			userRead.ParentMenuID = &parentID
-			db.Model(userRead).Select("parent_menu_id").Updates(userRead)
+		if userMenu, ok := permMap["user:menu"]; ok {
+			userMenu.ParentMenuID = &parentID
+			db.Model(userMenu).Select("parent_menu_id").Updates(userMenu)
 		}
 		if departmentRead, ok := permMap["department:read"]; ok {
 			departmentRead.ParentMenuID = &parentID

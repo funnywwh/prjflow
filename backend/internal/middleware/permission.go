@@ -42,6 +42,13 @@ func RequirePermission(db *gorm.DB, permCode string) gin.HandlerFunc {
 			return
 		}
 
+		// 如果用户没有任何角色，直接拒绝访问
+		if len(roleList) == 0 {
+			utils.Error(c, 403, "没有权限：用户未分配角色")
+			c.Abort()
+			return
+		}
+
 		// 检查用户是否有权限
 		hasPermission, err := permission.CheckPermissionWithDB(db, roleList, permCode)
 		if err != nil {

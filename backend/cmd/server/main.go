@@ -132,6 +132,7 @@ func main() {
 
 		// 获取菜单树
 		permGroup.GET("/menus", permHandler.GetMenus)
+		permGroup.GET("/menus/all", middleware.RequirePermission(db, "permission:manage"), permHandler.GetAllMenus)
 	}
 
 	// 用户管理路由

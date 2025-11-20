@@ -118,3 +118,8 @@ export const getMenus = async (): Promise<MenuItem[]> => {
   return request.get('/permissions/menus')
 }
 
+// 获取所有菜单树（用于管理，不根据用户权限过滤）
+export const getAllMenus = async (): Promise<MenuItem[]> => {
+  return request.get('/permissions/menus/all')
+}
+

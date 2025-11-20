@@ -104,6 +104,7 @@
                 </a-table>
               </a-card>
             </a-tab-pane>
+
           </a-tabs>
         </div>
       </a-layout-content>
@@ -220,24 +221,70 @@
       v-model:open="assignModalVisible"
       title="分配权限"
       @ok="handleAssignSubmit"
-      @cancel="assignModalVisible = false"
+      @cancel="handleAssignCancel"
       :confirm-loading="assignSubmitting"
-      :width="600"
+      :width="1200"
     >
-      <a-tree
-        v-model:checkedKeys="selectedPermissionIds"
-        checkable
-        :tree-data="permissionTreeData"
-        :field-names="{ children: 'children', title: 'title', key: 'key' }"
-        :default-expand-all="true"
-        :check-strictly="false"
-      />
+      <a-row :gutter="24">
+        <!-- 左侧：全部权限树（可勾选） -->
+        <a-col :span="12">
+          <a-card title="权限树" size="small" :bordered="false">
+            <a-spin :spinning="permissionLoading">
+              <a-tree
+                v-model:checkedKeys="selectedPermissionIds"
+                checkable
+                :tree-data="allPermissionTreeData"
+                :field-names="{ children: 'children', title: 'title', key: 'key' }"
+                :default-expand-all="true"
+                :check-strictly="false"
+                @check="handleAssignPermissionCheck"
+              >
+                <template #title="{ title, key }">
+                  <span class="permission-tree-node">
+                    <span>{{ title }}</span>
+                    <a-space style="margin-left: 8px">
+                      <a-button
+                        type="link"
+                        size="small"
+                        @click.stop="handleEditPermissionById(key)"
+                      >
+                        编辑
+                      </a-button>
+                    </a-space>
+                  </span>
+                </template>
+              </a-tree>
+              <a-empty v-if="!permissionLoading && allPermissionTreeData.length === 0" description="暂无权限" />
+            </a-spin>
+          </a-card>
+        </a-col>
+
+        <!-- 右侧：动态生成的菜单树 -->
+        <a-col :span="12">
+          <a-card title="菜单树（根据左侧勾选动态生成）" size="small" :bordered="false">
+            <a-spin :spinning="menuGenerating">
+              <a-tree
+                :tree-data="assignMenuTreeData"
+                :field-names="{ children: 'children', title: 'title', key: 'key' }"
+                :default-expand-all="true"
+                :expanded-keys="expandedAssignMenuKeys"
+                :show-line="{ showLeafIcon: false }"
+              >
+                <template #title="{ title }">
+                  <span>{{ title }}</span>
+                </template>
+              </a-tree>
+              <a-empty v-if="!menuGenerating && assignMenuTreeData.length === 0" description="请先勾选权限" />
+            </a-spin>
+          </a-card>
+        </a-col>
+      </a-row>
     </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 // import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
@@ -254,7 +301,8 @@ import {
   deletePermission,
   assignRolePermissions,
   type Role,
-  type Permission
+  type Permission,
+  type MenuItem
 } from '@/api/permission'
 
 // const route = useRoute()
@@ -263,12 +311,14 @@ const activeTab = ref('roles')
 
 const roleLoading = ref(false)
 const permissionLoading = ref(false)
+const menuGenerating = ref(false)
 const roleSubmitting = ref(false)
 const permissionSubmitting = ref(false)
 const assignSubmitting = ref(false)
 
 const roles = ref<Role[]>([])
 const permissions = ref<Permission[]>([])
+const expandedAssignMenuKeys = ref<(string | number)[]>([])
 
 const roleColumns = [
   { title: '角色名称', dataIndex: 'name', key: 'name' },
@@ -512,6 +562,18 @@ const handleAssignPermissions = async (record: Role) => {
   assignModalVisible.value = true
 }
 
+// 分配权限对话框中的权限勾选变化
+const handleAssignPermissionCheck = () => {
+  // 菜单树会自动根据 selectedPermissionIds 更新
+}
+
+// 取消分配权限
+const handleAssignCancel = () => {
+  assignModalVisible.value = false
+  selectedPermissionIds.value = []
+  currentRoleId.value = undefined
+}
+
 // 提交权限分配
 const handleAssignSubmit = async () => {
   if (!currentRoleId.value) return
@@ -638,6 +700,148 @@ const handleDeletePermission = async (id: number) => {
   }
 }
 
+// 全部权限树数据（用于左侧显示）
+const allPermissionTreeData = computed<PermissionTreeNode[]>(() => {
+  return buildPermissionTree(permissions.value)
+})
+
+// 分配权限对话框中的动态菜单树数据（根据勾选的权限生成）
+const assignMenuTreeData = computed<MenuTreeNode[]>(() => {
+  // 获取所有勾选的权限ID（过滤掉资源节点的key）
+  const checkedIds = selectedPermissionIds.value
+    .filter(id => typeof id === 'number')
+    .map(id => id as number)
+  
+  // 从permissions中筛选出勾选的、且是菜单的权限
+  const menuPermissions = permissions.value.filter(
+    p => checkedIds.includes(p.id) && p.is_menu && p.status === 1
+  )
+  
+  if (menuPermissions.length === 0) {
+    expandedAssignMenuKeys.value = []
+    return []
+  }
+  
+  // 构建菜单树
+  const menuTree = buildMenuTreeFromPermissions(menuPermissions)
+  
+  // 自动展开所有菜单节点
+  const getAllKeys = (nodes: MenuTreeNode[]): (string | number)[] => {
+    const keys: (string | number)[] = []
+    nodes.forEach(node => {
+      keys.push(node.key)
+      if (node.children && node.children.length > 0) {
+        keys.push(...getAllKeys(node.children))
+      }
+    })
+    return keys
+  }
+  expandedAssignMenuKeys.value = getAllKeys(menuTree)
+  
+  return menuTree
+})
+
+// 菜单树节点
+interface MenuTreeNode {
+  key: string | number
+  title: string
+  id?: number
+  icon?: string
+  path?: string
+  children?: MenuTreeNode[]
+}
+
+// 从权限列表构建菜单树
+const buildMenuTreeFromPermissions = (menuPerms: Permission[]): MenuTreeNode[] => {
+  // 创建权限映射
+  const permMap = new Map<number, Permission>()
+  menuPerms.forEach(perm => {
+    permMap.set(perm.id, perm)
+  })
+  
+  // 创建菜单项映射
+  const menuMap = new Map<number, MenuTreeNode>()
+  const rootMenuSet = new Set<number>()
+  
+  // 第一遍：创建所有菜单项
+  menuPerms.forEach(perm => {
+    const menuTitle = perm.menu_title || perm.name
+    const menuNode: MenuTreeNode = {
+      key: perm.id,
+      id: perm.id,
+      title: menuTitle,
+      icon: perm.menu_icon,
+      path: perm.menu_path,
+      children: []
+    }
+    menuMap.set(perm.id, menuNode)
+    
+    if (!perm.parent_menu_id) {
+      rootMenuSet.add(perm.id)
+    }
+  })
+  
+  // 第二遍：建立父子关系
+  menuPerms.forEach(perm => {
+    if (perm.parent_menu_id) {
+      const parent = menuMap.get(perm.parent_menu_id)
+      const child = menuMap.get(perm.id)
+      if (parent && child) {
+        parent.children = parent.children || []
+        parent.children.push(child)
+      } else {
+        // 父菜单不在勾选列表中，作为根菜单
+        rootMenuSet.add(perm.id)
+      }
+    }
+  })
+  
+  // 提取根菜单并排序
+  const rootMenus: MenuTreeNode[] = []
+  rootMenuSet.forEach(id => {
+    const menu = menuMap.get(id)
+    if (menu) {
+      rootMenus.push(menu)
+    }
+  })
+  
+  // 排序
+  rootMenus.sort((a, b) => {
+    const aPerm = menuPerms.find(p => p.id === a.id)
+    const bPerm = menuPerms.find(p => p.id === b.id)
+    return (aPerm?.menu_order || 0) - (bPerm?.menu_order || 0)
+  })
+  
+  // 递归排序子菜单
+  const sortChildren = (nodes: MenuTreeNode[]) => {
+    nodes.forEach(node => {
+      if (node.children && node.children.length > 0) {
+        node.children.sort((a, b) => {
+          const aPerm = menuPerms.find(p => p.id === a.id)
+          const bPerm = menuPerms.find(p => p.id === b.id)
+          return (aPerm?.menu_order || 0) - (bPerm?.menu_order || 0)
+        })
+        sortChildren(node.children)
+      }
+    })
+  }
+  sortChildren(rootMenus)
+  
+  return rootMenus
+}
+
+
+// 根据ID编辑权限
+const handleEditPermissionById = (permissionId: number | string) => {
+  // 从permissions中找到对应的权限
+  const perm = permissions.value.find(p => p.id === permissionId)
+  if (perm) {
+    handleEditPermission(perm)
+  } else {
+    message.warning('未找到对应的权限')
+  }
+}
+
 onMounted(() => {
   loadRoles()
   loadPermissions()
@@ -659,6 +863,17 @@ onMounted(() => {
   background: white;
   padding: 24px;
   border-radius: 4px;
+}
+
+.permission-tree-node {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.permission-tree-node:hover {
+  background-color: #f5f5f5;
 }
 </style>
 

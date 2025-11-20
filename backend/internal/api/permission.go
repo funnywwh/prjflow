@@ -606,3 +606,88 @@ func (h *PermissionHandler) GetMenus(c *gin.Context) {
 
 	utils.Success(c, rootMenus)
 }
+
+// GetAllMenus 获取所有菜单树（用于管理，不根据用户权限过滤）
+func (h *PermissionHandler) GetAllMenus(c *gin.Context) {
+	// 获取所有菜单权限（is_menu = true）
+	var menuPermissions []model.Permission
+	if err := h.db.Where("is_menu = ? AND status = ?", true, 1).Order("menu_order ASC, id ASC").Find(&menuPermissions).Error; err != nil {
+		utils.Error(c, utils.CodeError, "查询菜单失败")
+		return
+	}
+
+	// 构建菜单树
+	type MenuItem struct {
+		ID          uint       `json:"id"`
+		Key         string     `json:"key"`
+		Title       string     `json:"title"`
+		Icon        string     `json:"icon"`
+		Path        string     `json:"path"`
+		Permission  string     `json:"permission"`
+		Order       int        `json:"order"`
+		Children    []MenuItem `json:"children,omitempty"`
+	}
+
+	// 创建菜单项映射（第一遍：创建所有菜单项）
+	menuMap := make(map[uint]*MenuItem)
+	for _, perm := range menuPermissions {
+		menuTitle := perm.MenuTitle
+		if menuTitle == "" {
+			menuTitle = perm.Name
+		}
+
+		menuItem := &MenuItem{
+			ID:         perm.ID,
+			Key:        perm.Code,
+			Title:      menuTitle,
+			Icon:       perm.MenuIcon,
+			Path:       perm.MenuPath,
+			Permission: perm.Code,
+			Order:      perm.MenuOrder,
+			Children:   []MenuItem{},
+		}
+		menuMap[perm.ID] = menuItem
+	}
+
+	// 第二遍：建立父子关系
+	// 先收集所有根菜单（parent_menu_id 为 nil 的菜单）
+	rootMenuSet := make(map[uint]bool)
+	for _, perm := range menuPermissions {
+		if perm.ParentMenuID == nil {
+			rootMenuSet[perm.ID] = true
+		}
+	}
+	
+	// 建立父子关系
+	for _, perm := range menuPermissions {
+		menuItem := menuMap[perm.ID]
+		if perm.ParentMenuID != nil {
+			if parent, exists := menuMap[*perm.ParentMenuID]; exists {
+				parent.Children = append(parent.Children, *menuItem)
+			} else {
+				// 父菜单不存在或不在权限范围内，作为根菜单
+				rootMenuSet[perm.ID] = true
+			}
+		}
+	}
+	
+	// 从 menuMap 中提取根菜单（确保使用最新的 Children 数据）
+	var rootMenus []MenuItem
+	for rootID := range rootMenuSet {
+		if rootMenu, exists := menuMap[rootID]; exists {
+			rootMenus = append(rootMenus, *rootMenu)
+		}
+	}
+
+	// 排序根菜单和子菜单
+	sort.Slice(rootMenus, func(i, j int) bool {
+		return rootMenus[i].Order < rootMenus[j].Order
+	})
+	for i := range rootMenus {
+		sort.Slice(rootMenus[i].Children, func(a, b int) bool {
+			return rootMenus[i].Children[a].Order < rootMenus[i].Children[b].Order
+		})
+	}
+
+	utils.Success(c, rootMenus)
+}

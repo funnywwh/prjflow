@@ -93,13 +93,13 @@ func (h *RequirementHandler) CreateRequirement(c *gin.Context) {
 		Description    string   `json:"description"`
 		Status         string   `json:"status"`
 		Priority       string   `json:"priority"`
-		ProjectID      *uint    `json:"project_id"`
+		ProjectID      uint     `json:"project_id" binding:"required"`
 		AssigneeID     *uint    `json:"assignee_id"`
 		EstimatedHours *float64 `json:"estimated_hours"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.Error(c, 400, "参数错误")
+		utils.Error(c, 400, "参数错误: "+err.Error())
 		return
 	}
 
@@ -140,13 +140,11 @@ func (h *RequirementHandler) CreateRequirement(c *gin.Context) {
 		return
 	}
 
-	// 如果指定了项目，验证项目是否存在
-	if req.ProjectID != nil {
-		var project model.Project
-		if err := h.db.First(&project, *req.ProjectID).Error; err != nil {
-			utils.Error(c, 400, "项目不存在")
-			return
-		}
+	// 验证项目是否存在（项目ID是必填的）
+	var project model.Project
+	if err := h.db.First(&project, req.ProjectID).Error; err != nil {
+		utils.Error(c, 400, "项目不存在")
+		return
 	}
 
 	// 如果指定了负责人，验证用户是否存在
@@ -169,7 +167,7 @@ func (h *RequirementHandler) CreateRequirement(c *gin.Context) {
 		Description:    req.Description,
 		Status:         req.Status,
 		Priority:       req.Priority,
-		ProjectID:      req.ProjectID,
+		ProjectID:      req.ProjectID, // 必填
 		CreatorID:      userID.(uint),
 		AssigneeID:     req.AssigneeID,
 		EstimatedHours: req.EstimatedHours,
@@ -200,7 +198,7 @@ func (h *RequirementHandler) UpdateRequirement(c *gin.Context) {
 		Description    *string  `json:"description"`
 		Status         *string  `json:"status"`
 		Priority       *string  `json:"priority"`
-		ProjectID      *uint    `json:"project_id"`
+		ProjectID      *uint    `json:"project_id"` // 更新时可选，但如果提供则必须有效
 		AssigneeID     *uint    `json:"assignee_id"`
 		EstimatedHours *float64 `json:"estimated_hours"`
 		ActualHours    *float64 `json:"actual_hours"` // 实际工时，会自动创建资源分配
@@ -248,17 +246,17 @@ func (h *RequirementHandler) UpdateRequirement(c *gin.Context) {
 		requirement.Priority = *req.Priority
 	}
 	if req.ProjectID != nil {
-		// 验证项目是否存在
-		if *req.ProjectID != 0 {
-			var project model.Project
-			if err := h.db.First(&project, *req.ProjectID).Error; err != nil {
-				utils.Error(c, 400, "项目不存在")
-				return
-			}
-			requirement.ProjectID = req.ProjectID
-		} else {
-			requirement.ProjectID = nil
+		// 验证项目是否存在（项目ID不能为0，且必须存在）
+		if *req.ProjectID == 0 {
+			utils.Error(c, 400, "项目ID不能为空")
+			return
 		}
+		var project model.Project
+		if err := h.db.First(&project, *req.ProjectID).Error; err != nil {
+			utils.Error(c, 400, "项目不存在")
+			return
+		}
+		requirement.ProjectID = *req.ProjectID
 	}
 	if req.AssigneeID != nil {
 		// 验证负责人是否存在
@@ -287,8 +285,8 @@ func (h *RequirementHandler) UpdateRequirement(c *gin.Context) {
 			utils.Error(c, 400, "实际工时不能为负数")
 			return
 		}
-		// 需求必须有项目ID和负责人才能创建资源分配
-		if requirement.ProjectID == nil {
+		// 需求必须有项目ID和负责人才能创建资源分配（ProjectID现在是必填的，但为了安全还是检查一下）
+		if requirement.ProjectID == 0 {
 			utils.Error(c, 400, "需求必须关联项目才能记录工时")
 			return
 		}
@@ -443,18 +441,19 @@ func (h *RequirementHandler) UpdateRequirementStatus(c *gin.Context) {
 
 // syncRequirementActualHours 同步需求实际工时到资源分配
 func (h *RequirementHandler) syncRequirementActualHours(requirement *model.Requirement, actualHours float64, workDate time.Time) error {
-	if requirement.ProjectID == nil || requirement.AssigneeID == nil {
-		return nil // 没有项目或负责人时，不创建资源分配，但不报错
+	// ProjectID现在是必填的，但AssigneeID仍然是可选的
+	if requirement.AssigneeID == nil {
+		return nil // 没有负责人时，不创建资源分配，但不报错
 	}
 
 	// 查找或创建资源
 	var resource model.Resource
-	err := h.db.Where("user_id = ? AND project_id = ?", *requirement.AssigneeID, *requirement.ProjectID).First(&resource).Error
+	err := h.db.Where("user_id = ? AND project_id = ?", *requirement.AssigneeID, requirement.ProjectID).First(&resource).Error
 	if err != nil {
 		// 资源不存在，创建资源
 		resource = model.Resource{
 			UserID:    *requirement.AssigneeID,
-			ProjectID: *requirement.ProjectID,
+			ProjectID: requirement.ProjectID,
 		}
 		if err := h.db.Create(&resource).Error; err != nil {
 			return err
@@ -470,7 +469,7 @@ func (h *RequirementHandler) syncRequirementActualHours(requirement *model.Requi
 	allocation := model.ResourceAllocation{
 		ResourceID:    resource.ID,
 		RequirementID: &requirement.ID,
-		ProjectID:     requirement.ProjectID,
+		ProjectID:     &requirement.ProjectID, // ProjectID现在是uint，需要取地址
 		Date:          workDate,
 		Hours:         actualHours,
 		Description:   fmt.Sprintf("需求: %s", requirement.Title),

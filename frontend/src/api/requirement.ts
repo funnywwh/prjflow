@@ -6,7 +6,7 @@ export interface Requirement {
   description?: string
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled'
   priority: 'low' | 'medium' | 'high' | 'urgent'
-  project_id?: number
+  project_id: number // 必填
   project?: any
   creator_id: number
   creator?: any
@@ -30,7 +30,7 @@ export interface CreateRequirementRequest {
   description?: string
   status?: 'pending' | 'in_progress' | 'completed' | 'cancelled'
   priority?: 'low' | 'medium' | 'high' | 'urgent'
-  project_id?: number
+  project_id: number // 必填
   assignee_id?: number
   estimated_hours?: number
 }

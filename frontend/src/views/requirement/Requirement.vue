@@ -246,8 +246,7 @@
         <a-form-item label="项目" name="project_id">
           <a-select
             v-model:value="formData.project_id"
-            placeholder="选择项目（可选）"
-            allow-clear
+            placeholder="请选择项目"
           >
             <a-select-option
               v-for="project in projects"
@@ -384,12 +383,12 @@ const columns = [
 const modalVisible = ref(false)
 const modalTitle = ref('新增需求')
 const formRef = ref()
-const formData = reactive<CreateRequirementRequest & { id?: number; actual_hours?: number; work_date?: Dayjs }>({
+const formData = reactive<Partial<CreateRequirementRequest> & { id?: number; actual_hours?: number; work_date?: Dayjs }>({
   title: '',
   description: '',
   status: 'pending',
   priority: 'medium',
-  project_id: undefined,
+  project_id: undefined, // 表单中可以为undefined，提交时会验证
   assignee_id: undefined,
   estimated_hours: undefined,
   actual_hours: undefined,
@@ -397,7 +396,8 @@ const formData = reactive<CreateRequirementRequest & { id?: number; actual_hours
 })
 
 const formRules = {
-  title: [{ required: true, message: '请输入需求标题', trigger: 'blur' }]
+  title: [{ required: true, message: '请输入需求标题', trigger: 'blur' }],
+  project_id: [{ required: true, message: '请选择项目', trigger: 'change' }]
 }
 
 // 加载需求列表
@@ -532,12 +532,17 @@ const handleView = (record: Requirement) => {
 const handleSubmit = async () => {
   try {
     await formRef.value.validate()
+    // 验证项目ID必填
+    if (!formData.project_id) {
+      message.error('请选择项目')
+      return
+    }
     const data: any = {
       title: formData.title,
       description: formData.description,
       status: formData.status,
       priority: formData.priority,
-      project_id: formData.project_id,
+      project_id: formData.project_id, // 必填
       assignee_id: formData.assignee_id,
       estimated_hours: formData.estimated_hours,
       actual_hours: formData.actual_hours,

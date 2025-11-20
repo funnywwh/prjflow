@@ -18,8 +18,8 @@ type Requirement struct {
 	Status      string `gorm:"size:20;default:'pending'" json:"status"` // 状态：pending, in_progress, completed, cancelled
 	Priority    string `gorm:"size:20;default:'medium'" json:"priority"` // 优先级：low, medium, high, urgent
 
-	ProjectID *uint   `gorm:"index" json:"project_id"` // 可选关联项目
-	Project   *Project `gorm:"foreignKey:ProjectID" json:"project,omitempty"`
+	ProjectID uint    `gorm:"index;not null" json:"project_id"` // 必填关联项目
+	Project   Project `gorm:"foreignKey:ProjectID" json:"project,omitempty"`
 
 	CreatorID uint `gorm:"index" json:"creator_id"`
 	Creator   User `gorm:"foreignKey:CreatorID" json:"creator,omitempty"`

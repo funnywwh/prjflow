@@ -166,7 +166,7 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 			utils.Error(c, 400, "需求不存在")
 			return
 		}
-		if requirement.ProjectID == nil || *requirement.ProjectID != req.ProjectID {
+		if requirement.ProjectID != req.ProjectID {
 			utils.Error(c, 400, "需求必须属于同一项目")
 			return
 		}
@@ -330,7 +330,7 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 				utils.Error(c, 400, "需求不存在")
 				return
 			}
-			if requirement.ProjectID == nil || *requirement.ProjectID != task.ProjectID {
+			if requirement.ProjectID != task.ProjectID {
 				utils.Error(c, 400, "需求必须属于同一项目")
 				return
 			}

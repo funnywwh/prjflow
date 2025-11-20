@@ -242,7 +242,7 @@ const columns = [
 const modalVisible = ref(false)
 const modalTitle = ref('新增构建')
 const formRef = ref()
-const formData = reactive<CreateBuildRequest & { id?: number; build_time?: Dayjs | undefined }>({
+const formData = reactive<Omit<CreateBuildRequest, 'build_time'> & { id?: number; build_time?: Dayjs | undefined }>({
   build_number: '',
   status: 'pending',
   branch: '',

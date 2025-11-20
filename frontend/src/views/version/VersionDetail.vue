@@ -6,7 +6,7 @@
         <div class="content-inner">
           <a-page-header
             :title="version?.version_number || '版本详情'"
-            @back="() => router.push('/version')"
+            @back="() => $router.push('/version')"
           >
             <template #extra>
               <a-space>
@@ -86,7 +86,7 @@
                   <a-list-item>
                     <a-list-item-meta>
                       <template #title>
-                        <a-button type="link" @click="router.push(`/requirement/${item.id}`)">
+                        <a-button type="link" @click="$router.push(`/requirement/${item.id}`)">
                           {{ item.title }}
                         </a-button>
                       </template>
@@ -118,7 +118,7 @@
                   <a-list-item>
                     <a-list-item-meta>
                       <template #title>
-                        <a-button type="link" @click="router.push(`/bug/${item.id}`)">
+                        <a-button type="link" @click="$router.push(`/bug/${item.id}`)">
                           {{ item.title }}
                         </a-button>
                       </template>
@@ -164,8 +164,8 @@ import {
   type Version
 } from '@/api/version'
 
-// const route = useRoute()
-// const router = useRouter()
+const route = useRoute()
+const router = useRouter()
 const loading = ref(false)
 const version = ref<Version | null>(null)
 

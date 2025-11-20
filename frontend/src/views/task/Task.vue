@@ -465,7 +465,7 @@ const columns = [
 const modalVisible = ref(false)
 const modalTitle = ref('新增任务')
 const formRef = ref()
-const formData = reactive<CreateTaskRequest & { id?: number; start_date?: Dayjs | undefined; end_date?: Dayjs | undefined; due_date?: Dayjs | undefined; actual_hours?: number; work_date?: Dayjs | undefined }>({
+const formData = reactive<Omit<CreateTaskRequest, 'start_date' | 'end_date' | 'due_date'> & { id?: number; start_date?: Dayjs | undefined; end_date?: Dayjs | undefined; due_date?: Dayjs | undefined; actual_hours?: number; work_date?: Dayjs | undefined }>({
   title: '',
   description: '',
   status: 'todo',

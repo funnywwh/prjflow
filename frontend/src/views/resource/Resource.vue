@@ -438,7 +438,7 @@ const allocationColumns = [
 const allocationFormVisible = ref(false)
 const allocationModalTitle = ref('新增分配')
 const allocationFormRef = ref<FormInstance>()
-const allocationFormData = reactive<CreateResourceAllocationRequest & { id?: number; date?: Dayjs | undefined }>({
+const allocationFormData = reactive<Omit<CreateResourceAllocationRequest, 'date'> & { id?: number; date?: Dayjs | undefined }>({
   resource_id: 0,
   date: undefined,
   hours: 0,

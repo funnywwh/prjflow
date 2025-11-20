@@ -238,7 +238,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+// import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { PlusOutlined, QrcodeOutlined } from '@ant-design/icons-vue'
 import AppHeader from '@/components/AppHeader.vue'

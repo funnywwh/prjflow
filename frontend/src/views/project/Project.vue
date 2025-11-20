@@ -359,7 +359,7 @@ const memberColumns = [
 const projectModalVisible = ref(false)
 const projectModalTitle = ref('新增项目')
 const projectFormRef = ref()
-const projectFormData = reactive<CreateProjectRequest & { id?: number; start_date?: Dayjs | undefined; end_date?: Dayjs | undefined }>({
+const projectFormData = reactive<Omit<CreateProjectRequest, 'start_date' | 'end_date'> & { id?: number; start_date?: Dayjs | undefined; end_date?: Dayjs | undefined }>({
   name: '',
   code: '',
   description: '',

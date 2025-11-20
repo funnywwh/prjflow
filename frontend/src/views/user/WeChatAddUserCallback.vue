@@ -14,7 +14,7 @@ import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { addUserByWeChat } from '@/api/user'
 
-// const route = useRoute()
+const route = useRoute()
 
 const loading = ref(true)
 const messageText = ref('正在处理微信授权...')

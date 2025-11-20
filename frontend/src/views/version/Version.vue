@@ -102,7 +102,7 @@
                 </template>
                 <template v-else-if="column.key === 'action'">
                   <a-space>
-                    <a-button type="link" size="small" @click="() => router.push(`/version/${record.id}`)">
+                    <a-button type="link" size="small" @click="() => $router.push(`/version/${record.id}`)">
                       详情
                     </a-button>
                     <a-button type="link" size="small" @click="handleEdit(record)">
@@ -237,8 +237,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, onMounted, nextTick } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined, DownOutlined } from '@ant-design/icons-vue'
 import dayjs, { type Dayjs } from 'dayjs'
@@ -295,7 +294,7 @@ const columns = [
 const modalVisible = ref(false)
 const modalTitle = ref('新增版本')
 const formRef = ref()
-const formData = reactive<CreateVersionRequest & { id?: number; release_date?: Dayjs | undefined }>({
+const formData = reactive<Omit<CreateVersionRequest, 'release_date'> & { id?: number; release_date?: Dayjs | undefined }>({
   version_number: '',
   release_notes: '',
   status: 'draft',

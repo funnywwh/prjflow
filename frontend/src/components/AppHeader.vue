@@ -6,6 +6,7 @@
         mode="horizontal"
         :selected-keys="selectedKeys"
         :style="{ lineHeight: '64px', flex: 1 }"
+        :class="['header-menu', { 'menu-empty': menuLoaded && filteredMenu.length === 0 }]"
       >
         <template v-for="item in filteredMenu" :key="item.key">
           <!-- 有子菜单的情况 -->
@@ -117,6 +118,7 @@ const permissionStore = usePermissionStore()
 // 菜单数据
 const menuItems = ref<MenuItem[]>([])
 const useBackendMenu = ref(false) // 标记是否使用后端菜单
+const menuLoaded = ref(false) // 标记菜单是否已加载完成
 
 // 加载菜单（完全由后端控制）
 const loadMenus = async () => {
@@ -134,6 +136,8 @@ const loadMenus = async () => {
     // 如果后端菜单加载失败，返回空数组
     menuItems.value = []
     useBackendMenu.value = false
+  } finally {
+    menuLoaded.value = true // 标记菜单加载完成
   }
 }
 
@@ -313,5 +317,22 @@ onMounted(async () => {
   color: white;
   margin-left: 8px;
 }
+
+.header-menu {
+  height: 64px;
+  min-height: 64px;
+}
+
+.header-menu :deep(.ant-menu) {
+  height: 64px;
+  min-height: 64px;
+}
+
+/* 当菜单为空时，保持高度但隐藏内容 */
+.header-menu.menu-empty :deep(.ant-menu) {
+  border-bottom: none;
+  opacity: 0;
+}
+
 </style>
 

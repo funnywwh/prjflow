@@ -406,35 +406,6 @@
 
 **DELETE** `/api/departments/:id`
 
-## 产品管理API（待实现）
-
-### 获取产品线列表
-
-**GET** `/product-lines`
-
-### 创建产品线
-
-**POST** `/product-lines`
-
-### 获取产品列表
-
-**GET** `/api/products?product_line_id=&keyword=&page=1&size=20`
-
-### 创建产品
-
-**POST** `/products`
-
-### 关联产品到项目
-
-**POST** `/products/:id/projects`
-
-**请求体**:
-```json
-{
-  "project_ids": [1, 2, 3]
-}
-```
-
 ## 项目管理API（待实现）
 
 ### 获取项目集列表

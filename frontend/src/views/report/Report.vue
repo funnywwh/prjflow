@@ -110,6 +110,13 @@
                           提交
                         </a-button>
                         <a-popconfirm
+                          v-if="isAdmin && record.status === 'submitted'"
+                          title="确定要审批通过这个日报吗？"
+                          @confirm="handleDailyApprove(record)"
+                        >
+                          <a-button type="link" size="small" style="color: #52c41a">审批</a-button>
+                        </a-popconfirm>
+                        <a-popconfirm
                           title="确定要删除这个日报吗？"
                           @confirm="handleDailyDelete(record.id)"
                         >
@@ -217,6 +224,13 @@
                         >
                           提交
                         </a-button>
+                        <a-popconfirm
+                          v-if="isAdmin && record.status === 'submitted'"
+                          title="确定要审批通过这个周报吗？"
+                          @confirm="handleWeeklyApprove(record)"
+                        >
+                          <a-button type="link" size="small" style="color: #52c41a">审批</a-button>
+                        </a-popconfirm>
                         <a-popconfirm
                           title="确定要删除这个周报吗？"
                           @confirm="handleWeeklyDelete(record.id)"
@@ -404,7 +418,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
@@ -412,6 +426,7 @@ import dayjs, { type Dayjs } from 'dayjs'
 import { formatDateTime, formatDate } from '@/utils/date'
 import AppHeader from '@/components/AppHeader.vue'
 import MarkdownEditor from '@/components/MarkdownEditor.vue'
+import { usePermissionStore } from '@/stores/permission'
 import {
   getDailyReports,
   getDailyReport,
@@ -541,6 +556,10 @@ const weeklyFormRules = {
 const projects = ref<Project[]>([])
 const availableTasks = ref<Task[]>([])
 const taskLoading = ref(false)
+
+// 权限管理
+const permissionStore = usePermissionStore()
+const isAdmin = computed(() => permissionStore.hasRole('admin'))
 
 // 加载日报列表
 const loadDailyReports = async () => {
@@ -743,6 +762,17 @@ const handleDailySubmit = async (record: DailyReport) => {
   }
 }
 
+// 审批日报（状态改为已审批）
+const handleDailyApprove = async (record: DailyReport) => {
+  try {
+    await updateDailyReportStatus(record.id, { status: 'approved' })
+    message.success('审批成功')
+    loadDailyReports()
+  } catch (error: any) {
+    message.error(error.message || '审批失败')
+  }
+}
+
 // 删除日报
 const handleDailyDelete = async (id: number) => {
   try {
@@ -836,6 +866,17 @@ const handleWeeklySubmit = async (record: WeeklyReport) => {
     loadWeeklyReports()
   } catch (error: any) {
     message.error(error.message || '提交失败')
+  }
+}
+
+// 审批周报（状态改为已审批）
+const handleWeeklyApprove = async (record: WeeklyReport) => {
+  try {
+    await updateWeeklyReportStatus(record.id, { status: 'approved' })
+    message.success('审批成功')
+    loadWeeklyReports()
+  } catch (error: any) {
+    message.error(error.message || '审批失败')
   }
 }
 

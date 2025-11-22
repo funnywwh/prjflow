@@ -291,10 +291,10 @@ func main() {
 		testCaseGroup.GET("/statistics", middleware.RequirePermission(db, "project:read"), testCaseHandler.GetTestCaseStatistics)
 		testCaseGroup.GET("", middleware.RequirePermission(db, "project:read"), testCaseHandler.GetTestCases)
 		testCaseGroup.GET("/:id", middleware.RequirePermission(db, "project:read"), testCaseHandler.GetTestCase)
-		testCaseGroup.POST("", middleware.RequirePermission(db, "project:update"), testCaseHandler.CreateTestCase)
-		testCaseGroup.PUT("/:id", middleware.RequirePermission(db, "project:update"), testCaseHandler.UpdateTestCase)
-		testCaseGroup.DELETE("/:id", middleware.RequirePermission(db, "project:delete"), testCaseHandler.DeleteTestCase)
-		testCaseGroup.PATCH("/:id/status", middleware.RequirePermission(db, "project:update"), testCaseHandler.UpdateTestCaseStatus)
+		testCaseGroup.POST("", middleware.RequirePermission(db, "test-case:create"), testCaseHandler.CreateTestCase)
+		testCaseGroup.PUT("/:id", middleware.RequirePermission(db, "test-case:update"), testCaseHandler.UpdateTestCase)
+		testCaseGroup.DELETE("/:id", middleware.RequirePermission(db, "test-case:delete"), testCaseHandler.DeleteTestCase)
+		testCaseGroup.PATCH("/:id/status", middleware.RequirePermission(db, "test-case:update"), testCaseHandler.UpdateTestCaseStatus)
 	}
 
 	// 资源管理路由 (统计、冲突检测、利用率分析)

@@ -126,6 +126,10 @@ func initDefaultPermissionsAndRoles(db *gorm.DB) error {
 		{Code: "test-management", Name: "测试管理", Resource: "test", Action: "read", Description: "测试管理", Status: 1, IsMenu: true, MenuIcon: "ExperimentOutlined", MenuTitle: "测试管理", MenuOrder: 2},
 		// 测试单管理（子菜单，将移动到测试管理下）
 		{Code: "test-case:read", Name: "查看测试用例", Resource: "testcase", Action: "read", Description: "查看测试用例", Status: 1, IsMenu: true, MenuPath: "/test-case", MenuTitle: "测试单管理", MenuOrder: 0},
+		// 测试用例权限（操作权限）
+		{Code: "test-case:create", Name: "创建测试用例", Resource: "testcase", Action: "create", Description: "创建新测试用例", Status: 1},
+		{Code: "test-case:update", Name: "更新测试用例", Resource: "testcase", Action: "update", Description: "更新测试用例信息", Status: 1},
+		{Code: "test-case:delete", Name: "删除测试用例", Resource: "testcase", Action: "delete", Description: "删除测试用例", Status: 1},
 		// Bug管理（子菜单，将移动到测试管理下）
 		{Code: "bug:read", Name: "查看Bug", Resource: "bug", Action: "read", Description: "查看Bug信息", Status: 1, IsMenu: true, MenuPath: "/bug", MenuTitle: "Bug管理", MenuOrder: 1},
 		// 版本管理（子菜单，将移动到测试管理下）
@@ -368,6 +372,9 @@ func initDefaultPermissionsAndRoles(db *gorm.DB) error {
 				"bug:update",                  // 更新Bug
 				"bug:assign",                  // 分配Bug
 				"version:read",                 // 查看版本
+				"system-management",           // 系统管理菜单
+				"user:menu",                   // 用户管理菜单
+				"user:read",                   // 查看用户
 				"attachment:upload",           // 上传附件
 				"attachment:delete",           // 删除附件
 			},
@@ -391,9 +398,14 @@ func initDefaultPermissionsAndRoles(db *gorm.DB) error {
 				"task:create",                 // 创建任务
 				"task:update",                 // 更新任务
 				"test-management",             // 测试管理菜单
+				"test-case:read",              // 查看测试用例（测试单管理菜单）
+				"test-case:create",            // 创建测试用例
+				"test-case:update",            // 更新测试用例
 				"bug:read",                    // Bug管理菜单
 				"bug:create",                  // 创建Bug
 				"bug:update",                  // 更新Bug
+				"bug:assign",                  // 分配Bug
+				"user:read",                   // 查看用户
 				"attachment:upload",           // 上传附件
 			},
 		},
@@ -415,12 +427,16 @@ func initDefaultPermissionsAndRoles(db *gorm.DB) error {
 				"task:read",                   // 任务管理（菜单和查看）
 				"test-management",             // 测试管理菜单
 				"test-case:read",              // 查看测试用例
+				"test-case:create",            // 创建测试用例
+				"test-case:update",            // 更新测试用例
+				"test-case:delete",            // 删除测试用例
 				"bug:read",                    // Bug管理菜单
 				"bug:create",                  // 创建Bug
 				"bug:update",                  // 更新Bug
 				"bug:delete",                  // 删除Bug
 				"bug:assign",                  // 分配Bug
 				"version:read",                 // 查看版本
+				"user:read",                   // 查看用户
 				"attachment:upload",           // 上传附件
 			},
 		},

@@ -239,6 +239,25 @@ func (h *ProjectHandler) CreateProject(c *gin.Context) {
 		return
 	}
 
+	// 自动将创建者添加为项目成员（角色：项目经理）
+	userID := utils.GetUserID(c)
+	if userID > 0 {
+		// 检查是否已经是成员（防止重复）
+		var existingMember model.ProjectMember
+		if err := h.db.Where("project_id = ? AND user_id = ?", project.ID, userID).First(&existingMember).Error; err != nil {
+			// 不存在，创建新成员
+			creatorMember := model.ProjectMember{
+				ProjectID: project.ID,
+				UserID:    userID,
+				Role:      "项目经理", // 创建者默认为项目经理
+			}
+			if err := h.db.Create(&creatorMember).Error; err != nil {
+				// 如果添加成员失败，记录错误但不影响项目创建
+				// 因为项目已经创建成功
+			}
+		}
+	}
+
 	// 重新加载关联数据
 	if err := h.db.Preload("Members.User").Preload("Tags").First(&project, project.ID).Error; err != nil {
 		utils.Error(c, utils.CodeError, "查询失败")

@@ -46,22 +46,6 @@
                       format="YYYY-MM-DD"
                     />
                   </a-form-item>
-                  <a-form-item label="项目">
-                    <a-select
-                      v-model:value="dailySearchForm.project_id"
-                      placeholder="选择项目"
-                      allow-clear
-                      style="width: 150px"
-                    >
-                      <a-select-option
-                        v-for="project in projects"
-                        :key="project.id"
-                        :value="project.id"
-                      >
-                        {{ project.name }}
-                      </a-select-option>
-                    </a-select>
-                  </a-form-item>
                   <a-form-item>
                     <a-button type="primary" @click="handleDailySearch">查询</a-button>
                     <a-button style="margin-left: 8px" @click="handleDailyReset">重置</a-button>
@@ -99,12 +83,6 @@
                     </template>
                     <template v-else-if="column.key === 'date'">
                       {{ formatDate(record.date) }}
-                    </template>
-                    <template v-else-if="column.key === 'project'">
-                      {{ record.project?.name || '-' }}
-                    </template>
-                    <template v-else-if="column.key === 'task'">
-                      {{ record.tasks?.map((t: any) => t.title).join('、') || '-' }}
                     </template>
                     <template v-else-if="column.key === 'created_at'">
                       {{ formatDateTime(record.created_at) }}
@@ -167,22 +145,6 @@
                       format="YYYY-MM-DD"
                     />
                   </a-form-item>
-                  <a-form-item label="项目">
-                    <a-select
-                      v-model:value="weeklySearchForm.project_id"
-                      placeholder="选择项目"
-                      allow-clear
-                      style="width: 150px"
-                    >
-                      <a-select-option
-                        v-for="project in projects"
-                        :key="project.id"
-                        :value="project.id"
-                      >
-                        {{ project.name }}
-                      </a-select-option>
-                    </a-select>
-                  </a-form-item>
                   <a-form-item>
                     <a-button type="primary" @click="handleWeeklySearch">查询</a-button>
                     <a-button style="margin-left: 8px" @click="handleWeeklyReset">重置</a-button>
@@ -220,12 +182,6 @@
                     </template>
                     <template v-else-if="column.key === 'week'">
                       {{ formatDate(record.week_start) }} ~ {{ formatDate(record.week_end) }}
-                    </template>
-                    <template v-else-if="column.key === 'project'">
-                      {{ record.project?.name || '-' }}
-                    </template>
-                    <template v-else-if="column.key === 'task'">
-                      {{ record.tasks?.map((t: any) => t.title).join('、') || '-' }}
                     </template>
                     <template v-else-if="column.key === 'created_at'">
                       {{ formatDateTime(record.created_at) }}
@@ -353,9 +309,6 @@
                     <template v-else-if="column.key === 'user'">
                       {{ record.user?.nickname || record.user?.username || '-' }}
                     </template>
-                    <template v-else-if="column.key === 'project'">
-                      {{ record.project?.name || '-' }}
-                    </template>
                     <template v-else-if="column.key === 'content'">
                       <span v-if="record.reportType === 'daily'">
                         {{ record.content || '-' }}
@@ -436,57 +389,7 @@
             v-model="dailyFormData.content"
             placeholder="请输入工作内容（支持Markdown）"
             :rows="8"
-            :project-id="dailyFormData.project_id || 0"
           />
-        </a-form-item>
-        <a-form-item label="工时" name="hours">
-          <a-input-number
-            v-model:value="dailyFormData.hours"
-            placeholder="工时（小时）"
-            :min="0"
-            :precision="2"
-            style="width: 100%"
-          />
-        </a-form-item>
-        <a-form-item label="项目" name="project_id">
-          <a-select
-            v-model:value="dailyFormData.project_id"
-            placeholder="选择项目（可选）"
-            allow-clear
-            show-search
-            :filter-option="filterProjectOption"
-          >
-            <a-select-option
-              v-for="project in projects"
-              :key="project.id"
-              :value="project.id"
-            >
-              {{ project.name }}
-            </a-select-option>
-          </a-select>
-        </a-form-item>
-        <a-form-item label="任务" name="task_ids">
-          <a-tooltip :title="!dailyFormData.project_id ? '请先选择项目' : ''">
-            <a-select
-              v-model:value="dailyFormData.task_ids"
-              mode="multiple"
-              :placeholder="!dailyFormData.project_id ? '请先选择项目' : '选择任务（可选，支持多选）'"
-              allow-clear
-              show-search
-              :filter-option="filterTaskOption"
-              :loading="taskLoading"
-              :disabled="!dailyFormData.project_id"
-              @focus="loadTasksForProject"
-            >
-            <a-select-option
-              v-for="task in availableTasks"
-              :key="task.id"
-              :value="task.id"
-            >
-              {{ task.title }}
-            </a-select-option>
-          </a-select>
-          </a-tooltip>
         </a-form-item>
         <a-form-item label="审批人" name="approver_ids">
           <a-select
@@ -549,7 +452,6 @@
             v-model="weeklyFormData.summary"
             placeholder="请输入工作总结（支持Markdown）"
             :rows="8"
-            :project-id="weeklyFormData.project_id || 0"
           />
         </a-form-item>
         <a-form-item label="下周计划" name="next_week_plan">
@@ -558,48 +460,7 @@
             v-model="weeklyFormData.next_week_plan"
             placeholder="请输入下周计划（支持Markdown）"
             :rows="8"
-            :project-id="weeklyFormData.project_id || 0"
           />
-        </a-form-item>
-        <a-form-item label="项目" name="project_id">
-          <a-select
-            v-model:value="weeklyFormData.project_id"
-            placeholder="选择项目（可选）"
-            allow-clear
-            show-search
-            :filter-option="filterProjectOption"
-          >
-            <a-select-option
-              v-for="project in projects"
-              :key="project.id"
-              :value="project.id"
-            >
-              {{ project.name }}
-            </a-select-option>
-          </a-select>
-        </a-form-item>
-        <a-form-item label="任务" name="task_ids">
-          <a-tooltip :title="!weeklyFormData.project_id ? '请先选择项目' : ''">
-            <a-select
-              v-model:value="weeklyFormData.task_ids"
-              mode="multiple"
-              :placeholder="!weeklyFormData.project_id ? '请先选择项目' : '选择任务（可选，支持多选）'"
-              allow-clear
-              show-search
-              :filter-option="filterTaskOption"
-              :loading="taskLoading"
-              :disabled="!weeklyFormData.project_id"
-              @focus="loadTasksForProject"
-            >
-            <a-select-option
-              v-for="task in availableTasks"
-              :key="task.id"
-              :value="task.id"
-            >
-              {{ task.title }}
-            </a-select-option>
-          </a-select>
-          </a-tooltip>
         </a-form-item>
         <a-form-item label="审批人" name="approver_ids">
           <a-select
@@ -637,15 +498,6 @@
         </a-form-item>
         <a-form-item label="工作内容">
           <div v-html="renderMarkdown(dailyApproveData.content || '')" style="max-height: 300px; overflow-y: auto; border: 1px solid #d9d9d9; padding: 12px; border-radius: 4px;"></div>
-        </a-form-item>
-        <a-form-item label="工时">
-          <span>{{ dailyApproveData.hours }} 小时</span>
-        </a-form-item>
-        <a-form-item label="项目">
-          <span>{{ dailyApproveData.project?.name || '-' }}</span>
-        </a-form-item>
-        <a-form-item label="任务">
-          <span>{{ dailyApproveData.tasks?.map(t => t.title).join('、') || '-' }}</span>
         </a-form-item>
         <a-form-item label="审批人">
           <div v-if="dailyApproveData.approvers && dailyApproveData.approvers.length > 0">
@@ -718,12 +570,6 @@
         </a-form-item>
         <a-form-item label="下周计划">
           <div v-html="renderMarkdown(weeklyApproveData.next_week_plan || '')" style="max-height: 300px; overflow-y: auto; border: 1px solid #d9d9d9; padding: 12px; border-radius: 4px;"></div>
-        </a-form-item>
-        <a-form-item label="项目">
-          <span>{{ weeklyApproveData.project?.name || '-' }}</span>
-        </a-form-item>
-        <a-form-item label="任务">
-          <span>{{ weeklyApproveData.tasks?.map(t => t.title).join('、') || '-' }}</span>
         </a-form-item>
         <a-form-item label="审批人">
           <div v-if="weeklyApproveData.approvers && weeklyApproveData.approvers.length > 0">
@@ -813,8 +659,6 @@ import {
   type CreateDailyReportRequest,
   type CreateWeeklyReportRequest
 } from '@/api/report'
-import { getProjects, type Project } from '@/api/project'
-import { getTasks, type Task } from '@/api/task'
 import { getDashboard } from '@/api/dashboard'
 import { uploadFile } from '@/api/attachment'
 import { marked } from 'marked'
@@ -838,6 +682,7 @@ marked.setOptions({
 } as any)
 
 const route = useRoute()
+const router = useRouter()
 const activeTab = ref<'daily' | 'weekly' | 'approval'>('daily')
 
 // 日报相关
@@ -846,8 +691,7 @@ const dailyReports = ref<DailyReport[]>([])
 const dailySearchForm = reactive({
   status: undefined as string | undefined,
   start_date: undefined as Dayjs | undefined,
-  end_date: undefined as Dayjs | undefined,
-  project_id: undefined as number | undefined
+  end_date: undefined as Dayjs | undefined
 })
 const dailyPagination = reactive({
   current: 1,
@@ -860,11 +704,8 @@ const dailyPagination = reactive({
 const dailyColumns = [
   { title: '日期', key: 'date', width: 120 },
   { title: '工作内容', dataIndex: 'content', key: 'content', ellipsis: true },
-  { title: '工时', dataIndex: 'hours', key: 'hours', width: 100 },
   { title: '状态', key: 'status', width: 100 },
   { title: '审批状态', key: 'approval_status', width: 200 },
-  { title: '项目', key: 'project', width: 120 },
-  { title: '任务', key: 'task', width: 150, ellipsis: true },
   { title: '创建时间', key: 'created_at', width: 180 },
   { title: '操作', key: 'action', width: 200, fixed: 'right' as const }
 ]
@@ -877,16 +718,10 @@ const dailyFormData = reactive<{
   id?: number
   date?: Dayjs
   content?: string
-  hours?: number
-  project_id?: number
-  task_ids?: number[] // 任务ID数组（多选）
   approver_ids?: number[] // 审批人ID数组（多选）
 }>({
   date: undefined,
   content: '',
-  hours: 0,
-  project_id: undefined,
-  task_ids: [],
   approver_ids: []
 })
 const dailyFormRules = {
@@ -899,8 +734,7 @@ const weeklyReports = ref<WeeklyReport[]>([])
 const weeklySearchForm = reactive({
   status: undefined as string | undefined,
   start_date: undefined as Dayjs | undefined,
-  end_date: undefined as Dayjs | undefined,
-  project_id: undefined as number | undefined
+  end_date: undefined as Dayjs | undefined
 })
 const weeklyPagination = reactive({
   current: 1,
@@ -916,8 +750,6 @@ const weeklyColumns = [
   { title: '下周计划', dataIndex: 'next_week_plan', key: 'next_week_plan', ellipsis: true },
   { title: '状态', key: 'status', width: 100 },
   { title: '审批状态', key: 'approval_status', width: 200 },
-  { title: '项目', key: 'project', width: 120 },
-  { title: '任务', key: 'task', width: 150, ellipsis: true },
   { title: '创建时间', key: 'created_at', width: 180 },
   { title: '操作', key: 'action', width: 200, fixed: 'right' as const }
 ]
@@ -933,16 +765,12 @@ const weeklyFormData = reactive<{
   week_end?: Dayjs
   summary?: string
   next_week_plan?: string
-  project_id?: number
-  task_ids?: number[] // 任务ID数组（多选）
   approver_ids?: number[] // 审批人ID数组（多选）
 }>({
   week_start: undefined,
   week_end: undefined,
   summary: '',
   next_week_plan: '',
-  project_id: undefined,
-  task_ids: [],
   approver_ids: []
 })
 const weeklyFormRules = {
@@ -978,14 +806,10 @@ const approvalColumns = [
   { title: '内容', key: 'content', ellipsis: true },
   { title: '状态', key: 'status', width: 100 },
   { title: '审批状态', key: 'approval_status', width: 120 },
-  { title: '项目', key: 'project', width: 120 },
   { title: '操作', key: 'action', width: 150, fixed: 'right' as const }
 ]
 
 // 公共数据
-const projects = ref<Project[]>([])
-const availableTasks = ref<Task[]>([])
-const taskLoading = ref(false)
 const users = ref<any[]>([]) // 用户列表（用于审批人选择）
 const pendingApprovalCount = ref(0) // 待审批数量
 
@@ -1010,9 +834,6 @@ const loadDailyReports = async () => {
     }
     if (dailySearchForm.end_date && dailySearchForm.end_date.isValid()) {
       params.end_date = dailySearchForm.end_date.format('YYYY-MM-DD')
-    }
-    if (dailySearchForm.project_id) {
-      params.project_id = dailySearchForm.project_id
     }
     const response = await getDailyReports(params)
     dailyReports.value = response.list
@@ -1041,9 +862,6 @@ const loadWeeklyReports = async () => {
     if (weeklySearchForm.end_date && weeklySearchForm.end_date.isValid()) {
       params.end_date = weeklySearchForm.end_date.format('YYYY-MM-DD')
     }
-    if (weeklySearchForm.project_id) {
-      params.project_id = weeklySearchForm.project_id
-    }
     const response = await getWeeklyReports(params)
     weeklyReports.value = response.list
     weeklyPagination.total = response.total
@@ -1051,45 +869,6 @@ const loadWeeklyReports = async () => {
     message.error(error.message || '加载周报列表失败')
   } finally {
     weeklyLoading.value = false
-  }
-}
-
-// 加载项目列表
-const loadProjects = async () => {
-  try {
-    const response = await getProjects()
-    projects.value = response.list || []
-  } catch (error: any) {
-    console.error('加载项目列表失败:', error)
-  }
-}
-
-// 加载任务列表（用于关联选择）
-const loadTasksForProject = async () => {
-  const projectId = dailyFormData.project_id || weeklyFormData.project_id
-  if (!projectId) {
-    availableTasks.value = []
-    message.warning('请先选择项目')
-    return
-  }
-  
-  // 如果已经有任务列表且项目ID没变化，不需要重新加载
-  if (availableTasks.value.length > 0) {
-    const currentProjectId = availableTasks.value[0]?.project_id
-    if (currentProjectId === projectId) {
-      return
-    }
-  }
-  
-  taskLoading.value = true
-  try {
-    const response = await getTasks({ project_id: projectId, size: 1000 })
-    availableTasks.value = response.list
-  } catch (error: any) {
-    console.error('加载任务列表失败:', error)
-    message.error('加载任务列表失败')
-  } finally {
-    taskLoading.value = false
   }
 }
 
@@ -1144,7 +923,6 @@ const handleDailyReset = () => {
   dailySearchForm.status = undefined
   dailySearchForm.start_date = undefined
   dailySearchForm.end_date = undefined
-  dailySearchForm.project_id = undefined
   dailyPagination.current = 1
   loadDailyReports()
 }
@@ -1177,10 +955,6 @@ const loadDailyWorkSummary = async () => {
     // 只有在内容为空时才自动填充（允许用户修改）
     if (!dailyFormData.content || dailyFormData.content.trim() === '') {
       dailyFormData.content = summary.content
-    }
-    // 只有在工时为0时才自动填充
-    if (!dailyFormData.hours || dailyFormData.hours === 0) {
-      dailyFormData.hours = summary.hours
     }
   } catch (error: any) {
     console.error('加载工作汇总失败:', error)
@@ -1223,9 +997,6 @@ const handleCreate = () => {
     dailyFormData.id = undefined
     dailyFormData.date = dayjs()
     dailyFormData.content = ''
-    dailyFormData.hours = 0
-    dailyFormData.project_id = undefined
-    dailyFormData.task_ids = []
     dailyFormData.approver_ids = []
     dailyModalVisible.value = true
     // 打开界面后自动加载汇总
@@ -1241,8 +1012,6 @@ const handleCreate = () => {
     weeklyFormData.week_end = today.endOf('week').add(1, 'day') // 周日
     weeklyFormData.summary = ''
     weeklyFormData.next_week_plan = ''
-    weeklyFormData.project_id = undefined
-    weeklyFormData.task_ids = []
     weeklyFormData.approver_ids = []
     weeklyModalVisible.value = true
     // 打开界面后自动加载汇总
@@ -1267,14 +1036,8 @@ const handleDailyEdit = (record: DailyReport) => {
   dailyFormData.date = dayjs(record.date)
   // 清理失效的 blob URL
   dailyFormData.content = cleanBlobUrls(record.content || '')
-  dailyFormData.hours = record.hours
-  dailyFormData.project_id = record.project_id
-  dailyFormData.task_ids = record.tasks?.map(t => t.id) || []
   dailyFormData.approver_ids = record.approvers?.map(a => a.id) || []
   dailyModalVisible.value = true
-  if (dailyFormData.project_id) {
-    loadTasksForProject()
-  }
 }
 
 // 提交日报表单
@@ -1282,26 +1045,9 @@ const handleDailySubmitForm = async () => {
   try {
     await dailyFormRef.value.validate()
     
-    // 上传Markdown编辑器中的本地图片
-    let content = dailyFormData.content || ''
-    if (dailyContentEditorRef.value && dailyFormData.project_id) {
-      try {
-        content = await dailyContentEditorRef.value.uploadLocalImages(async (file: File, projectId: number) => {
-          const attachment = await uploadFile(file, projectId)
-          return attachment
-        })
-      } catch (error: any) {
-        console.error('上传图片失败:', error)
-        message.warning('部分图片上传失败，请检查')
-      }
-    }
-    
     const data: CreateDailyReportRequest = {
       date: dailyFormData.date!.format('YYYY-MM-DD'),
-      content: content, // 使用已上传图片的content
-      hours: dailyFormData.hours,
-      project_id: dailyFormData.project_id,
-      task_ids: dailyFormData.task_ids && dailyFormData.task_ids.length > 0 ? dailyFormData.task_ids : undefined,
+      content: dailyFormData.content || '',
       approver_ids: dailyFormData.approver_ids && dailyFormData.approver_ids.length > 0 ? dailyFormData.approver_ids : undefined
     }
     if (dailyFormData.id) {
@@ -1362,7 +1108,6 @@ const handleDailyDelete = async (id: number) => {
 // 取消日报表单
 const handleDailyCancel = () => {
   dailyFormRef.value?.resetFields()
-  availableTasks.value = []
   // 如果是从写日报路由打开的，关闭后跳转回报告页面
   if (route.name === 'CreateDailyReport') {
     router.push({ name: 'Report', query: { tab: 'daily' } })
@@ -1380,7 +1125,6 @@ const handleWeeklyReset = () => {
   weeklySearchForm.status = undefined
   weeklySearchForm.start_date = undefined
   weeklySearchForm.end_date = undefined
-  weeklySearchForm.project_id = undefined
   weeklyPagination.current = 1
   loadWeeklyReports()
 }
@@ -1401,13 +1145,8 @@ const handleWeeklyEdit = (record: WeeklyReport) => {
   // 清理失效的 blob URL
   weeklyFormData.summary = cleanBlobUrls(record.summary || '')
   weeklyFormData.next_week_plan = cleanBlobUrls(record.next_week_plan || '')
-  weeklyFormData.project_id = record.project_id
-  weeklyFormData.task_ids = record.tasks?.map(t => t.id) || []
   weeklyFormData.approver_ids = record.approvers?.map(a => a.id) || []
   weeklyModalVisible.value = true
-  if (weeklyFormData.project_id) {
-    loadTasksForProject()
-  }
 }
 
 // 提交周报表单
@@ -1415,45 +1154,11 @@ const handleWeeklySubmitForm = async () => {
   try {
     await weeklyFormRef.value.validate()
     
-    // 上传Markdown编辑器中的本地图片
-    let summary = weeklyFormData.summary || ''
-    let nextWeekPlan = weeklyFormData.next_week_plan || ''
-    
-    if (weeklyFormData.project_id) {
-      // 上传工作总结中的图片
-      if (weeklySummaryEditorRef.value) {
-        try {
-          summary = await weeklySummaryEditorRef.value.uploadLocalImages(async (file: File, projectId: number) => {
-            const attachment = await uploadFile(file, projectId)
-            return attachment
-          })
-        } catch (error: any) {
-          console.error('上传工作总结图片失败:', error)
-          message.warning('部分图片上传失败，请检查')
-        }
-      }
-      
-      // 上传下周计划中的图片
-      if (weeklyPlanEditorRef.value) {
-        try {
-          nextWeekPlan = await weeklyPlanEditorRef.value.uploadLocalImages(async (file: File, projectId: number) => {
-            const attachment = await uploadFile(file, projectId)
-            return attachment
-          })
-        } catch (error: any) {
-          console.error('上传下周计划图片失败:', error)
-          message.warning('部分图片上传失败，请检查')
-        }
-      }
-    }
-    
     const data: CreateWeeklyReportRequest = {
       week_start: weeklyFormData.week_start!.format('YYYY-MM-DD'),
       week_end: weeklyFormData.week_end!.format('YYYY-MM-DD'),
-      summary: summary, // 使用已上传图片的summary
-      next_week_plan: nextWeekPlan, // 使用已上传图片的next_week_plan
-      project_id: weeklyFormData.project_id,
-      task_ids: weeklyFormData.task_ids && weeklyFormData.task_ids.length > 0 ? weeklyFormData.task_ids : undefined,
+      summary: weeklyFormData.summary || '',
+      next_week_plan: weeklyFormData.next_week_plan || '',
       approver_ids: weeklyFormData.approver_ids && weeklyFormData.approver_ids.length > 0 ? weeklyFormData.approver_ids : undefined
     }
     if (weeklyFormData.id) {
@@ -1511,7 +1216,6 @@ const handleWeeklyDelete = async (id: number) => {
 // 取消周报表单
 const handleWeeklyCancel = () => {
   weeklyFormRef.value?.resetFields()
-  availableTasks.value = []
 }
 
 // 审批相关状态
@@ -1970,44 +1674,6 @@ const loadPendingApprovalCount = async () => {
   }
 }
 
-// 项目筛选
-const filterProjectOption = (input: string, option: any) => {
-  const project = projects.value.find(p => p.id === option.value)
-  if (!project) return false
-  const searchText = input.toLowerCase()
-  return (
-    project.name.toLowerCase().includes(searchText) ||
-    (project.code && project.code.toLowerCase().includes(searchText))
-  )
-}
-
-// 任务筛选
-const filterTaskOption = (input: string, option: any) => {
-  const task = availableTasks.value.find(t => t.id === option.value)
-  if (!task) return false
-  const searchText = input.toLowerCase()
-  return task.title.toLowerCase().includes(searchText)
-}
-
-// 监听项目变化，重新加载任务
-watch(() => dailyFormData.project_id, () => {
-  dailyFormData.task_ids = []
-  if (dailyFormData.project_id) {
-    loadTasksForProject()
-  } else {
-    availableTasks.value = []
-  }
-})
-
-watch(() => weeklyFormData.project_id, () => {
-  weeklyFormData.task_ids = []
-  if (weeklyFormData.project_id) {
-    loadTasksForProject()
-  } else {
-    availableTasks.value = []
-  }
-})
-
 onMounted(() => {
   // 读取路由查询参数
   // 注意：状态字段默认保持为空，不从路由参数自动设置
@@ -2024,7 +1690,6 @@ onMounted(() => {
   }
   
   loadDailyReports()
-  loadProjects()
   loadUsers()
   loadPendingApprovalCount()
 })

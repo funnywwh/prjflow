@@ -4,13 +4,9 @@ export interface DailyReport {
   id: number
   date: string
   content?: string
-  hours: number
   status: 'draft' | 'submitted' | 'approved' | 'rejected'
   user_id: number
   user?: any
-  project_id?: number
-  project?: any
-  tasks?: Array<{ id: number; title: string }> // 任务数组（多选）
   approvers?: Array<{ id: number; nickname?: string; username: string }> // 审批人数组（多选）
   approval_records?: Array<{ // 审批记录
     id: number
@@ -34,9 +30,6 @@ export interface WeeklyReport {
   status: 'draft' | 'submitted' | 'approved' | 'rejected'
   user_id: number
   user?: any
-  project_id?: number
-  project?: any
-  tasks?: Array<{ id: number; title: string }> // 任务数组（多选）
   approvers?: Array<{ id: number; nickname?: string; username: string }> // 审批人数组（多选）
   approval_records?: Array<{ // 审批记录
     id: number
@@ -68,20 +61,14 @@ export interface WeeklyReportListResponse {
 export interface CreateDailyReportRequest {
   date: string
   content?: string
-  hours?: number
   status?: 'draft' | 'submitted' | 'approved'
-  project_id?: number
-  task_ids?: number[] // 任务ID数组（多选）
   approver_ids?: number[] // 审批人ID数组（多选）
 }
 
 export interface UpdateDailyReportRequest {
   date?: string
   content?: string
-  hours?: number
   status?: 'draft' | 'submitted' | 'approved'
-  project_id?: number
-  task_ids?: number[] // 任务ID数组（多选）
   approver_ids?: number[] // 审批人ID数组（多选）
 }
 
@@ -91,8 +78,6 @@ export interface CreateWeeklyReportRequest {
   summary?: string
   next_week_plan?: string
   status?: 'draft' | 'submitted' | 'approved'
-  project_id?: number
-  task_ids?: number[] // 任务ID数组（多选）
   approver_ids?: number[] // 审批人ID数组（多选）
 }
 
@@ -102,8 +87,6 @@ export interface UpdateWeeklyReportRequest {
   summary?: string
   next_week_plan?: string
   status?: 'draft' | 'submitted' | 'approved'
-  project_id?: number
-  task_ids?: number[] // 任务ID数组（多选）
   approver_ids?: number[] // 审批人ID数组（多选）
 }
 
@@ -116,7 +99,6 @@ export const getDailyReports = async (params?: {
   status?: string
   start_date?: string
   end_date?: string
-  project_id?: number
   user_id?: number
   page?: number
   size?: number
@@ -158,7 +140,6 @@ export const getWeeklyReports = async (params?: {
   status?: string
   start_date?: string
   end_date?: string
-  project_id?: number
   user_id?: number
   page?: number
   size?: number

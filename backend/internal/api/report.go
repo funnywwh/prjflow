@@ -197,7 +197,7 @@ func (h *ReportHandler) GetDailyReports(c *gin.Context) {
 	}
 
 	var reports []model.DailyReport
-	query := h.db.Preload("User").Preload("Project").Preload("Tasks").Preload("Approvers").Preload("ApprovalRecords.Approver")
+	query := h.db.Preload("User").Preload("Approvers").Preload("ApprovalRecords.Approver")
 
 	// 检查是否是获取审批列表
 	forApproval := c.Query("for_approval") == "true"
@@ -228,11 +228,6 @@ func (h *ReportHandler) GetDailyReports(c *gin.Context) {
 	}
 	if endDate := c.Query("end_date"); endDate != "" {
 		query = query.Where("date <= ?", endDate)
-	}
-
-	// 项目筛选
-	if projectID := c.Query("project_id"); projectID != "" {
-		query = query.Where("project_id = ?", projectID)
 	}
 
 	// 分页
@@ -278,7 +273,7 @@ func (h *ReportHandler) GetDailyReports(c *gin.Context) {
 func (h *ReportHandler) GetDailyReport(c *gin.Context) {
 	id := c.Param("id")
 	var report model.DailyReport
-	if err := h.db.Preload("User").Preload("Project").Preload("Tasks").Preload("Approvers").Preload("ApprovalRecords.Approver").First(&report, id).Error; err != nil {
+	if err := h.db.Preload("User").Preload("Approvers").Preload("ApprovalRecords.Approver").First(&report, id).Error; err != nil {
 		utils.Error(c, 404, "日报不存在")
 		return
 	}
@@ -310,13 +305,10 @@ func (h *ReportHandler) GetDailyReport(c *gin.Context) {
 // CreateDailyReport 创建日报
 func (h *ReportHandler) CreateDailyReport(c *gin.Context) {
 	var req struct {
-		Date        string   `json:"date" binding:"required"`
-		Content     string   `json:"content"`
-		Hours       *float64 `json:"hours"`
-		Status      string   `json:"status"`
-		ProjectID   *uint    `json:"project_id"`
-		TaskIDs     []uint   `json:"task_ids"`     // 任务ID数组（多选）
-		ApproverIDs []uint   `json:"approver_ids"` // 审批人ID数组（多选）
+		Date        string `json:"date" binding:"required"`
+		Content     string `json:"content"`
+		Status      string `json:"status"`
+		ApproverIDs []uint `json:"approver_ids"` // 审批人ID数组（多选）
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -349,50 +341,25 @@ func (h *ReportHandler) CreateDailyReport(c *gin.Context) {
 		req.Status = "draft"
 	}
 
-	// 自动汇总工作内容（如果用户未提供Content或Hours）
+	// 自动汇总工作内容（如果用户未提供Content）
 	var content string
-	var hours float64
-
-	// 如果用户未提供Content，自动汇总
 	if req.Content == "" {
-		content, hours = h.summarizeWorkContent(userID.(uint), date, date)
+		content, _ = h.summarizeWorkContent(userID.(uint), date, date)
 	} else {
 		content = req.Content
 	}
 
-	// 如果用户未提供Hours或Hours为0，自动汇总工时
-	if req.Hours == nil || *req.Hours == 0 {
-		if req.Content == "" {
-			// 如果Content也是空的，上面已经汇总过了，hours已经有值
-		} else {
-			// 如果Content不为空但Hours为空，只汇总工时
-			_, hours = h.summarizeWorkContent(userID.(uint), date, date)
-		}
-	} else {
-		hours = *req.Hours
-	}
-
 	report := model.DailyReport{
-		Date:      date,
-		Content:   content,
-		Hours:     hours,
-		Status:    req.Status,
-		UserID:    userID.(uint),
-		ProjectID: req.ProjectID,
+		Date:    date,
+		Content: content,
+		Status:  req.Status,
+		UserID:  userID.(uint),
 	}
 
 	// 创建日报
 	if err := h.db.Create(&report).Error; err != nil {
 		utils.Error(c, utils.CodeError, "创建失败")
 		return
-	}
-
-	// 关联任务（多对多）
-	if len(req.TaskIDs) > 0 {
-		var tasks []model.Task
-		if err := h.db.Where("id IN ?", req.TaskIDs).Find(&tasks).Error; err == nil {
-			h.db.Model(&report).Association("Tasks").Replace(tasks)
-		}
 	}
 
 	// 关联审批人（多对多）
@@ -412,7 +379,7 @@ func (h *ReportHandler) CreateDailyReport(c *gin.Context) {
 		}
 	}
 
-	h.db.Preload("User").Preload("Project").Preload("Tasks").Preload("Approvers").Preload("ApprovalRecords.Approver").First(&report, report.ID)
+	h.db.Preload("User").Preload("Approvers").Preload("ApprovalRecords.Approver").First(&report, report.ID)
 	utils.Success(c, report)
 }
 
@@ -433,13 +400,10 @@ func (h *ReportHandler) UpdateDailyReport(c *gin.Context) {
 	}
 
 	var req struct {
-		Date        *string  `json:"date"`
-		Content     *string  `json:"content"`
-		Hours       *float64 `json:"hours"`
-		Status      *string  `json:"status"`
-		ProjectID   *uint    `json:"project_id"`
-		TaskIDs     []uint   `json:"task_ids"`     // 任务ID数组（多选）
-		ApproverIDs []uint   `json:"approver_ids"` // 审批人ID数组（多选）
+		Date        *string `json:"date"`
+		Content     *string `json:"content"`
+		Status      *string `json:"status"`
+		ApproverIDs []uint  `json:"approver_ids"` // 审批人ID数组（多选）
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -467,27 +431,8 @@ func (h *ReportHandler) UpdateDailyReport(c *gin.Context) {
 	if req.Content != nil {
 		report.Content = *req.Content
 	}
-	if req.Hours != nil {
-		report.Hours = *req.Hours
-	}
 	if req.Status != nil {
 		report.Status = *req.Status
-	}
-	if req.ProjectID != nil {
-		report.ProjectID = req.ProjectID
-	}
-
-	// 更新任务关联（多对多）
-	if req.TaskIDs != nil {
-		var tasks []model.Task
-		if len(req.TaskIDs) > 0 {
-			if err := h.db.Where("id IN ?", req.TaskIDs).Find(&tasks).Error; err == nil {
-				h.db.Model(&report).Association("Tasks").Replace(tasks)
-			}
-		} else {
-			// 如果传入空数组，清空所有任务关联
-			h.db.Model(&report).Association("Tasks").Clear()
-		}
 	}
 
 	// 更新审批人关联（多对多）
@@ -520,7 +465,7 @@ func (h *ReportHandler) UpdateDailyReport(c *gin.Context) {
 		return
 	}
 
-	h.db.Preload("User").Preload("Project").Preload("Tasks").Preload("Approvers").Preload("ApprovalRecords.Approver").First(&report, report.ID)
+	h.db.Preload("User").Preload("Approvers").Preload("ApprovalRecords.Approver").First(&report, report.ID)
 	utils.Success(c, report)
 }
 
@@ -544,8 +489,6 @@ func (h *ReportHandler) DeleteDailyReport(c *gin.Context) {
 	h.db.Where("daily_report_id = ?", report.ID).Delete(&model.DailyReportApproval{})
 	// 删除关联的审批人关联
 	h.db.Model(&report).Association("Approvers").Clear()
-	// 删除关联的任务关联
-	h.db.Model(&report).Association("Tasks").Clear()
 
 	if err := h.db.Delete(&report).Error; err != nil {
 		utils.Error(c, utils.CodeError, "删除失败")
@@ -596,7 +539,7 @@ func (h *ReportHandler) UpdateDailyReportStatus(c *gin.Context) {
 		return
 	}
 
-	h.db.Preload("User").Preload("Project").Preload("Tasks").Preload("Approvers").Preload("ApprovalRecords.Approver").First(&report, report.ID)
+	h.db.Preload("User").Preload("Approvers").Preload("ApprovalRecords.Approver").First(&report, report.ID)
 	utils.Success(c, report)
 }
 
@@ -680,7 +623,7 @@ func (h *ReportHandler) ApproveDailyReport(c *gin.Context) {
 		h.db.Save(&report)
 	}
 
-	h.db.Preload("User").Preload("Project").Preload("Tasks").Preload("Approvers").Preload("ApprovalRecords.Approver").First(&report, report.ID)
+	h.db.Preload("User").Preload("Approvers").Preload("ApprovalRecords.Approver").First(&report, report.ID)
 	utils.Success(c, report)
 }
 
@@ -693,7 +636,7 @@ func (h *ReportHandler) GetWeeklyReports(c *gin.Context) {
 	}
 
 	var reports []model.WeeklyReport
-	query := h.db.Preload("User").Preload("Project").Preload("Tasks").Preload("Approvers").Preload("ApprovalRecords.Approver")
+	query := h.db.Preload("User").Preload("Approvers").Preload("ApprovalRecords.Approver")
 
 	// 检查是否是获取审批列表
 	forApproval := c.Query("for_approval") == "true"
@@ -724,11 +667,6 @@ func (h *ReportHandler) GetWeeklyReports(c *gin.Context) {
 	}
 	if endDate := c.Query("end_date"); endDate != "" {
 		query = query.Where("week_end <= ?", endDate)
-	}
-
-	// 项目筛选
-	if projectID := c.Query("project_id"); projectID != "" {
-		query = query.Where("project_id = ?", projectID)
 	}
 
 	// 分页
@@ -774,7 +712,7 @@ func (h *ReportHandler) GetWeeklyReports(c *gin.Context) {
 func (h *ReportHandler) GetWeeklyReport(c *gin.Context) {
 	id := c.Param("id")
 	var report model.WeeklyReport
-	if err := h.db.Preload("User").Preload("Project").Preload("Tasks").Preload("Approvers").Preload("ApprovalRecords.Approver").First(&report, id).Error; err != nil {
+	if err := h.db.Preload("User").Preload("Approvers").Preload("ApprovalRecords.Approver").First(&report, id).Error; err != nil {
 		utils.Error(c, 404, "周报不存在")
 		return
 	}
@@ -811,8 +749,6 @@ func (h *ReportHandler) CreateWeeklyReport(c *gin.Context) {
 		Summary      string `json:"summary"`
 		NextWeekPlan string `json:"next_week_plan"`
 		Status       string `json:"status"`
-		ProjectID    *uint  `json:"project_id"`
-		TaskIDs      []uint `json:"task_ids"`     // 任务ID数组（多选）
 		ApproverIDs  []uint `json:"approver_ids"` // 审批人ID数组（多选）
 	}
 
@@ -864,21 +800,12 @@ func (h *ReportHandler) CreateWeeklyReport(c *gin.Context) {
 		NextWeekPlan: req.NextWeekPlan,
 		Status:       req.Status,
 		UserID:       userID.(uint),
-		ProjectID:    req.ProjectID,
 	}
 
 	// 创建周报
 	if err := h.db.Create(&report).Error; err != nil {
 		utils.Error(c, utils.CodeError, "创建失败")
 		return
-	}
-
-	// 关联任务（多对多）
-	if len(req.TaskIDs) > 0 {
-		var tasks []model.Task
-		if err := h.db.Where("id IN ?", req.TaskIDs).Find(&tasks).Error; err == nil {
-			h.db.Model(&report).Association("Tasks").Replace(tasks)
-		}
 	}
 
 	// 关联审批人（多对多）
@@ -898,7 +825,7 @@ func (h *ReportHandler) CreateWeeklyReport(c *gin.Context) {
 		}
 	}
 
-	h.db.Preload("User").Preload("Project").Preload("Tasks").Preload("Approvers").Preload("ApprovalRecords.Approver").First(&report, report.ID)
+	h.db.Preload("User").Preload("Approvers").Preload("ApprovalRecords.Approver").First(&report, report.ID)
 	utils.Success(c, report)
 }
 
@@ -924,8 +851,6 @@ func (h *ReportHandler) UpdateWeeklyReport(c *gin.Context) {
 		Summary      *string `json:"summary"`
 		NextWeekPlan *string `json:"next_week_plan"`
 		Status       *string `json:"status"`
-		ProjectID    *uint   `json:"project_id"`
-		TaskIDs      []uint  `json:"task_ids"`     // 任务ID数组（多选）
 		ApproverIDs  []uint  `json:"approver_ids"` // 审批人ID数组（多选）
 	}
 
@@ -968,22 +893,6 @@ func (h *ReportHandler) UpdateWeeklyReport(c *gin.Context) {
 	if req.Status != nil {
 		report.Status = *req.Status
 	}
-	if req.ProjectID != nil {
-		report.ProjectID = req.ProjectID
-	}
-
-	// 更新任务关联（多对多）
-	if req.TaskIDs != nil {
-		var tasks []model.Task
-		if len(req.TaskIDs) > 0 {
-			if err := h.db.Where("id IN ?", req.TaskIDs).Find(&tasks).Error; err == nil {
-				h.db.Model(&report).Association("Tasks").Replace(tasks)
-			}
-		} else {
-			// 如果传入空数组，清空所有任务关联
-			h.db.Model(&report).Association("Tasks").Clear()
-		}
-	}
 
 	// 更新审批人关联（多对多）
 	if req.ApproverIDs != nil {
@@ -1015,7 +924,7 @@ func (h *ReportHandler) UpdateWeeklyReport(c *gin.Context) {
 		return
 	}
 
-	h.db.Preload("User").Preload("Project").Preload("Tasks").Preload("Approvers").Preload("ApprovalRecords.Approver").First(&report, report.ID)
+	h.db.Preload("User").Preload("Approvers").Preload("ApprovalRecords.Approver").First(&report, report.ID)
 	utils.Success(c, report)
 }
 
@@ -1099,7 +1008,7 @@ func (h *ReportHandler) ApproveWeeklyReport(c *gin.Context) {
 		h.db.Save(&report)
 	}
 
-	h.db.Preload("User").Preload("Project").Preload("Tasks").Preload("Approvers").Preload("ApprovalRecords.Approver").First(&report, report.ID)
+	h.db.Preload("User").Preload("Approvers").Preload("ApprovalRecords.Approver").First(&report, report.ID)
 	utils.Success(c, report)
 }
 
@@ -1123,8 +1032,6 @@ func (h *ReportHandler) DeleteWeeklyReport(c *gin.Context) {
 	h.db.Where("weekly_report_id = ?", report.ID).Delete(&model.WeeklyReportApproval{})
 	// 删除关联的审批人关联
 	h.db.Model(&report).Association("Approvers").Clear()
-	// 删除关联的任务关联
-	h.db.Model(&report).Association("Tasks").Clear()
 
 	if err := h.db.Delete(&report).Error; err != nil {
 		utils.Error(c, utils.CodeError, "删除失败")
@@ -1175,6 +1082,6 @@ func (h *ReportHandler) UpdateWeeklyReportStatus(c *gin.Context) {
 		return
 	}
 
-	h.db.Preload("User").Preload("Project").Preload("Task").First(&report, report.ID)
+	h.db.Preload("User").First(&report, report.ID)
 	utils.Success(c, report)
 }

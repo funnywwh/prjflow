@@ -57,3 +57,4 @@ backend/main
 .VSCodeCounter/
 backend/uploads/
 *.log
+backend/main

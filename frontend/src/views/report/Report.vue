@@ -84,6 +84,14 @@
                     <template v-else-if="column.key === 'date'">
                       {{ formatDate(record.date) }}
                     </template>
+                    <template v-else-if="column.key === 'content'">
+                      <div 
+                        v-if="record.content" 
+                        class="markdown-preview-2lines" 
+                        v-html="renderMarkdown(record.content)"
+                      ></div>
+                      <span v-else>-</span>
+                    </template>
                     <template v-else-if="column.key === 'created_at'">
                       {{ formatDateTime(record.created_at) }}
                     </template>
@@ -182,6 +190,22 @@
                     </template>
                     <template v-else-if="column.key === 'week'">
                       {{ formatDate(record.week_start) }} ~ {{ formatDate(record.week_end) }}
+                    </template>
+                    <template v-else-if="column.key === 'summary'">
+                      <div 
+                        v-if="record.summary" 
+                        class="markdown-preview-2lines" 
+                        v-html="renderMarkdown(record.summary)"
+                      ></div>
+                      <span v-else>-</span>
+                    </template>
+                    <template v-else-if="column.key === 'next_week_plan'">
+                      <div 
+                        v-if="record.next_week_plan" 
+                        class="markdown-preview-2lines" 
+                        v-html="renderMarkdown(record.next_week_plan)"
+                      ></div>
+                      <span v-else>-</span>
                     </template>
                     <template v-else-if="column.key === 'created_at'">
                       {{ formatDateTime(record.created_at) }}
@@ -310,12 +334,17 @@
                       {{ record.user?.nickname || record.user?.username || '-' }}
                     </template>
                     <template v-else-if="column.key === 'content'">
-                      <span v-if="record.reportType === 'daily'">
-                        {{ record.content || '-' }}
-                      </span>
-                      <span v-else>
-                        {{ record.summary || '-' }}
-                      </span>
+                      <div 
+                        v-if="record.reportType === 'daily' && record.content" 
+                        class="markdown-preview-2lines" 
+                        v-html="renderMarkdown(record.content)"
+                      ></div>
+                      <div 
+                        v-else-if="record.reportType === 'weekly' && record.summary" 
+                        class="markdown-preview-2lines" 
+                        v-html="renderMarkdown(record.summary)"
+                      ></div>
+                      <span v-else>-</span>
                     </template>
                     <template v-else-if="column.key === 'approval_status'">
                       <a-tag v-if="getApprovalStatusText(record)" :color="getApprovalStatusColor(record)">
@@ -363,6 +392,7 @@
       v-model:open="dailyModalVisible"
       :title="dailyModalTitle"
       :width="800"
+      ok-text="提交"
       @ok="handleDailySubmitForm"
       @cancel="handleDailyCancel"
     >
@@ -418,6 +448,7 @@
       v-model:open="weeklyModalVisible"
       :title="weeklyModalTitle"
       :width="800"
+      ok-text="提交"
       @ok="handleWeeklySubmitForm"
       @cancel="handleWeeklyCancel"
     >
@@ -1048,6 +1079,7 @@ const handleDailySubmitForm = async () => {
     const data: CreateDailyReportRequest = {
       date: dailyFormData.date!.format('YYYY-MM-DD'),
       content: dailyFormData.content || '',
+      status: 'submitted',
       approver_ids: dailyFormData.approver_ids && dailyFormData.approver_ids.length > 0 ? dailyFormData.approver_ids : undefined
     }
     if (dailyFormData.id) {
@@ -1159,6 +1191,7 @@ const handleWeeklySubmitForm = async () => {
       week_end: weeklyFormData.week_end!.format('YYYY-MM-DD'),
       summary: weeklyFormData.summary || '',
       next_week_plan: weeklyFormData.next_week_plan || '',
+      status: 'submitted',
       approver_ids: weeklyFormData.approver_ids && weeklyFormData.approver_ids.length > 0 ? weeklyFormData.approver_ids : undefined
     }
     if (weeklyFormData.id) {
@@ -1793,6 +1826,86 @@ div[v-html] :deep(img) {
 /* 确保审批弹窗中的图片容器可以滚动 */
 div[v-html] {
   word-wrap: break-word;
+}
+
+/* Markdown 预览限制为 2 行 */
+.markdown-preview-2lines {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-wrap: break-word;
+  word-break: break-word;
+  white-space: normal;
+  line-height: 1.5;
+  max-height: 3em; /* 2行的高度，每行约1.5em */
+}
+
+/* Markdown 预览样式优化 */
+.markdown-preview-2lines :deep(p) {
+  margin: 0;
+  margin-bottom: 0.25em;
+  word-wrap: break-word;
+  word-break: break-word;
+}
+
+.markdown-preview-2lines :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.markdown-preview-2lines :deep(h1),
+.markdown-preview-2lines :deep(h2),
+.markdown-preview-2lines :deep(h3),
+.markdown-preview-2lines :deep(h4),
+.markdown-preview-2lines :deep(h5),
+.markdown-preview-2lines :deep(h6) {
+  margin: 0;
+  margin-bottom: 0.25em;
+  font-size: 1em;
+  font-weight: 600;
+  word-wrap: break-word;
+  word-break: break-word;
+}
+
+.markdown-preview-2lines :deep(ul),
+.markdown-preview-2lines :deep(ol) {
+  margin: 0;
+  margin-bottom: 0.25em;
+  padding-left: 1.2em;
+  word-wrap: break-word;
+  word-break: break-word;
+}
+
+.markdown-preview-2lines :deep(li) {
+  margin: 0;
+  word-wrap: break-word;
+  word-break: break-word;
+}
+
+.markdown-preview-2lines :deep(code) {
+  background-color: #f6f8fa;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
+.markdown-preview-2lines :deep(pre) {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  display: inline;
+}
+
+.markdown-preview-2lines :deep(img) {
+  display: none; /* 表格中不显示图片 */
+}
+
+.markdown-preview-2lines :deep(blockquote) {
+  margin: 0;
+  padding-left: 0.5em;
+  border-left: 2px solid #ddd;
+  display: inline;
 }
 </style>
 

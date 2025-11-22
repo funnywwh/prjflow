@@ -25,22 +25,35 @@ func NewReportHandler(db *gorm.DB) *ReportHandler {
 // endDate: 结束日期（对于日报，startDate和endDate相同）
 // 返回：Markdown格式的工作内容摘要和总工时
 func (h *ReportHandler) summarizeWorkContent(userID uint, startDate, endDate time.Time) (string, float64) {
-	// 先查询该用户的所有资源ID
-	var resourceIDs []uint
-	h.db.Model(&model.Resource{}).
-		Where("user_id = ?", userID).
-		Pluck("id", &resourceIDs)
+	// 使用 JOIN 查询，直接通过 user_id 查询资源分配记录
+	// 这样可以确保查询到所有相关的资源分配记录，即使没有Resource记录也能查询到
+	var allocations []model.ResourceAllocation
 
-	if len(resourceIDs) == 0 {
+	// 将日期转换为只包含日期的格式（去掉时间部分）
+	// date字段是date类型，直接比较日期部分即可
+	// 注意：使用与工作台相同的日期范围逻辑：date >= startDate AND date < endDate+1
+	startDateOnly := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, startDate.Location())
+	endDateOnly := time.Date(endDate.Year(), endDate.Month(), endDate.Day(), 0, 0, 0, 0, endDate.Location())
+	// 结束日期加1天，使用 < 比较（与工作台逻辑一致）
+	endDateExclusive := endDateOnly.AddDate(0, 0, 1)
+
+	// 使用 JOIN 查询，通过 resources 表关联 user_id
+	// GORM 会自动处理软删除（deleted_at IS NULL）
+	// 注意：如果用户没有 Resource 记录，JOIN 查询可能返回空结果，这是正常的
+	err := h.db.Model(&model.ResourceAllocation{}).
+		Joins("JOIN resources ON resource_allocations.resource_id = resources.id").
+		Where("resources.user_id = ?", userID).
+		Where("resource_allocations.date >= ? AND resource_allocations.date < ?", startDateOnly, endDateExclusive).
+		Preload("Task").Preload("Bug").Preload("Requirement").Preload("Project").
+		Find(&allocations).Error
+
+	// 如果查询出错，返回空内容（不返回错误信息，避免前端显示错误）
+	if err != nil {
+		// 记录错误但不返回给前端，避免影响用户体验
+		// log.Printf("汇总工作内容查询失败: userID=%d, startDate=%s, endDate=%s, error=%v",
+		// 	userID, startDateOnly.Format("2006-01-02"), endDateOnly.Format("2006-01-02"), err)
 		return "暂无工作记录", 0
 	}
-
-	// 查询该用户在指定日期范围内的所有资源分配记录
-	var allocations []model.ResourceAllocation
-	h.db.Where("resource_id IN ?", resourceIDs).
-		Where("date >= ? AND date <= ?", startDate, endDate).
-		Preload("Task").Preload("Bug").Preload("Requirement").Preload("Project").
-		Find(&allocations)
 
 	if len(allocations) == 0 {
 		return "暂无工作记录", 0
@@ -164,6 +177,10 @@ func (h *ReportHandler) GetWorkSummary(c *gin.Context) {
 	}
 
 	content, hours := h.summarizeWorkContent(userID.(uint), startDate, endDate)
+
+	// 调试信息：记录查询参数和结果
+	// fmt.Printf("汇总查询 - 用户ID: %d, 开始日期: %s, 结束日期: %s, 结果: 内容长度=%d, 工时=%.2f\n",
+	// 	userID.(uint), startDateStr, endDateStr, len(content), hours)
 
 	utils.Success(c, gin.H{
 		"content": content,

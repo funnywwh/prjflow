@@ -861,21 +861,35 @@
 
 ## 测试单管理API ✅
 
+**权限说明**：
+- 查看测试单：`project:read`
+- 创建测试单：`test-case:create`
+- 更新测试单：`test-case:update`
+- 删除测试单：`test-case:delete`
+
 ### 获取测试单列表
 
 **GET** `/api/test-cases?project_id=&status=&type=&keyword=&page=1&size=20`
+
+**权限要求**：`project:read`
 
 ### 获取测试单统计
 
 **GET** `/test-cases/statistics?project_id=&keyword=`
 
+**权限要求**：`project:read`
+
 ### 获取测试单详情
 
 **GET** `/test-cases/:id`
 
+**权限要求**：`project:read`
+
 ### 创建测试单
 
 **POST** `/test-cases`
+
+**权限要求**：`test-case:create`
 
 **请求体**:
 ```json
@@ -894,13 +908,19 @@
 
 **PUT** `/test-cases/:id`
 
+**权限要求**：`test-case:update`
+
 ### 删除测试单
 
 **DELETE** `/test-cases/:id`
 
+**权限要求**：`test-case:delete`
+
 ### 更新测试单状态
 
 **PATCH** `/test-cases/:id/status`
+
+**权限要求**：`test-case:update`
 
 **请求体**:
 ```json
@@ -1148,6 +1168,38 @@
 ```
 
 ## 工作报告API ✅
+
+### 获取工作汇总
+
+**GET** `/api/reports/work-summary?start_date=2024-01-01&end_date=2024-01-07`
+
+**说明**：获取指定日期范围内的工作内容汇总，用于自动填充日报/周报内容。
+
+**权限要求**：已登录用户
+
+**请求参数**：
+- `start_date`：开始日期（格式：YYYY-MM-DD）
+- `end_date`：结束日期（格式：YYYY-MM-DD）
+
+**响应**:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "content": "## 需求\n\n- **需求1** (项目: 项目A) - 4.00小时\n\n**需求总工时**: 4.00小时\n\n## 任务\n\n- **任务1** (项目: 项目A) - 2.00小时\n\n**任务总工时**: 2.00小时\n\n## Bug\n\n- **Bug1** (项目: 项目A) - 1.00小时\n- **Bug2** (项目: 项目B) - 0.00小时\n\n**Bug总工时**: 1.00小时\n\n**总工时**: 7.00小时",
+    "hours": 7.0
+  }
+}
+```
+
+**工作汇总说明**：
+- 汇总内容包括：需求、任务、Bug的工作记录
+- 汇总来源：
+  1. 资源分配记录（ResourceAllocation）：包含工时的需求、任务、Bug
+  2. 用户创建的Bug：即使没有资源分配记录，也会显示在汇总中（工时为0）
+- 汇总格式：Markdown格式，包含工作项列表和工时统计
+- 日期范围：使用与工作台相同的日期范围逻辑（date >= startDate AND date < endDate+1）
 
 ### 日报管理
 

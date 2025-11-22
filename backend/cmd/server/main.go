@@ -326,6 +326,10 @@ func main() {
 
 	// 工作报告路由（日报和周报）
 	reportHandler := api.NewReportHandler(db)
+	reportGroup := r.Group("/api/reports", middleware.Auth())
+	{
+		reportGroup.GET("/work-summary", reportHandler.GetWorkSummary) // 获取工作内容汇总
+	}
 	dailyReportGroup := r.Group("/api/daily-reports", middleware.Auth())
 	{
 		dailyReportGroup.GET("", reportHandler.GetDailyReports)

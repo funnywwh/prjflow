@@ -1,12 +1,14 @@
 package api
 
 import (
+	"fmt"
 	"time"
+
+	"project-management/internal/model"
+	"project-management/internal/utils"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
-	"project-management/internal/model"
-	"project-management/internal/utils"
 )
 
 type ReportHandler struct {
@@ -15,6 +17,158 @@ type ReportHandler struct {
 
 func NewReportHandler(db *gorm.DB) *ReportHandler {
 	return &ReportHandler{db: db}
+}
+
+// summarizeWorkContent 汇总用户的工作内容
+// userID: 用户ID
+// startDate: 开始日期
+// endDate: 结束日期（对于日报，startDate和endDate相同）
+// 返回：Markdown格式的工作内容摘要和总工时
+func (h *ReportHandler) summarizeWorkContent(userID uint, startDate, endDate time.Time) (string, float64) {
+	// 先查询该用户的所有资源ID
+	var resourceIDs []uint
+	h.db.Model(&model.Resource{}).
+		Where("user_id = ?", userID).
+		Pluck("id", &resourceIDs)
+
+	if len(resourceIDs) == 0 {
+		return "暂无工作记录", 0
+	}
+
+	// 查询该用户在指定日期范围内的所有资源分配记录
+	var allocations []model.ResourceAllocation
+	h.db.Where("resource_id IN ?", resourceIDs).
+		Where("date >= ? AND date <= ?", startDate, endDate).
+		Preload("Task").Preload("Bug").Preload("Requirement").Preload("Project").
+		Find(&allocations)
+
+	if len(allocations) == 0 {
+		return "暂无工作记录", 0
+	}
+
+	// 按工作类型分组汇总
+	type WorkItem struct {
+		ID          uint
+		Title       string
+		ProjectName string
+		Hours       float64
+	}
+
+	var requirements []WorkItem
+	var tasks []WorkItem
+	var bugs []WorkItem
+	var totalHours float64
+
+	for _, alloc := range allocations {
+		totalHours += alloc.Hours
+
+		projectName := "未知项目"
+		if alloc.Project != nil {
+			projectName = alloc.Project.Name
+		}
+
+		if alloc.RequirementID != nil && alloc.Requirement != nil {
+			requirements = append(requirements, WorkItem{
+				ID:          *alloc.RequirementID,
+				Title:       alloc.Requirement.Title,
+				ProjectName: projectName,
+				Hours:       alloc.Hours,
+			})
+		} else if alloc.TaskID != nil && alloc.Task != nil {
+			tasks = append(tasks, WorkItem{
+				ID:          *alloc.TaskID,
+				Title:       alloc.Task.Title,
+				ProjectName: projectName,
+				Hours:       alloc.Hours,
+			})
+		} else if alloc.BugID != nil && alloc.Bug != nil {
+			bugs = append(bugs, WorkItem{
+				ID:          *alloc.BugID,
+				Title:       alloc.Bug.Title,
+				ProjectName: projectName,
+				Hours:       alloc.Hours,
+			})
+		}
+	}
+
+	// 生成Markdown格式的工作内容摘要
+	content := ""
+
+	if len(requirements) > 0 {
+		content += "## 需求\n\n"
+		var reqHours float64
+		for _, req := range requirements {
+			content += fmt.Sprintf("- **%s** (项目: %s) - %.2f小时\n", req.Title, req.ProjectName, req.Hours)
+			reqHours += req.Hours
+		}
+		content += fmt.Sprintf("\n**需求总工时**: %.2f小时\n\n", reqHours)
+	}
+
+	if len(tasks) > 0 {
+		content += "## 任务\n\n"
+		var taskHours float64
+		for _, task := range tasks {
+			content += fmt.Sprintf("- **%s** (项目: %s) - %.2f小时\n", task.Title, task.ProjectName, task.Hours)
+			taskHours += task.Hours
+		}
+		content += fmt.Sprintf("\n**任务总工时**: %.2f小时\n\n", taskHours)
+	}
+
+	if len(bugs) > 0 {
+		content += "## Bug\n\n"
+		var bugHours float64
+		for _, bug := range bugs {
+			content += fmt.Sprintf("- **%s** (项目: %s) - %.2f小时\n", bug.Title, bug.ProjectName, bug.Hours)
+			bugHours += bug.Hours
+		}
+		content += fmt.Sprintf("\n**Bug总工时**: %.2f小时\n\n", bugHours)
+	}
+
+	content += fmt.Sprintf("**总工时**: %.2f小时", totalHours)
+
+	return content, totalHours
+}
+
+// GetWorkSummary 获取工作内容汇总（不创建报告，只返回汇总内容）
+// 用于前端在新增界面时自动填充工作内容
+func (h *ReportHandler) GetWorkSummary(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		utils.Error(c, 401, "未授权")
+		return
+	}
+
+	startDateStr := c.Query("start_date")
+	endDateStr := c.Query("end_date")
+
+	if startDateStr == "" || endDateStr == "" {
+		utils.Error(c, 400, "请提供开始日期和结束日期")
+		return
+	}
+
+	startDate, err := time.Parse("2006-01-02", startDateStr)
+	if err != nil {
+		utils.Error(c, 400, "开始日期格式错误")
+		return
+	}
+
+	endDate, err := time.Parse("2006-01-02", endDateStr)
+	if err != nil {
+		utils.Error(c, 400, "结束日期格式错误")
+		return
+	}
+
+	if startDate.After(endDate) {
+		utils.Error(c, 400, "开始日期不能晚于结束日期")
+		return
+	}
+
+	content, hours := h.summarizeWorkContent(userID.(uint), startDate, endDate)
+
+	utils.Success(c, gin.H{
+		"content": content,
+		"hours":   hours,
+	})
 }
 
 // GetDailyReports 获取日报列表
@@ -145,7 +299,7 @@ func (h *ReportHandler) CreateDailyReport(c *gin.Context) {
 		Status      string   `json:"status"`
 		ProjectID   *uint    `json:"project_id"`
 		TaskIDs     []uint   `json:"task_ids"`     // 任务ID数组（多选）
-		ApproverIDs []uint   `json:"approver_ids"`  // 审批人ID数组（多选）
+		ApproverIDs []uint   `json:"approver_ids"` // 审批人ID数组（多选）
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -178,17 +332,36 @@ func (h *ReportHandler) CreateDailyReport(c *gin.Context) {
 		req.Status = "draft"
 	}
 
+	// 自动汇总工作内容（如果用户未提供Content或Hours）
+	var content string
+	var hours float64
+
+	// 如果用户未提供Content，自动汇总
+	if req.Content == "" {
+		content, hours = h.summarizeWorkContent(userID.(uint), date, date)
+	} else {
+		content = req.Content
+	}
+
+	// 如果用户未提供Hours或Hours为0，自动汇总工时
+	if req.Hours == nil || *req.Hours == 0 {
+		if req.Content == "" {
+			// 如果Content也是空的，上面已经汇总过了，hours已经有值
+		} else {
+			// 如果Content不为空但Hours为空，只汇总工时
+			_, hours = h.summarizeWorkContent(userID.(uint), date, date)
+		}
+	} else {
+		hours = *req.Hours
+	}
+
 	report := model.DailyReport{
 		Date:      date,
-		Content:   req.Content,
-		Hours:     0,
+		Content:   content,
+		Hours:     hours,
 		Status:    req.Status,
 		UserID:    userID.(uint),
 		ProjectID: req.ProjectID,
-	}
-
-	if req.Hours != nil {
-		report.Hours = *req.Hours
 	}
 
 	// 创建日报
@@ -243,13 +416,13 @@ func (h *ReportHandler) UpdateDailyReport(c *gin.Context) {
 	}
 
 	var req struct {
-		Date        *string `json:"date"`
-		Content     *string `json:"content"`
+		Date        *string  `json:"date"`
+		Content     *string  `json:"content"`
 		Hours       *float64 `json:"hours"`
-		Status      *string `json:"status"`
-		ProjectID   *uint   `json:"project_id"`
-		TaskIDs     []uint  `json:"task_ids"`     // 任务ID数组（多选）
-		ApproverIDs []uint  `json:"approver_ids"` // 审批人ID数组（多选）
+		Status      *string  `json:"status"`
+		ProjectID   *uint    `json:"project_id"`
+		TaskIDs     []uint   `json:"task_ids"`     // 任务ID数组（多选）
+		ApproverIDs []uint   `json:"approver_ids"` // 审批人ID数组（多选）
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -438,7 +611,7 @@ func (h *ReportHandler) ApproveDailyReport(c *gin.Context) {
 
 	var req struct {
 		Status  string `json:"status" binding:"required"` // approved 或 rejected
-		Comment string `json:"comment"`                 // 批注
+		Comment string `json:"comment"`                   // 批注
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -616,14 +789,14 @@ func (h *ReportHandler) GetWeeklyReport(c *gin.Context) {
 // CreateWeeklyReport 创建周报
 func (h *ReportHandler) CreateWeeklyReport(c *gin.Context) {
 	var req struct {
-		WeekStart    string  `json:"week_start" binding:"required"`
-		WeekEnd      string  `json:"week_end" binding:"required"`
-		Summary      string  `json:"summary"`
-		NextWeekPlan string  `json:"next_week_plan"`
-		Status       string  `json:"status"`
-		ProjectID    *uint   `json:"project_id"`
-		TaskIDs      []uint  `json:"task_ids"`     // 任务ID数组（多选）
-		ApproverIDs  []uint  `json:"approver_ids"` // 审批人ID数组（多选）
+		WeekStart    string `json:"week_start" binding:"required"`
+		WeekEnd      string `json:"week_end" binding:"required"`
+		Summary      string `json:"summary"`
+		NextWeekPlan string `json:"next_week_plan"`
+		Status       string `json:"status"`
+		ProjectID    *uint  `json:"project_id"`
+		TaskIDs      []uint `json:"task_ids"`     // 任务ID数组（多选）
+		ApproverIDs  []uint `json:"approver_ids"` // 审批人ID数组（多选）
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -659,10 +832,18 @@ func (h *ReportHandler) CreateWeeklyReport(c *gin.Context) {
 		req.Status = "draft"
 	}
 
+	// 自动汇总工作内容（如果用户未提供Summary）
+	var summary string
+	if req.Summary == "" {
+		summary, _ = h.summarizeWorkContent(userID.(uint), weekStart, weekEnd)
+	} else {
+		summary = req.Summary
+	}
+
 	report := model.WeeklyReport{
 		WeekStart:    weekStart,
 		WeekEnd:      weekEnd,
-		Summary:      req.Summary,
+		Summary:      summary,
 		NextWeekPlan: req.NextWeekPlan,
 		Status:       req.Status,
 		UserID:       userID.(uint),
@@ -849,7 +1030,7 @@ func (h *ReportHandler) ApproveWeeklyReport(c *gin.Context) {
 
 	var req struct {
 		Status  string `json:"status" binding:"required"` // approved 或 rejected
-		Comment string `json:"comment"`                 // 批注
+		Comment string `json:"comment"`                   // 批注
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -868,7 +1049,7 @@ func (h *ReportHandler) ApproveWeeklyReport(c *gin.Context) {
 		// 如果不存在，创建新的审批记录
 		approval = model.WeeklyReportApproval{
 			WeeklyReportID: report.ID,
-			ApproverID:    uid,
+			ApproverID:     uid,
 			Status:         req.Status,
 			Comment:        req.Comment,
 		}
@@ -980,4 +1161,3 @@ func (h *ReportHandler) UpdateWeeklyReportStatus(c *gin.Context) {
 	h.db.Preload("User").Preload("Project").Preload("Task").First(&report, report.ID)
 	utils.Success(c, report)
 }
-

@@ -103,6 +103,8 @@ func initDefaultPermissionsAndRoles(db *gorm.DB) error {
 	defaultPermissions := []model.Permission{
 		// 工作台（菜单，无权限要求）
 		{Code: "dashboard", Name: "工作台", Resource: "dashboard", Action: "read", Description: "工作台", Status: 1, IsMenu: true, MenuPath: "/dashboard", MenuIcon: "DashboardOutlined", MenuTitle: "工作台", MenuOrder: 0},
+		// 写日报（菜单，所有登录用户都可以访问）
+		{Code: "daily-report:create", Name: "写日报", Resource: "daily-report", Action: "create", Description: "写日报", Status: 1, IsMenu: true, MenuPath: "/reports/daily/create", MenuIcon: "EditOutlined", MenuTitle: "写日报", MenuOrder: 0},
 
 		// 项目管理权限（操作权限）
 		{Code: "project:create", Name: "创建项目", Resource: "project", Action: "create", Description: "创建新项目", Status: 1},

@@ -427,6 +427,7 @@
             style="width: 100%"
             format="YYYY-MM-DD"
             :disabled="!!dailyFormData.id"
+            @change="loadDailyWorkSummary"
           />
         </a-form-item>
         <a-form-item label="工作内容" name="content">
@@ -530,6 +531,7 @@
             placeholder="选择周开始日期"
             style="width: 100%"
             format="YYYY-MM-DD"
+            @change="loadWeeklyWorkSummary"
           />
         </a-form-item>
         <a-form-item label="周结束日期" name="week_end">
@@ -538,6 +540,7 @@
             placeholder="选择周结束日期"
             style="width: 100%"
             format="YYYY-MM-DD"
+            @change="loadWeeklyWorkSummary"
           />
         </a-form-item>
         <a-form-item label="工作总结" name="summary">
@@ -778,8 +781,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch, computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, reactive, onMounted, watch, computed, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import dayjs, { type Dayjs } from 'dayjs'
@@ -804,6 +807,7 @@ import {
   updateWeeklyReportStatus,
   approveDailyReport,
   approveWeeklyReport,
+  getWorkSummary,
   type DailyReport,
   type WeeklyReport,
   type CreateDailyReportRequest,
@@ -1152,6 +1156,66 @@ const handleDailyTableChange = (pag: any) => {
   loadDailyReports()
 }
 
+// 加载日报工作汇总
+const loadDailyWorkSummary = async () => {
+  // 编辑模式下不自动汇总
+  if (dailyFormData.id) {
+    return
+  }
+  
+  if (!dailyFormData.date || !dailyFormData.date.isValid()) {
+    return
+  }
+  
+  try {
+    const dateStr = dailyFormData.date.format('YYYY-MM-DD')
+    const summary = await getWorkSummary({
+      start_date: dateStr,
+      end_date: dateStr
+    })
+    
+    // 只有在内容为空时才自动填充（允许用户修改）
+    if (!dailyFormData.content || dailyFormData.content.trim() === '') {
+      dailyFormData.content = summary.content
+    }
+    // 只有在工时为0时才自动填充
+    if (!dailyFormData.hours || dailyFormData.hours === 0) {
+      dailyFormData.hours = summary.hours
+    }
+  } catch (error: any) {
+    console.error('加载工作汇总失败:', error)
+    // 不显示错误提示，因为可能是没有工作记录
+  }
+}
+
+// 加载周报工作汇总
+const loadWeeklyWorkSummary = async () => {
+  // 编辑模式下不自动汇总
+  if (weeklyFormData.id) {
+    return
+  }
+  
+  if (!weeklyFormData.week_start || !weeklyFormData.week_end || 
+      !weeklyFormData.week_start.isValid() || !weeklyFormData.week_end.isValid()) {
+    return
+  }
+  
+  try {
+    const summary = await getWorkSummary({
+      start_date: weeklyFormData.week_start.format('YYYY-MM-DD'),
+      end_date: weeklyFormData.week_end.format('YYYY-MM-DD')
+    })
+    
+    // 只有在内容为空时才自动填充（允许用户修改）
+    if (!weeklyFormData.summary || weeklyFormData.summary.trim() === '') {
+      weeklyFormData.summary = summary.content
+    }
+  } catch (error: any) {
+    console.error('加载工作汇总失败:', error)
+    // 不显示错误提示，因为可能是没有工作记录
+  }
+}
+
 // 创建日报
 const handleCreate = () => {
   if (activeTab.value === 'daily') {
@@ -1164,6 +1228,10 @@ const handleCreate = () => {
     dailyFormData.task_ids = []
     dailyFormData.approver_ids = []
     dailyModalVisible.value = true
+    // 打开界面后自动加载汇总
+    nextTick(() => {
+      loadDailyWorkSummary()
+    })
   } else {
     weeklyModalTitle.value = '新增周报'
     weeklyFormData.id = undefined
@@ -1177,6 +1245,10 @@ const handleCreate = () => {
     weeklyFormData.task_ids = []
     weeklyFormData.approver_ids = []
     weeklyModalVisible.value = true
+    // 打开界面后自动加载汇总
+    nextTick(() => {
+      loadWeeklyWorkSummary()
+    })
   }
 }
 
@@ -1240,6 +1312,10 @@ const handleDailySubmitForm = async () => {
       message.success('创建成功')
     }
     dailyModalVisible.value = false
+    // 如果是从写日报路由打开的，关闭后跳转回报告页面
+    if (route.name === 'CreateDailyReport') {
+      router.push({ name: 'Report', query: { tab: 'daily' } })
+    }
     loadDailyReports()
     if (activeTab.value === 'approval') {
       loadApprovalReports()
@@ -1287,6 +1363,10 @@ const handleDailyDelete = async (id: number) => {
 const handleDailyCancel = () => {
   dailyFormRef.value?.resetFields()
   availableTasks.value = []
+  // 如果是从写日报路由打开的，关闭后跳转回报告页面
+  if (route.name === 'CreateDailyReport') {
+    router.push({ name: 'Report', query: { tab: 'daily' } })
+  }
 }
 
 // 周报搜索
@@ -1933,6 +2013,14 @@ onMounted(() => {
   // 注意：状态字段默认保持为空，不从路由参数自动设置
   if (route.query.tab) {
     activeTab.value = route.query.tab as 'daily' | 'weekly' | 'approval'
+  }
+  
+  // 如果是写日报路由，自动打开新增日报对话框
+  if (route.name === 'CreateDailyReport') {
+    activeTab.value = 'daily'
+    nextTick(() => {
+      handleCreate()
+    })
   }
   
   loadDailyReports()

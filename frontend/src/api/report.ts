@@ -190,3 +190,16 @@ export const approveWeeklyReport = async (id: number, data: ApproveReportRequest
   return request.post(`/weekly-reports/${id}/approve`, data)
 }
 
+// 获取工作内容汇总（用于前端自动填充）
+export interface WorkSummaryResponse {
+  content: string
+  hours: number
+}
+
+export const getWorkSummary = async (params: {
+  start_date: string
+  end_date: string
+}): Promise<WorkSummaryResponse> => {
+  return request.get('/reports/work-summary', { params })
+}
+

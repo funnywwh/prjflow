@@ -117,6 +117,7 @@
     <a-modal
       v-model:open="modalVisible"
       :title="modalTitle"
+      :mask-closable="false"
       @ok="handleSubmit"
       @cancel="handleCancel"
       :confirm-loading="submitting"
@@ -178,10 +179,12 @@
     <a-modal
       v-model:open="roleModalVisible"
       title="分配角色"
+      :mask-closable="true"
       @ok="handleRoleSubmit"
       @cancel="roleModalVisible = false"
       :confirm-loading="roleSubmitting"
-    >
+      
+      >
       <a-checkbox-group v-model:value="selectedRoleIds" style="width: 100%">
         <a-row>
           <a-col :span="12" v-for="role in roles" :key="role.id">
@@ -197,6 +200,7 @@
       title="扫码添加用户"
       :footer="null"
       width="500px"
+      :mask-closable="true"
       @cancel="handleCloseScanAddUserModal"
     >
       <WeChatQRCode
@@ -215,10 +219,12 @@
     <a-modal
       v-model:open="nicknameModalVisible"
       title="设置用户昵称"
+      :mask-closable="true"
       @ok="handleNicknameSubmit"
       @cancel="handleNicknameCancel"
       :confirm-loading="nicknameSubmitting"
-    >
+      
+      >
       <a-form
         ref="nicknameFormRef"
         :model="nicknameFormData"

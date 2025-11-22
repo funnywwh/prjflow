@@ -76,6 +76,7 @@
 
     <!-- 编辑看板模态框 -->
     <a-modal
+      :mask-closable="true"
       v-model:open="boardModalVisible"
       :title="boardModalTitle"
       @ok="handleBoardSubmit"
@@ -102,6 +103,7 @@
       v-model:open="columnsModalVisible"
       title="管理看板列"
       :width="800"
+      :mask-closable="true"
       @ok="handleColumnsSubmit"
       @cancel="handleColumnsCancel"
     >

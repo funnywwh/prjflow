@@ -58,10 +58,12 @@
     <a-modal
       v-model:open="modalVisible"
       :title="modalTitle"
+      :mask-closable="true"
       @ok="handleSubmit"
       @cancel="handleCancel"
       :confirm-loading="submitting"
-    >
+      
+      >
       <a-form
         ref="formRef"
         :model="formData"
@@ -101,11 +103,13 @@
     <a-modal
       v-model:open="memberModalVisible"
       title="部门成员管理"
+      :mask-closable="true"
       @cancel="handleCloseMemberModal"
       @ok="handleCloseMemberModal"
       ok-text="关闭"
       width="800px"
-    >
+      
+      >
       <a-spin :spinning="memberLoading">
         <div style="margin-bottom: 16px">
           <a-space>

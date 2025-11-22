@@ -152,10 +152,12 @@
     <a-modal
       v-model:open="productLineModalVisible"
       :title="productLineModalTitle"
+      :mask-closable="true"
       @ok="handleProductLineSubmit"
       @cancel="handleProductLineCancel"
       :confirm-loading="productLineSubmitting"
-    >
+      
+      >
       <a-form
         ref="productLineFormRef"
         :model="productLineFormData"
@@ -182,10 +184,12 @@
     <a-modal
       v-model:open="productModalVisible"
       :title="productModalTitle"
+      :mask-closable="true"
       @ok="handleProductSubmit"
       @cancel="handleProductCancel"
       :confirm-loading="productSubmitting"
-    >
+      
+      >
       <a-form
         ref="productFormRef"
         :model="productFormData"

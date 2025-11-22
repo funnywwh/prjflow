@@ -124,6 +124,7 @@
     <a-modal
       v-model:open="progressModalVisible"
       title="更新任务进度"
+      :mask-closable="true"
       @ok="handleProgressSubmit"
       @cancel="handleProgressCancel"
     >

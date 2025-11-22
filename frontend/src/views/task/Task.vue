@@ -169,6 +169,7 @@
       v-model:open="modalVisible"
       :title="modalTitle"
       :width="900"
+      :mask-closable="false"
       @ok="handleSubmit"
       @cancel="handleCancel"
     >
@@ -357,6 +358,7 @@
     <a-modal
       v-model:open="progressModalVisible"
       title="更新任务进度"
+      :mask-closable="true"
       @ok="handleProgressSubmit"
       @cancel="handleProgressCancel"
     >

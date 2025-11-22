@@ -145,6 +145,7 @@
       v-model:open="modalVisible"
       :title="modalTitle"
       :width="800"
+      :mask-closable="false"
       @ok="handleSubmit"
       @cancel="handleCancel"
     >

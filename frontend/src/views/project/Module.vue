@@ -43,6 +43,7 @@
 
     <!-- 模块编辑对话框 -->
     <a-modal
+      :mask-closable="true"
       v-model:open="modalVisible"
       :title="modalTitle"
       @ok="handleSubmit"

@@ -113,6 +113,7 @@
 
     <!-- 资源创建/编辑模态框 -->
     <a-modal
+      :mask-closable="true"
       v-model:open="modalVisible"
       :title="modalTitle"
       :width="600"
@@ -173,8 +174,10 @@
       v-model:open="allocationModalVisible"
       title="资源分配管理"
       :width="1000"
+      :mask-closable="true"
       :footer="null"
-    >
+      
+      >
       <div style="margin-bottom: 16px">
         <a-space>
           <span>资源：{{ currentResource?.user?.nickname || currentResource?.user?.username }}({{ currentResource?.user?.username }})</span>
@@ -233,6 +236,7 @@
 
     <!-- 资源分配创建/编辑模态框 -->
     <a-modal
+      :mask-closable="true"
       v-model:open="allocationFormVisible"
       :title="allocationModalTitle"
       :width="600"

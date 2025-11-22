@@ -296,6 +296,7 @@
       v-model:open="modalVisible"
       :title="modalTitle"
       :width="800"
+      :mask-closable="false"
       @ok="handleSubmit"
       @cancel="handleCancel"
     >
@@ -460,6 +461,7 @@
     <a-modal
       v-model:open="assignModalVisible"
       title="分配Bug"
+      :mask-closable="true"
       @ok="handleAssignSubmit"
       @cancel="handleAssignCancel"
     >
@@ -495,6 +497,7 @@
       v-model:open="statusModalVisible"
       title="更新Bug状态"
       :width="600"
+      :mask-closable="true"
       @ok="handleStatusSubmit"
       @cancel="handleStatusCancel"
     >

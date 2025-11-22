@@ -69,6 +69,12 @@
                       </div>
                       <span v-else>-</span>
                     </template>
+                    <template v-else-if="column.key === 'start_date'">
+                      {{ formatDate(record.start_date) }}
+                    </template>
+                    <template v-else-if="column.key === 'end_date'">
+                      {{ formatDate(record.end_date) }}
+                    </template>
                     <template v-else-if="column.key === 'action'">
                       <a-space>
                         <a-button type="link" size="small" @click="handleViewDetail(record)">
@@ -103,11 +109,11 @@
     <a-modal
       v-model:open="projectModalVisible"
       :title="projectModalTitle"
+      :mask-closable="false"
       @ok="handleProjectSubmit"
       @cancel="handleProjectCancel"
       :confirm-loading="projectSubmitting"
       width="800px"
-      :mask-closable="false"
     >
       <a-form
         ref="projectFormRef"
@@ -196,11 +202,13 @@
     <a-modal
       v-model:open="memberModalVisible"
       title="项目成员管理"
+      :mask-closable="true"
       @cancel="handleCloseMemberModal"
       @ok="handleCloseMemberModal"
       ok-text="关闭"
       width="800px"
-    >
+      
+      >
       <a-spin :spinning="memberLoading">
         <div style="margin-bottom: 16px">
           <a-space>
@@ -268,6 +276,7 @@
     <a-modal
       v-model:open="moduleManageModalVisible"
       title="功能模块管理（系统资源）"
+      :mask-closable="true"
       @cancel="moduleManageModalVisible = false"
       width="900px"
       :footer="null"
@@ -279,6 +288,7 @@
     <a-modal
       v-model:open="tagManageModalVisible"
       title="创建标签"
+      :mask-closable="true"
       @ok="handleTagManageSubmit"
       @cancel="tagManageModalVisible = false"
       :confirm-loading="tagSubmitting"
@@ -321,6 +331,7 @@ import { PlusOutlined } from '@ant-design/icons-vue'
 import AppHeader from '@/components/AppHeader.vue'
 import dayjs from 'dayjs'
 import type { Dayjs } from 'dayjs'
+import { formatDate } from '@/utils/date'
 import {
   getProjects,
   createProject,

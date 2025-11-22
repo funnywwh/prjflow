@@ -236,6 +236,7 @@
 
     <!-- 日报编辑/创建模态框 -->
     <a-modal
+      :mask-closable="true"
       v-model:open="dailyModalVisible"
       :title="dailyModalTitle"
       :width="800"
@@ -316,6 +317,7 @@
 
     <!-- 周报编辑/创建模态框 -->
     <a-modal
+      :mask-closable="true"
       v-model:open="weeklyModalVisible"
       :title="weeklyModalTitle"
       :width="800"

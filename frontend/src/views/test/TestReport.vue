@@ -134,6 +134,7 @@
 
     <!-- 测试报告编辑/创建模态框 -->
     <a-modal
+      :mask-closable="true"
       v-model:open="modalVisible"
       :title="modalTitle"
       :width="800"

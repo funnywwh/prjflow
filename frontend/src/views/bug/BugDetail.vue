@@ -107,6 +107,7 @@
     <a-modal
       v-model:open="assignModalVisible"
       title="分配Bug"
+      :mask-closable="true"
       @ok="handleAssignSubmit"
       @cancel="handleAssignCancel"
     >

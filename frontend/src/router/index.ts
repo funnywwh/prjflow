@@ -168,6 +168,12 @@ const routes: RouteRecordRaw[] = [
     name: 'Report',
     component: () => import('../views/report/Report.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/system/wechat-settings',
+    name: 'WeChatSettings',
+    component: () => import('../views/system/WeChatSettings.vue'),
+    meta: { requiresAuth: false } // 初始化阶段也需要访问
   }
 ]
 
@@ -193,13 +199,22 @@ router.beforeEach(async (to, _from, next) => {
     
     // 如果访问其他页面但系统未初始化，跳转到初始化页面
     // 排除初始化相关路由和微信回调路由
+    // WeChatSettings只有在from=init时才允许访问（从初始化页面跳转过来）
     if (to.name !== 'Init' && 
         to.name !== 'InitCallback' && 
         to.name !== 'WeChatCallback' && 
         to.name !== 'WeChatAddUserCallback' &&
         !status.initialized) {
-      next({ name: 'Init' })
-      return
+      // 如果是微信设置页面，但不是从初始化页面跳转过来的，跳转到初始化页面
+      if (to.name === 'WeChatSettings' && to.query.from !== 'init') {
+        next({ name: 'Init' })
+        return
+      }
+      // 其他页面直接跳转到初始化页面
+      if (to.name !== 'WeChatSettings') {
+        next({ name: 'Init' })
+        return
+      }
     }
   } catch (error) {
     // 如果检查失败，允许继续（可能是网络问题）
@@ -208,7 +223,8 @@ router.beforeEach(async (to, _from, next) => {
     if (to.name === 'Init' || 
         to.name === 'InitCallback' || 
         to.name === 'WeChatCallback' || 
-        to.name === 'WeChatAddUserCallback') {
+        to.name === 'WeChatAddUserCallback' ||
+        to.name === 'WeChatSettings') { // 允许访问微信设置页面
       next()
       return
     }

@@ -105,6 +105,12 @@ export const menuConfig: MenuItem[] = [
         title: '权限管理',
         path: '/permission',
         permission: 'permission:manage'
+      },
+      {
+        key: 'wechat-settings',
+        title: '微信设置',
+        path: '/system/wechat-settings',
+        permission: 'permission:manage' // 只有管理员可以配置微信
       }
     ]
   }

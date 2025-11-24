@@ -345,6 +345,15 @@ func main() {
 		weeklyReportGroup.PATCH("/:id/status", reportHandler.UpdateWeeklyReportStatus)
 	}
 
+	// 系统设置路由（微信配置等）
+	wechatHandler := api.NewWeChatHandler(db)
+	// 使用可选认证中间件：系统未初始化时允许访问，已初始化时需要认证
+	systemGroup := r.Group("/api/system", middleware.AuthOptional(db))
+	{
+		systemGroup.GET("/wechat-config", wechatHandler.GetWeChatConfig)
+		systemGroup.POST("/wechat-config", middleware.RequirePermissionOptional(db, "wechat:settings"), wechatHandler.SaveWeChatConfig)
+	}
+
 	// 静态文件服务（前端构建后的文件）
 	// 注意：必须在所有 API 路由之后，但在 catch-all 路由之前
 	// 获取前端 dist 目录路径（支持从项目根目录或 backend 目录运行）

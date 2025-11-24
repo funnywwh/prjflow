@@ -152,6 +152,8 @@ func initDefaultPermissionsAndRoles(db *gorm.DB) error {
 		{Code: "department:read", Name: "查看部门", Resource: "department", Action: "read", Description: "查看部门信息", Status: 1, IsMenu: true, MenuPath: "/department", MenuTitle: "部门管理", MenuOrder: 1},
 		// 权限管理（子菜单）
 		{Code: "permission:manage", Name: "管理权限", Resource: "permission", Action: "manage", Description: "管理角色和权限", Status: 1, IsMenu: true, MenuPath: "/permission", MenuTitle: "权限管理", MenuOrder: 2},
+		// 微信设置（子菜单）
+		{Code: "wechat:settings", Name: "微信设置", Resource: "wechat", Action: "settings", Description: "微信配置设置", Status: 1, IsMenu: true, MenuPath: "/system/wechat-settings", MenuTitle: "微信设置", MenuOrder: 3},
 
 		// 用户管理权限（操作权限）
 		{Code: "user:read", Name: "查看用户", Resource: "user", Action: "read", Description: "查看用户信息", Status: 1},
@@ -257,6 +259,10 @@ func initDefaultPermissionsAndRoles(db *gorm.DB) error {
 		if permissionManage, ok := permMap["permission:manage"]; ok {
 			permissionManage.ParentMenuID = &parentID
 			db.Model(permissionManage).Select("parent_menu_id").Updates(permissionManage)
+		}
+		if wechatSettings, ok := permMap["wechat:settings"]; ok {
+			wechatSettings.ParentMenuID = &parentID
+			db.Model(wechatSettings).Select("parent_menu_id").Updates(wechatSettings)
 		}
 	}
 

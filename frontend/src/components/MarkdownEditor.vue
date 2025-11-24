@@ -2,13 +2,16 @@
   <div class="markdown-editor">
     <a-tabs v-model:activeKey="activeTab" v-if="!readonly">
       <a-tab-pane key="edit" tab="编辑">
-        <a-textarea
-          :value="modelValue || ''"
-          @update:value="handleInput"
-          :placeholder="placeholder"
-          :rows="rows"
-          style="font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace"
-        />
+        <div ref="editorContainerRef" class="editor-container">
+          <a-textarea
+            ref="textareaRef"
+            :value="modelValue || ''"
+            @update:value="handleInput"
+            :placeholder="placeholder"
+            :rows="rows"
+            style="font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace"
+          />
+        </div>
       </a-tab-pane>
       <a-tab-pane key="preview" tab="预览">
         <div class="markdown-preview" v-html="renderedMarkdown"></div>
@@ -19,7 +22,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/github.css'
@@ -29,20 +32,28 @@ interface Props {
   placeholder?: string
   rows?: number
   readonly?: boolean
+  projectId?: number // 项目ID，用于上传图片
 }
 
 const props = withDefaults(defineProps<Props>(), {
   modelValue: '',
   placeholder: '请输入Markdown内容...',
   rows: 8,
-  readonly: false
+  readonly: false,
+  projectId: 0
 })
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
+  'image-uploaded': [oldUrl: string, newUrl: string] // 图片上传完成事件
 }>()
 
 const activeTab = ref('edit')
+const textareaRef = ref<any>(null)
+const editorContainerRef = ref<HTMLElement | null>(null)
+
+// 存储本地预览的图片映射（blob URL -> File）
+const localImages = new Map<string, File>()
 
 // 配置marked
 marked.setOptions({
@@ -65,13 +76,151 @@ const renderedMarkdown = computed(() => {
   if (!props.modelValue || props.modelValue.trim() === '') {
     return '<p class="empty-text">暂无内容</p>'
   }
-  return marked.parse(props.modelValue)
+  const html = marked.parse(props.modelValue)
+  // 调试：在只读模式下检查图片URL
+  if (props.readonly) {
+    const imgRegex = /!\[([^\]]*)\]\(([^)]+)\)/g
+    const matches = Array.from(props.modelValue.matchAll(imgRegex))
+    if (matches.length > 0) {
+      console.log('Markdown中的图片URL:', matches.map(m => m[2]))
+    }
+  }
+  return html
 })
 
 // 处理输入
 const handleInput = (value: string) => {
   emit('update:modelValue', value)
 }
+
+// 处理粘贴事件
+const handlePaste = async (e: ClipboardEvent) => {
+  if (props.readonly) return
+
+  const items = e.clipboardData?.items
+  if (!items) return
+
+  // 查找图片项
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]
+    if (item.type.indexOf('image') !== -1) {
+      e.preventDefault()
+      e.stopPropagation()
+
+      const file = item.getAsFile()
+      if (!file) continue
+
+      // 创建 blob URL 用于本地预览
+      const blobUrl = URL.createObjectURL(file)
+      localImages.set(blobUrl, file)
+
+      // 获取 textarea 元素
+      const textarea = textareaRef.value?.$el?.querySelector('textarea') as HTMLTextAreaElement | null
+      if (!textarea) {
+        // 如果找不到 textarea，尝试直接使用 ref
+        const directTextarea = textareaRef.value?.$el as HTMLTextAreaElement
+        if (directTextarea && directTextarea.tagName === 'TEXTAREA') {
+          insertImageAtCursor(directTextarea, file, blobUrl)
+        }
+        break
+      }
+
+      insertImageAtCursor(textarea, file, blobUrl)
+      break
+    }
+  }
+}
+
+// 在光标位置插入图片
+const insertImageAtCursor = (textarea: HTMLTextAreaElement, file: File, blobUrl: string) => {
+  const start = textarea.selectionStart || 0
+  const end = textarea.selectionEnd || 0
+  const currentValue = props.modelValue || ''
+
+  // 插入图片 Markdown 语法
+  const imageMarkdown = `![${file.name}](${blobUrl})\n`
+  const newValue = currentValue.slice(0, start) + imageMarkdown + currentValue.slice(end)
+
+  emit('update:modelValue', newValue)
+
+  // 设置光标位置
+  setTimeout(() => {
+    textarea.focus()
+    const newPosition = start + imageMarkdown.length
+    textarea.setSelectionRange(newPosition, newPosition)
+  }, 0)
+}
+
+// 上传本地预览的图片并替换URL
+// 这个方法由父组件在提交表单时调用
+const uploadLocalImages = async (uploadFn: (file: File, projectId: number) => Promise<{ file_path: string }>): Promise<string> => {
+  let content = props.modelValue || ''
+
+  // 查找所有本地预览的图片URL（blob URL）
+  const blobUrlRegex = /!\[([^\]]*)\]\((blob:[^)]+)\)/g
+  const matches = Array.from(content.matchAll(blobUrlRegex))
+
+  for (const match of matches) {
+    const blobUrl = match[2]
+    const file = localImages.get(blobUrl)
+
+    if (file && props.projectId) {
+      try {
+        // 上传图片
+        const attachment = await uploadFn(file, props.projectId)
+        
+        // 构建服务器URL（使用 /uploads/ 前缀）
+        // file_path 格式：YYYY/MM/DD/filename.ext
+        const serverUrl = `/uploads/${attachment.file_path}`
+        
+        console.log('上传图片成功:', {
+          blobUrl,
+          serverUrl,
+          file_path: attachment.file_path
+        })
+        
+        // 替换URL（替换所有匹配的blob URL）
+        content = content.replace(new RegExp(blobUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), serverUrl)
+        
+        // 清理 blob URL
+        URL.revokeObjectURL(blobUrl)
+        localImages.delete(blobUrl)
+
+        emit('image-uploaded', blobUrl, serverUrl)
+      } catch (error) {
+        console.error('上传图片失败:', error)
+        // 上传失败时，可以选择保留blob URL或移除图片标记
+        // 这里选择保留，让用户知道上传失败
+      }
+    }
+  }
+
+  return content
+}
+
+// 暴露方法给父组件
+defineExpose({
+  uploadLocalImages,
+  getCurrentContent: () => props.modelValue || '' // 获取当前编辑器内容
+})
+
+// 挂载时添加粘贴事件监听
+onMounted(() => {
+  if (!props.readonly && editorContainerRef.value) {
+    editorContainerRef.value.addEventListener('paste', handlePaste as EventListener)
+  }
+})
+
+// 组件卸载时清理 blob URL和事件监听
+onUnmounted(() => {
+  if (editorContainerRef.value) {
+    editorContainerRef.value.removeEventListener('paste', handlePaste as EventListener)
+  }
+  localImages.forEach((_, blobUrl) => {
+    URL.revokeObjectURL(blobUrl)
+  })
+  localImages.clear()
+})
 
 // 监听modelValue变化，自动切换到预览
 watch(() => props.modelValue, () => {
@@ -83,6 +232,10 @@ watch(() => props.modelValue, () => {
 
 <style scoped>
 .markdown-editor {
+  width: 100%;
+}
+
+.editor-container {
   width: 100%;
 }
 
@@ -211,6 +364,9 @@ watch(() => props.modelValue, () => {
   max-width: 100%;
   box-sizing: content-box;
   background-color: #fff;
+  display: block;
+  margin: 16px 0;
+  border-radius: 4px;
 }
 
 .markdown-preview :deep(hr) {

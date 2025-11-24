@@ -295,10 +295,10 @@ func main() {
 		testCaseGroup.GET("/statistics", middleware.RequirePermission(db, "project:read"), testCaseHandler.GetTestCaseStatistics)
 		testCaseGroup.GET("", middleware.RequirePermission(db, "project:read"), testCaseHandler.GetTestCases)
 		testCaseGroup.GET("/:id", middleware.RequirePermission(db, "project:read"), testCaseHandler.GetTestCase)
-		testCaseGroup.POST("", middleware.RequirePermission(db, "project:update"), testCaseHandler.CreateTestCase)
-		testCaseGroup.PUT("/:id", middleware.RequirePermission(db, "project:update"), testCaseHandler.UpdateTestCase)
-		testCaseGroup.DELETE("/:id", middleware.RequirePermission(db, "project:delete"), testCaseHandler.DeleteTestCase)
-		testCaseGroup.PATCH("/:id/status", middleware.RequirePermission(db, "project:update"), testCaseHandler.UpdateTestCaseStatus)
+		testCaseGroup.POST("", middleware.RequirePermission(db, "test-case:create"), testCaseHandler.CreateTestCase)
+		testCaseGroup.PUT("/:id", middleware.RequirePermission(db, "test-case:update"), testCaseHandler.UpdateTestCase)
+		testCaseGroup.DELETE("/:id", middleware.RequirePermission(db, "test-case:delete"), testCaseHandler.DeleteTestCase)
+		testCaseGroup.PATCH("/:id/status", middleware.RequirePermission(db, "test-case:update"), testCaseHandler.UpdateTestCaseStatus)
 	}
 
 	// 资源管理路由 (统计、冲突检测、利用率分析)
@@ -330,6 +330,10 @@ func main() {
 
 	// 工作报告路由（日报和周报）
 	reportHandler := api.NewReportHandler(db)
+	reportGroup := r.Group("/api/reports", middleware.Auth())
+	{
+		reportGroup.GET("/work-summary", reportHandler.GetWorkSummary) // 获取工作内容汇总
+	}
 	dailyReportGroup := r.Group("/api/daily-reports", middleware.Auth())
 	{
 		dailyReportGroup.GET("", reportHandler.GetDailyReports)
@@ -338,6 +342,7 @@ func main() {
 		dailyReportGroup.PUT("/:id", reportHandler.UpdateDailyReport)
 		dailyReportGroup.DELETE("/:id", reportHandler.DeleteDailyReport)
 		dailyReportGroup.PATCH("/:id/status", reportHandler.UpdateDailyReportStatus)
+		dailyReportGroup.POST("/:id/approve", reportHandler.ApproveDailyReport)
 	}
 	weeklyReportGroup := r.Group("/api/weekly-reports", middleware.Auth())
 	{
@@ -347,6 +352,33 @@ func main() {
 		weeklyReportGroup.PUT("/:id", reportHandler.UpdateWeeklyReport)
 		weeklyReportGroup.DELETE("/:id", reportHandler.DeleteWeeklyReport)
 		weeklyReportGroup.PATCH("/:id/status", reportHandler.UpdateWeeklyReportStatus)
+		weeklyReportGroup.POST("/:id/approve", reportHandler.ApproveWeeklyReport)
+	}
+
+	// 附件管理路由
+	attachmentHandler := api.NewAttachmentHandler(db)
+	attachmentGroup := r.Group("/api/attachments", middleware.Auth())
+	{
+		attachmentGroup.POST("/upload", middleware.RequirePermission(db, "attachment:upload"), attachmentHandler.UploadFile)
+		attachmentGroup.GET("/:id", attachmentHandler.GetAttachment)
+		attachmentGroup.GET("/:id/download", attachmentHandler.DownloadFile)
+		attachmentGroup.DELETE("/:id", middleware.RequirePermission(db, "attachment:delete"), attachmentHandler.DeleteAttachment)
+		attachmentGroup.GET("", attachmentHandler.GetAttachments)
+		attachmentGroup.POST("/:id/attach", attachmentHandler.AttachToEntity)
+	}
+
+	// 静态文件服务（上传的文件）
+	// 配置上传文件的静态服务，路径为 /uploads/*
+	storagePath := config.AppConfig.Upload.StoragePath
+	if !filepath.IsAbs(storagePath) {
+		storagePath = filepath.Join(".", storagePath)
+	}
+	// 确保目录存在
+	if err := os.MkdirAll(storagePath, 0755); err == nil {
+		r.Static("/uploads", storagePath)
+		log.Printf("上传文件静态服务目录: %s", storagePath)
+	} else {
+		log.Printf("警告: 无法创建上传文件目录 %s: %v", storagePath, err)
 	}
 
 	// 系统设置路由（微信配置等）

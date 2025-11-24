@@ -153,6 +153,7 @@
               :data-source="requirements"
               :loading="loading"
               :pagination="pagination"
+              :scroll="{ x: 'max-content' }"
               row-key="id"
               @change="handleTableChange"
             >
@@ -224,6 +225,7 @@
       v-model:open="modalVisible"
       :title="modalTitle"
       :width="800"
+      :mask-closable="false"
       @ok="handleSubmit"
       @cancel="handleCancel"
     >
@@ -239,9 +241,11 @@
         </a-form-item>
         <a-form-item label="需求描述" name="description">
           <MarkdownEditor
+            ref="descriptionEditorRef"
             v-model="formData.description"
             placeholder="请输入需求描述（支持Markdown）"
             :rows="8"
+            :project-id="formData.project_id || 0"
           />
         </a-form-item>
         <a-form-item label="项目" name="project_id">
@@ -320,6 +324,15 @@
           />
           <span style="margin-left: 8px; color: #999">不填则使用今天</span>
         </a-form-item>
+        <a-form-item label="附件">
+          <AttachmentUpload
+            v-if="formData.project_id && (formData.id || formData.project_id)"
+            :project-id="formData.project_id"
+            v-model="formData.attachment_ids"
+            :existing-attachments="requirementAttachments"
+          />
+          <span v-else style="color: #999;">请先选择项目后再上传附件</span>
+        </a-form-item>
       </a-form>
     </a-modal>
   </div>
@@ -335,6 +348,7 @@ import { formatDateTime } from '@/utils/date'
 import { type Dayjs } from 'dayjs'
 import AppHeader from '@/components/AppHeader.vue'
 import MarkdownEditor from '@/components/MarkdownEditor.vue'
+import AttachmentUpload from '@/components/AttachmentUpload.vue'
 import { useAuthStore } from '@/stores/auth'
 import {
   getRequirements,
@@ -349,6 +363,7 @@ import {
 } from '@/api/requirement'
 import { getProjects, type Project } from '@/api/project'
 import { getUsers, type User } from '@/api/user'
+import { getAttachments, attachToEntity, uploadFile, type Attachment } from '@/api/attachment'
 
 const route = useRoute()
 const router = useRouter()
@@ -390,7 +405,8 @@ const columns = [
 const modalVisible = ref(false)
 const modalTitle = ref('新增需求')
 const formRef = ref()
-const formData = reactive<Partial<CreateRequirementRequest> & { id?: number; actual_hours?: number; work_date?: Dayjs }>({
+const descriptionEditorRef = ref<InstanceType<typeof MarkdownEditor> | null>(null)
+const formData = reactive<Partial<CreateRequirementRequest> & { id?: number; actual_hours?: number; work_date?: Dayjs; attachment_ids?: number[] }>({
   title: '',
   description: '',
   status: 'pending',
@@ -399,8 +415,11 @@ const formData = reactive<Partial<CreateRequirementRequest> & { id?: number; act
   assignee_id: undefined,
   estimated_hours: undefined,
   actual_hours: undefined,
-  work_date: undefined
+  work_date: undefined,
+  attachment_ids: [] as number[]
 })
+
+const requirementAttachments = ref<Attachment[]>([]) // 需求附件列表
 
 const formRules = {
   title: [{ required: true, message: '请输入需求标题', trigger: 'blur' }],
@@ -529,11 +548,13 @@ const handleCreate = () => {
   formData.estimated_hours = undefined
   formData.actual_hours = undefined
   formData.work_date = undefined
+  formData.attachment_ids = []
+  requirementAttachments.value = []
   modalVisible.value = true
 }
 
 // 编辑
-const handleEdit = (record: Requirement) => {
+const handleEdit = async (record: Requirement) => {
   modalTitle.value = '编辑需求'
   formData.id = record.id
   formData.title = record.title
@@ -545,6 +566,17 @@ const handleEdit = (record: Requirement) => {
   formData.estimated_hours = record.estimated_hours
   formData.actual_hours = record.actual_hours
   formData.work_date = undefined
+  
+  // 加载需求附件
+  try {
+    requirementAttachments.value = await getAttachments({ requirement_id: record.id })
+    formData.attachment_ids = requirementAttachments.value.map(a => a.id)
+  } catch (error: any) {
+    console.error('加载附件失败:', error)
+    requirementAttachments.value = []
+    formData.attachment_ids = []
+  }
+  
   modalVisible.value = true
 }
 
@@ -562,9 +594,25 @@ const handleSubmit = async () => {
       message.error('请选择项目')
       return
     }
+    // 上传Markdown编辑器中的本地图片
+    let description = formData.description || ''
+    if (descriptionEditorRef.value && formData.project_id) {
+      try {
+        description = await descriptionEditorRef.value.uploadLocalImages(async (file: File, projectId: number) => {
+          const attachment = await uploadFile(file, projectId)
+          console.log('图片上传成功，附件信息:', attachment)
+          return attachment
+        })
+        console.log('上传图片后的description:', description)
+      } catch (error: any) {
+        console.error('上传图片失败:', error)
+        message.warning('部分图片上传失败，请检查')
+      }
+    }
+    
     const data: any = {
       title: formData.title,
-      description: formData.description,
+      description: description, // 使用已上传图片的description
       status: formData.status,
       priority: formData.priority,
       project_id: formData.project_id, // 必填
@@ -573,12 +621,33 @@ const handleSubmit = async () => {
       actual_hours: formData.actual_hours,
       work_date: formData.work_date ? formData.work_date.format('YYYY-MM-DD') : undefined
     }
+    // 调试：检查提交的数据
+    console.log('提交的数据:', {
+      description: data.description,
+      hasImages: data.description?.includes('/uploads/')
+    })
+    
+    let requirementId: number
     if (formData.id) {
-      await updateRequirement(formData.id, data)
+      requirementId = formData.id
+      await updateRequirement(requirementId, data)
       message.success('更新成功')
     } else {
-      await createRequirement(data)
+      const newRequirement = await createRequirement(data)
+      requirementId = newRequirement.id
       message.success('创建成功')
+      
+      // 创建需求后，如果有待上传的附件，需要关联到需求
+      // 附件上传组件会在上传时自动关联到项目，这里需要额外关联到需求
+      if (formData.attachment_ids && formData.attachment_ids.length > 0 && formData.project_id) {
+        try {
+          for (const attachmentId of formData.attachment_ids) {
+            await attachToEntity(attachmentId, { requirement_id: requirementId })
+          }
+        } catch (error: any) {
+          console.error('关联附件到需求失败:', error)
+        }
+      }
     }
     modalVisible.value = false
     loadRequirements()
@@ -704,8 +773,9 @@ onMounted(() => {
 }
 
 .content-inner {
-  max-width: 1400px;
+  max-width: 100%;
   margin: 0 auto;
+  width: 100%;
 }
 </style>
 

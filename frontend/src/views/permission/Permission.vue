@@ -21,6 +21,7 @@
                   :columns="roleColumns"
                   :data-source="roles"
                   :loading="roleLoading"
+                  :scroll="{ x: 'max-content' }"
                   row-key="id"
                 >
                   <template #bodyCell="{ column, record }">
@@ -75,6 +76,7 @@
                   :columns="permissionColumns"
                   :data-source="permissions"
                   :loading="permissionLoading"
+                  :scroll="{ x: 'max-content' }"
                   row-key="id"
                 >
                   <template #bodyCell="{ column, record }">
@@ -114,10 +116,12 @@
     <a-modal
       v-model:open="roleModalVisible"
       :title="roleModalTitle"
+      :mask-closable="true"
       @ok="handleRoleSubmit"
       @cancel="handleRoleCancel"
       :confirm-loading="roleSubmitting"
-    >
+      
+      >
       <a-form
         ref="roleFormRef"
         :model="roleFormData"
@@ -147,10 +151,12 @@
     <a-modal
       v-model:open="permissionModalVisible"
       :title="permissionModalTitle"
+      :mask-closable="true"
       @ok="handlePermissionSubmit"
       @cancel="handlePermissionCancel"
       :confirm-loading="permissionSubmitting"
-    >
+      
+      >
       <a-form
         ref="permissionFormRef"
         :model="permissionFormData"
@@ -257,6 +263,7 @@
     <a-modal
       v-model:open="assignModalVisible"
       title="分配权限"
+      :mask-closable="true"
       @ok="handleAssignSubmit"
       @cancel="handleAssignCancel"
       :confirm-loading="assignSubmitting"

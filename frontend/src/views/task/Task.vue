@@ -79,6 +79,7 @@
               :data-source="tasks"
               :loading="loading"
               :pagination="pagination"
+              :scroll="{ x: 'max-content' }"
               row-key="id"
               @change="handleTableChange"
             >
@@ -168,6 +169,7 @@
       v-model:open="modalVisible"
       :title="modalTitle"
       :width="900"
+      :mask-closable="false"
       @ok="handleSubmit"
       @cancel="handleCancel"
     >
@@ -183,9 +185,11 @@
         </a-form-item>
         <a-form-item label="任务描述" name="description">
           <MarkdownEditor
+            ref="descriptionEditorRef"
             v-model="formData.description"
             placeholder="请输入任务描述（支持Markdown）"
             :rows="8"
+            :project-id="formData.project_id || 0"
           />
         </a-form-item>
         <a-form-item label="项目" name="project_id">
@@ -318,6 +322,15 @@
           />
           <span style="margin-left: 8px; color: #999">不填则使用任务开始日期或今天</span>
         </a-form-item>
+        <a-form-item label="附件">
+          <AttachmentUpload
+            v-if="formData.project_id && formData.project_id > 0"
+            :project-id="formData.project_id"
+            v-model="formData.attachment_ids"
+            :existing-attachments="taskAttachments"
+          />
+          <span v-else style="color: #999;">请先选择项目后再上传附件</span>
+        </a-form-item>
         <a-form-item label="依赖任务" name="dependency_ids">
           <a-select
             v-model:value="formData.dependency_ids"
@@ -345,6 +358,7 @@
     <a-modal
       v-model:open="progressModalVisible"
       title="更新任务进度"
+      :mask-closable="true"
       @ok="handleProgressSubmit"
       @cancel="handleProgressCancel"
     >
@@ -408,6 +422,7 @@ import dayjs, { type Dayjs } from 'dayjs'
 import { formatDateTime, formatDate } from '@/utils/date'
 import AppHeader from '@/components/AppHeader.vue'
 import MarkdownEditor from '@/components/MarkdownEditor.vue'
+import AttachmentUpload from '@/components/AttachmentUpload.vue'
 import {
   getTasks,
   getTask,
@@ -424,6 +439,7 @@ import { getProjects, type Project } from '@/api/project'
 import { getRequirements, type Requirement } from '@/api/requirement'
 import { getUsers, type User } from '@/api/user'
 import { useAuthStore } from '@/stores/auth'
+import { getAttachments, attachToEntity, uploadFile, type Attachment } from '@/api/attachment'
 
 const route = useRoute()
 const router = useRouter()
@@ -470,7 +486,8 @@ const columns = [
 const modalVisible = ref(false)
 const modalTitle = ref('新增任务')
 const formRef = ref()
-const formData = reactive<Omit<CreateTaskRequest, 'start_date' | 'end_date' | 'due_date'> & { id?: number; start_date?: Dayjs | undefined; end_date?: Dayjs | undefined; due_date?: Dayjs | undefined; actual_hours?: number; work_date?: Dayjs | undefined }>({
+const descriptionEditorRef = ref<InstanceType<typeof MarkdownEditor> | null>(null)
+const formData = reactive<Omit<CreateTaskRequest, 'start_date' | 'end_date' | 'due_date'> & { id?: number; start_date?: Dayjs | undefined; end_date?: Dayjs | undefined; due_date?: Dayjs | undefined; actual_hours?: number; work_date?: Dayjs | undefined; attachment_ids?: number[] }>({
   title: '',
   description: '',
   status: 'todo',
@@ -485,8 +502,11 @@ const formData = reactive<Omit<CreateTaskRequest, 'start_date' | 'end_date' | 'd
   estimated_hours: undefined,
   actual_hours: undefined,
   work_date: undefined,
-  dependency_ids: []
+  dependency_ids: [],
+  attachment_ids: [] as number[]
 })
+
+const taskAttachments = ref<Attachment[]>([]) // 任务附件列表
 
 const formRules = {
   title: [{ required: true, message: '请输入任务标题', trigger: 'blur' }],
@@ -699,6 +719,8 @@ const handleCreate = () => {
   formData.end_date = undefined
   formData.due_date = undefined
   formData.progress = 0
+  formData.attachment_ids = []
+  taskAttachments.value = []
   formData.estimated_hours = undefined
   formData.dependency_ids = []
   modalVisible.value = true
@@ -709,7 +731,7 @@ const handleCreate = () => {
 }
 
 // 编辑
-const handleEdit = (record: Task) => {
+const handleEdit = async (record: Task) => {
   modalTitle.value = '编辑任务'
   formData.id = record.id
   formData.title = record.title
@@ -731,6 +753,16 @@ const handleEdit = (record: Task) => {
     formData.end_date = endDate.isValid() ? (endDate as Dayjs) : undefined
   } else {
     formData.end_date = undefined
+  }
+  
+  // 加载任务附件
+  try {
+    taskAttachments.value = await getAttachments({ task_id: record.id })
+    formData.attachment_ids = taskAttachments.value.map(a => a.id)
+  } catch (error: any) {
+    console.error('加载附件失败:', error)
+    taskAttachments.value = []
+    formData.attachment_ids = []
   }
   if (record.due_date) {
     const dueDate = dayjs(record.due_date)
@@ -763,9 +795,24 @@ const handleSubmit = async () => {
       message.error('请选择项目')
       return
     }
+    
+    // 上传Markdown编辑器中的本地图片
+    let description = formData.description || ''
+    if (descriptionEditorRef.value && formData.project_id) {
+      try {
+        description = await descriptionEditorRef.value.uploadLocalImages(async (file: File, projectId: number) => {
+          const attachment = await uploadFile(file, projectId)
+          return attachment
+        })
+      } catch (error: any) {
+        console.error('上传图片失败:', error)
+        message.warning('部分图片上传失败，请检查')
+      }
+    }
+    
     const data: CreateTaskRequest = {
       title: formData.title,
-      description: formData.description,
+      description: description, // 使用已上传图片的description
       status: formData.status,
       priority: formData.priority,
       project_id: formData.project_id,
@@ -780,12 +827,26 @@ const handleSubmit = async () => {
       work_date: formData.work_date && formData.work_date.isValid() ? formData.work_date.format('YYYY-MM-DD') : undefined,
       dependency_ids: formData.dependency_ids
     }
+    let taskId: number
     if (formData.id) {
-      await updateTask(formData.id, data)
+      taskId = formData.id
+      await updateTask(taskId, data)
       message.success('更新成功')
     } else {
-      await createTask(data)
+      const newTask = await createTask(data)
+      taskId = newTask.id
       message.success('创建成功')
+      
+      // 创建任务后，如果有待上传的附件，需要关联到任务
+      if (formData.attachment_ids && formData.attachment_ids.length > 0 && formData.project_id) {
+        try {
+          for (const attachmentId of formData.attachment_ids) {
+            await attachToEntity(attachmentId, { task_id: taskId })
+          }
+        } catch (error: any) {
+          console.error('关联附件到任务失败:', error)
+        }
+      }
     }
     modalVisible.value = false
     loadTasks()
@@ -1012,8 +1073,9 @@ onMounted(() => {
 }
 
 .content-inner {
-  max-width: 1400px;
+  max-width: 100%;
   margin: 0 auto;
+  width: 100%;
 }
 </style>
 

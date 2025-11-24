@@ -134,6 +134,7 @@
 
     <!-- 测试报告编辑/创建模态框 -->
     <a-modal
+      :mask-closable="true"
       v-model:open="modalVisible"
       :title="modalTitle"
       :width="800"
@@ -428,7 +429,8 @@ onMounted(() => {
   padding: 24px;
 }
 .content-inner {
-  max-width: 1400px;
+  max-width: 100%;
+  width: 100%;
   margin: 0 auto;
 }
 </style>

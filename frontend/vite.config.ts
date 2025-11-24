@@ -24,6 +24,11 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true
         // 不再去掉 /api 前缀，因为后端路由现在统一使用 /api 前缀
+      },
+      '/uploads': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
+        // 代理上传文件的静态服务
       }
     }
   }

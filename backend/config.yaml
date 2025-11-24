@@ -28,3 +28,14 @@ wechat:
   # 生产环境强烈建议设置此值，确保与微信后台配置一致
   callback_domain: "https://project.smartxy.com.cn/"  # 使用公网服务器域名（通过 nginx 反向代理）
 
+upload:
+  # 文件存储路径（相对路径或绝对路径）
+  # 相对路径：相对于程序运行目录
+  # 绝对路径：如 /var/www/uploads
+  storage_path: "uploads"
+  # 最大文件大小（字节），100MB = 104857600
+  max_file_size: 104857600
+  # 允许的文件类型（MIME类型），空数组表示允许所有类型
+  # 示例：["image/jpeg", "image/png", "application/pdf"]
+  allowed_types: []
+

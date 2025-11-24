@@ -31,20 +31,17 @@
                 />
               </a-form-item>
               <a-form-item label="部门">
-                <a-select
+                <a-tree-select
                   v-model:value="searchForm.department_id"
+                  :tree-data="departmentTreeData"
                   placeholder="选择部门"
                   allow-clear
                   style="width: 200px"
-                >
-                  <a-select-option
-                    v-for="dept in departments"
-                    :key="dept.id"
-                    :value="dept.id"
-                  >
-                    {{ dept.name }}
-                  </a-select-option>
-                </a-select>
+                  :field-names="{ children: 'children', label: 'name', value: 'id' }"
+                  tree-default-expand-all
+                  show-search
+                  :tree-node-filter-prop="'name'"
+                />
               </a-form-item>
               <a-form-item>
                 <a-button type="primary" @click="handleSearch">查询</a-button>
@@ -59,6 +56,7 @@
               :columns="columns"
               :data-source="users"
               :loading="loading"
+              :scroll="{ x: 'max-content' }"
               :pagination="pagination"
               @change="handleTableChange"
               row-key="id"
@@ -116,6 +114,7 @@
     <a-modal
       v-model:open="modalVisible"
       :title="modalTitle"
+      :mask-closable="false"
       @ok="handleSubmit"
       @cancel="handleCancel"
       :confirm-loading="submitting"
@@ -150,19 +149,16 @@
           <a-input v-model:value="formData.phone" placeholder="请输入手机号" />
         </a-form-item>
         <a-form-item label="部门" name="department_id">
-          <a-select
+          <a-tree-select
             v-model:value="formData.department_id"
-            placeholder="选择部门"
+            :tree-data="departmentTreeData"
+            placeholder="选择部门（树形结构）"
             allow-clear
-          >
-            <a-select-option
-              v-for="dept in departments"
-              :key="dept.id"
-              :value="dept.id"
-            >
-              {{ dept.name }}
-            </a-select-option>
-          </a-select>
+            :field-names="{ children: 'children', label: 'name', value: 'id' }"
+            tree-default-expand-all
+            show-search
+            :tree-node-filter-prop="'name'"
+          />
         </a-form-item>
         <a-form-item label="状态" name="status">
           <a-select v-model:value="formData.status" placeholder="选择状态">
@@ -177,10 +173,12 @@
     <a-modal
       v-model:open="roleModalVisible"
       title="分配角色"
+      :mask-closable="true"
       @ok="handleRoleSubmit"
       @cancel="roleModalVisible = false"
       :confirm-loading="roleSubmitting"
-    >
+      
+      >
       <a-checkbox-group v-model:value="selectedRoleIds" style="width: 100%">
         <a-row>
           <a-col :span="12" v-for="role in roles" :key="role.id">
@@ -196,6 +194,7 @@
       title="扫码添加用户"
       :footer="null"
       width="500px"
+      :mask-closable="true"
       @cancel="handleCloseScanAddUserModal"
     >
       <WeChatQRCode
@@ -214,10 +213,12 @@
     <a-modal
       v-model:open="nicknameModalVisible"
       title="设置用户昵称"
+      :mask-closable="true"
       @ok="handleNicknameSubmit"
       @cancel="handleNicknameCancel"
       :confirm-loading="nicknameSubmitting"
-    >
+      
+      >
       <a-form
         ref="nicknameFormRef"
         :model="nicknameFormData"
@@ -237,7 +238,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 // import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { PlusOutlined, QrcodeOutlined } from '@ant-design/icons-vue'
@@ -264,6 +265,11 @@ const roleSubmitting = ref(false)
 const users = ref<User[]>([])
 const departments = ref<Department[]>([])
 const roles = ref<Role[]>([])
+
+// 部门树形数据（用于树形选择器）
+const departmentTreeData = computed(() => {
+  return departments.value || []
+})
 
 const searchForm = reactive({
   keyword: '',

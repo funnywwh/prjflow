@@ -59,6 +59,7 @@
 
     <!-- 创建/编辑看板模态框 -->
     <a-modal
+      :mask-closable="true"
       v-model:open="boardModalVisible"
       :title="boardModalTitle"
       :width="700"
@@ -333,7 +334,8 @@ onMounted(() => {
 }
 
 .content-inner {
-  max-width: 1400px;
+  max-width: 100%;
+  width: 100%;
   margin: 0 auto;
 }
 

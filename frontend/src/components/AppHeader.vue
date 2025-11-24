@@ -131,7 +131,8 @@ import {
   DashboardOutlined,
   ProjectOutlined,
   TeamOutlined,
-  SettingOutlined
+  SettingOutlined,
+  EditOutlined
 } from '@ant-design/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { usePermissionStore } from '@/stores/permission'
@@ -219,7 +220,8 @@ const getIconComponent = (iconName: string) => {
     DashboardOutlined,
     ProjectOutlined,
     TeamOutlined,
-    SettingOutlined
+    SettingOutlined,
+    EditOutlined
   }
   return iconMap[iconName] || null
 }

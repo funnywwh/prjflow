@@ -86,6 +86,7 @@
 
           <a-card title="资源利用率详情" :bordered="false">
             <a-table
+              :scroll="{ x: 'max-content' }"
               :columns="columns"
               :data-source="utilization.utilization_stats"
               :pagination="false"
@@ -253,8 +254,9 @@ onMounted(() => {
 }
 
 .content-inner {
-  max-width: 1400px;
+  max-width: 100%;
   margin: 0 auto;
+  width: 100%;
   background: #fff;
   padding: 24px;
   border-radius: 8px;

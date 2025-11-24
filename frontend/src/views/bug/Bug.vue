@@ -205,6 +205,7 @@
               :data-source="bugs"
               :loading="loading"
               :pagination="pagination"
+              :scroll="{ x: 'max-content' }"
               row-key="id"
               @change="handleTableChange"
             >
@@ -295,6 +296,7 @@
       v-model:open="modalVisible"
       :title="modalTitle"
       :width="800"
+      :mask-closable="false"
       @ok="handleSubmit"
       @cancel="handleCancel"
     >
@@ -310,9 +312,11 @@
         </a-form-item>
         <a-form-item label="Bug描述" name="description">
           <MarkdownEditor
+            ref="descriptionEditorRef"
             v-model="formData.description"
             placeholder="请输入Bug描述（支持Markdown）"
             :rows="8"
+            :project-id="formData.project_id || 0"
           />
         </a-form-item>
         <a-form-item label="项目" name="project_id">
@@ -441,6 +445,15 @@
           />
           <span style="margin-left: 8px; color: #999">不填则使用今天</span>
         </a-form-item>
+        <a-form-item label="附件">
+          <AttachmentUpload
+            v-if="formData.project_id && formData.project_id > 0"
+            :project-id="formData.project_id"
+            v-model="formData.attachment_ids"
+            :existing-attachments="bugAttachments"
+          />
+          <span v-else style="color: #999;">请先选择项目后再上传附件</span>
+        </a-form-item>
       </a-form>
     </a-modal>
 
@@ -448,6 +461,7 @@
     <a-modal
       v-model:open="assignModalVisible"
       title="分配Bug"
+      :mask-closable="true"
       @ok="handleAssignSubmit"
       @cancel="handleAssignCancel"
     >
@@ -483,6 +497,7 @@
       v-model:open="statusModalVisible"
       title="更新Bug状态"
       :width="600"
+      :mask-closable="true"
       @ok="handleStatusSubmit"
       @cancel="handleStatusCancel"
     >
@@ -597,6 +612,7 @@ import { formatDateTime } from '@/utils/date'
 import { PlusOutlined, DownOutlined } from '@ant-design/icons-vue'
 import AppHeader from '@/components/AppHeader.vue'
 import MarkdownEditor from '@/components/MarkdownEditor.vue'
+import AttachmentUpload from '@/components/AttachmentUpload.vue'
 import { useAuthStore } from '@/stores/auth'
 import {
   getBugs,
@@ -615,6 +631,7 @@ import { getUsers, type User } from '@/api/user'
 import { getRequirements, type Requirement } from '@/api/requirement'
 import { getModules, type Module } from '@/api/module'
 import { getVersions, type Version } from '@/api/version'
+import { getAttachments, attachToEntity, uploadFile, type Attachment } from '@/api/attachment'
 
 const route = useRoute()
 const router = useRouter()
@@ -665,7 +682,8 @@ const columns = [
 const modalVisible = ref(false)
 const modalTitle = ref('新增Bug')
 const formRef = ref()
-const formData = reactive<CreateBugRequest & { id?: number }>({
+const descriptionEditorRef = ref<InstanceType<typeof MarkdownEditor> | null>(null)
+const formData = reactive<CreateBugRequest & { id?: number; attachment_ids?: number[] }>({
   title: '',
   description: '',
   status: 'open',
@@ -675,8 +693,11 @@ const formData = reactive<CreateBugRequest & { id?: number }>({
   requirement_id: undefined,
   module_id: undefined,
   assignee_ids: [],
-  estimated_hours: undefined
+  estimated_hours: undefined,
+  attachment_ids: [] as number[]
 })
+
+const bugAttachments = ref<Attachment[]>([]) // Bug附件列表
 
 const formRules = {
   title: [{ required: true, message: '请输入Bug标题', trigger: 'blur' }],
@@ -878,11 +899,13 @@ const handleCreate = () => {
   formData.estimated_hours = undefined
   formData.actual_hours = undefined
   formData.work_date = undefined
+  formData.attachment_ids = []
+  bugAttachments.value = []
   modalVisible.value = true
 }
 
 // 编辑
-const handleEdit = (record: Bug) => {
+const handleEdit = async (record: Bug) => {
   modalTitle.value = '编辑Bug'
   formData.id = record.id
   formData.title = record.title
@@ -897,6 +920,17 @@ const handleEdit = (record: Bug) => {
   formData.estimated_hours = record.estimated_hours
   formData.actual_hours = record.actual_hours
   formData.work_date = undefined
+  
+  // 加载Bug附件
+  try {
+    bugAttachments.value = await getAttachments({ bug_id: record.id })
+    formData.attachment_ids = bugAttachments.value.map(a => a.id)
+  } catch (error: any) {
+    console.error('加载附件失败:', error)
+    bugAttachments.value = []
+    formData.attachment_ids = []
+  }
+  
   modalVisible.value = true
   if (formData.project_id) {
     loadRequirementsForProject()
@@ -912,9 +946,33 @@ const handleView = (record: Bug) => {
 const handleSubmit = async () => {
   try {
     await formRef.value.validate()
+    
+    // 获取最新的描述内容
+    // 优先使用 formData.description（v-model 已经同步），如果有项目ID且有本地图片，则上传并替换
+    let description = formData.description || ''
+    
+    // 如果有项目ID，尝试上传本地图片（如果有的话）
+    if (descriptionEditorRef.value && formData.project_id) {
+      try {
+        // uploadLocalImages 会返回最新的编辑器内容（即使没有本地图片也会返回当前内容）
+        const uploadedDescription = await descriptionEditorRef.value.uploadLocalImages(async (file: File, projectId: number) => {
+          const attachment = await uploadFile(file, projectId)
+          return attachment
+        })
+        // 使用上传后的内容（可能包含已替换的图片URL）
+        description = uploadedDescription
+      } catch (error: any) {
+        console.error('上传图片失败:', error)
+        message.warning('部分图片上传失败，请检查')
+        // 上传失败时，使用 formData.description（v-model 已经同步）
+        description = formData.description || ''
+      }
+    }
+    
+    // 确保 description 字段总是存在（即使是空字符串）
     const data: CreateBugRequest = {
       title: formData.title,
-      description: formData.description,
+      description: description || '', // 确保 description 字段总是存在
       status: formData.status,
       priority: formData.priority,
       severity: formData.severity,
@@ -926,12 +984,36 @@ const handleSubmit = async () => {
       actual_hours: formData.actual_hours,
       work_date: formData.work_date && typeof formData.work_date !== 'string' && 'isValid' in formData.work_date && (formData.work_date as Dayjs).isValid() ? (formData.work_date as Dayjs).format('YYYY-MM-DD') : (typeof formData.work_date === 'string' ? formData.work_date : undefined)
     }
+    
+    // 调试：检查提交的数据
+    console.log('提交Bug数据:', {
+      id: formData.id,
+      description: data.description,
+      descriptionLength: data.description?.length,
+      hasDescription: !!data.description,
+      formDataDescription: formData.description
+    })
+    
+    let bugId: number
     if (formData.id) {
-      await updateBug(formData.id, data)
+      bugId = formData.id
+      await updateBug(bugId, data)
       message.success('更新成功')
     } else {
-      await createBug(data)
+      const newBug = await createBug(data)
+      bugId = newBug.id
       message.success('创建成功')
+      
+      // 创建Bug后，如果有待上传的附件，需要关联到Bug
+      if (formData.attachment_ids && formData.attachment_ids.length > 0 && formData.project_id) {
+        try {
+          for (const attachmentId of formData.attachment_ids) {
+            await attachToEntity(attachmentId, { bug_id: bugId })
+          }
+        } catch (error: any) {
+          console.error('关联附件到Bug失败:', error)
+        }
+      }
     }
     modalVisible.value = false
     loadBugs()
@@ -1248,8 +1330,9 @@ onMounted(() => {
 }
 
 .content-inner {
-  max-width: 1400px;
+  max-width: 100%;
   margin: 0 auto;
+  width: 100%;
 }
 </style>
 

@@ -4,14 +4,19 @@ export interface DailyReport {
   id: number
   date: string
   content?: string
-  hours: number
-  status: 'draft' | 'submitted' | 'approved'
+  status: 'draft' | 'submitted' | 'approved' | 'rejected'
   user_id: number
   user?: any
-  project_id?: number
-  project?: any
-  task_id?: number
-  task?: any
+  approvers?: Array<{ id: number; nickname?: string; username: string }> // 审批人数组（多选）
+  approval_records?: Array<{ // 审批记录
+    id: number
+    approver_id: number
+    approver?: { id: number; nickname?: string; username: string }
+    status: 'pending' | 'approved' | 'rejected'
+    comment?: string
+    created_at?: string
+    updated_at?: string
+  }>
   created_at?: string
   updated_at?: string
 }
@@ -22,13 +27,19 @@ export interface WeeklyReport {
   week_end: string
   summary?: string
   next_week_plan?: string
-  status: 'draft' | 'submitted' | 'approved'
+  status: 'draft' | 'submitted' | 'approved' | 'rejected'
   user_id: number
   user?: any
-  project_id?: number
-  project?: any
-  task_id?: number
-  task?: any
+  approvers?: Array<{ id: number; nickname?: string; username: string }> // 审批人数组（多选）
+  approval_records?: Array<{ // 审批记录
+    id: number
+    approver_id: number
+    approver?: { id: number; nickname?: string; username: string }
+    status: 'pending' | 'approved' | 'rejected'
+    comment?: string
+    created_at?: string
+    updated_at?: string
+  }>
   created_at?: string
   updated_at?: string
 }
@@ -50,19 +61,15 @@ export interface WeeklyReportListResponse {
 export interface CreateDailyReportRequest {
   date: string
   content?: string
-  hours?: number
   status?: 'draft' | 'submitted' | 'approved'
-  project_id?: number
-  task_id?: number
+  approver_ids?: number[] // 审批人ID数组（多选）
 }
 
 export interface UpdateDailyReportRequest {
   date?: string
   content?: string
-  hours?: number
   status?: 'draft' | 'submitted' | 'approved'
-  project_id?: number
-  task_id?: number
+  approver_ids?: number[] // 审批人ID数组（多选）
 }
 
 export interface CreateWeeklyReportRequest {
@@ -71,8 +78,7 @@ export interface CreateWeeklyReportRequest {
   summary?: string
   next_week_plan?: string
   status?: 'draft' | 'submitted' | 'approved'
-  project_id?: number
-  task_id?: number
+  approver_ids?: number[] // 审批人ID数组（多选）
 }
 
 export interface UpdateWeeklyReportRequest {
@@ -81,8 +87,7 @@ export interface UpdateWeeklyReportRequest {
   summary?: string
   next_week_plan?: string
   status?: 'draft' | 'submitted' | 'approved'
-  project_id?: number
-  task_id?: number
+  approver_ids?: number[] // 审批人ID数组（多选）
 }
 
 export interface UpdateReportStatusRequest {
@@ -94,7 +99,6 @@ export const getDailyReports = async (params?: {
   status?: string
   start_date?: string
   end_date?: string
-  project_id?: number
   user_id?: number
   page?: number
   size?: number
@@ -122,12 +126,20 @@ export const updateDailyReportStatus = async (id: number, data: UpdateReportStat
   return request.patch(`/daily-reports/${id}/status`, data)
 }
 
+export interface ApproveReportRequest {
+  status: 'approved' | 'rejected'
+  comment?: string
+}
+
+export const approveDailyReport = async (id: number, data: ApproveReportRequest): Promise<DailyReport> => {
+  return request.post(`/daily-reports/${id}/approve`, data)
+}
+
 // 周报相关API
 export const getWeeklyReports = async (params?: {
   status?: string
   start_date?: string
   end_date?: string
-  project_id?: number
   user_id?: number
   page?: number
   size?: number
@@ -153,5 +165,22 @@ export const deleteWeeklyReport = async (id: number): Promise<void> => {
 
 export const updateWeeklyReportStatus = async (id: number, data: UpdateReportStatusRequest): Promise<WeeklyReport> => {
   return request.patch(`/weekly-reports/${id}/status`, data)
+}
+
+export const approveWeeklyReport = async (id: number, data: ApproveReportRequest): Promise<WeeklyReport> => {
+  return request.post(`/weekly-reports/${id}/approve`, data)
+}
+
+// 获取工作内容汇总（用于前端自动填充）
+export interface WorkSummaryResponse {
+  content: string
+  hours: number
+}
+
+export const getWorkSummary = async (params: {
+  start_date: string
+  end_date: string
+}): Promise<WorkSummaryResponse> => {
+  return request.get('/reports/work-summary', { params })
 }
 

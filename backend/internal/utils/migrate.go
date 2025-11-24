@@ -58,6 +58,8 @@ func AutoMigrate(db *gorm.DB) error {
 		// 工作报告
 		&model.DailyReport{},
 		&model.WeeklyReport{},
+		&model.DailyReportApproval{},
+		&model.WeeklyReportApproval{},
 
 		// 插件管理
 		&model.Plugin{},
@@ -73,6 +75,13 @@ func AutoMigrate(db *gorm.DB) error {
 
 		// 系统配置
 		&model.SystemConfig{},
+
+		// 附件
+		&model.Attachment{},
+		&model.ProjectAttachment{},
+		&model.RequirementAttachment{},
+		&model.TaskAttachment{},
+		&model.BugAttachment{},
 	)
 
 	// AutoMigrate 之后，再次清理可能产生的临时表
@@ -94,6 +103,8 @@ func initDefaultPermissionsAndRoles(db *gorm.DB) error {
 	defaultPermissions := []model.Permission{
 		// 工作台（菜单，无权限要求）
 		{Code: "dashboard", Name: "工作台", Resource: "dashboard", Action: "read", Description: "工作台", Status: 1, IsMenu: true, MenuPath: "/dashboard", MenuIcon: "DashboardOutlined", MenuTitle: "工作台", MenuOrder: 0},
+		// 写日报（菜单，所有登录用户都可以访问）
+		{Code: "daily-report:create", Name: "写日报", Resource: "daily-report", Action: "create", Description: "写日报", Status: 1, IsMenu: true, MenuPath: "/reports/daily/create", MenuIcon: "EditOutlined", MenuTitle: "写日报", MenuOrder: 1},
 
 		// 项目管理权限（操作权限）
 		{Code: "project:create", Name: "创建项目", Resource: "project", Action: "create", Description: "创建新项目", Status: 1},
@@ -115,6 +126,10 @@ func initDefaultPermissionsAndRoles(db *gorm.DB) error {
 		{Code: "test-management", Name: "测试管理", Resource: "test", Action: "read", Description: "测试管理", Status: 1, IsMenu: true, MenuIcon: "ExperimentOutlined", MenuTitle: "测试管理", MenuOrder: 2},
 		// 测试单管理（子菜单，将移动到测试管理下）
 		{Code: "test-case:read", Name: "查看测试用例", Resource: "testcase", Action: "read", Description: "查看测试用例", Status: 1, IsMenu: true, MenuPath: "/test-case", MenuTitle: "测试单管理", MenuOrder: 0},
+		// 测试用例权限（操作权限）
+		{Code: "test-case:create", Name: "创建测试用例", Resource: "testcase", Action: "create", Description: "创建新测试用例", Status: 1},
+		{Code: "test-case:update", Name: "更新测试用例", Resource: "testcase", Action: "update", Description: "更新测试用例信息", Status: 1},
+		{Code: "test-case:delete", Name: "删除测试用例", Resource: "testcase", Action: "delete", Description: "删除测试用例", Status: 1},
 		// Bug管理（子菜单，将移动到测试管理下）
 		{Code: "bug:read", Name: "查看Bug", Resource: "bug", Action: "read", Description: "查看Bug信息", Status: 1, IsMenu: true, MenuPath: "/bug", MenuTitle: "Bug管理", MenuOrder: 1},
 		// 版本管理（子菜单，将移动到测试管理下）
@@ -165,6 +180,10 @@ func initDefaultPermissionsAndRoles(db *gorm.DB) error {
 		{Code: "department:create", Name: "创建部门", Resource: "department", Action: "create", Description: "创建新部门", Status: 1},
 		{Code: "department:update", Name: "更新部门", Resource: "department", Action: "update", Description: "更新部门信息", Status: 1},
 		{Code: "department:delete", Name: "删除部门", Resource: "department", Action: "delete", Description: "删除部门", Status: 1},
+
+		// 附件管理权限（操作权限）
+		{Code: "attachment:upload", Name: "上传附件", Resource: "attachment", Action: "upload", Description: "上传附件文件", Status: 1},
+		{Code: "attachment:delete", Name: "删除附件", Resource: "attachment", Action: "delete", Description: "删除附件文件", Status: 1},
 	}
 
 	// 创建或更新权限
@@ -287,6 +306,186 @@ func initDefaultPermissionsAndRoles(db *gorm.DB) error {
 	}
 	if err := db.Model(&adminRole).Association("Permissions").Replace(allPermissions); err != nil {
 		return err
+	}
+
+	// 创建默认角色
+	defaultRoles := []struct {
+		Role        model.Role
+		Permissions []string // 权限代码列表
+	}{
+		{
+			Role: model.Role{
+				Name:        "部门经理",
+				Code:        "department_manager",
+				Description: "部门经理，负责部门管理和项目协调",
+				Status:      1,
+			},
+			Permissions: []string{
+				"dashboard",                    // 工作台
+				"daily-report:create",         // 写日报
+				"project-management",          // 项目管理菜单
+				"project:list",                // 项目列表
+				"project:read",                // 查看项目
+				"requirement:menu",            // 需求管理菜单
+				"requirement:read",            // 查看需求
+				"task:read",                   // 任务管理（菜单和查看）
+				"resource-management",         // 资源管理菜单
+				"resource:read",               // 查看资源
+				"system-management",           // 系统管理菜单
+				"user:menu",                   // 用户管理菜单
+				"user:read",                   // 查看用户
+				"user:create",                 // 创建用户
+				"user:update",                 // 更新用户
+				"department:read",             // 部门管理菜单
+				"department:create",           // 创建部门
+				"department:update",           // 更新部门
+				"department:delete",           // 删除部门
+				"attachment:upload",           // 上传附件
+			},
+		},
+		{
+			Role: model.Role{
+				Name:        "项目经理",
+				Code:        "project_manager",
+				Description: "项目经理，负责项目管理和任务分配",
+				Status:      1,
+			},
+			Permissions: []string{
+				"dashboard",                    // 工作台
+				"daily-report:create",         // 写日报
+				"project-management",          // 项目管理菜单
+				"project:list",                // 项目列表
+				"project:create",              // 创建项目
+				"project:read",                // 查看项目
+				"project:update",              // 更新项目
+				"project:manage",              // 管理项目
+				"requirement:menu",            // 需求管理菜单
+				"requirement:read",            // 查看需求
+				"requirement:create",          // 创建需求
+				"requirement:update",          // 更新需求
+				"requirement:delete",          // 删除需求
+				"task:read",                   // 任务管理（菜单和查看）
+				"task:create",                 // 创建任务
+				"task:update",                 // 更新任务
+				"task:delete",                 // 删除任务
+				"resource-management",         // 资源管理菜单
+				"resource:read",               // 查看资源
+				"resource:manage",            // 管理资源
+				"test-management",             // 测试管理菜单
+				"test-case:read",              // 查看测试用例
+				"bug:read",                    // Bug管理菜单
+				"bug:create",                  // 创建Bug
+				"bug:update",                  // 更新Bug
+				"bug:assign",                  // 分配Bug
+				"version:read",                 // 查看版本
+				"system-management",           // 系统管理菜单
+				"user:menu",                   // 用户管理菜单
+				"user:read",                   // 查看用户
+				"attachment:upload",           // 上传附件
+				"attachment:delete",           // 删除附件
+			},
+		},
+		{
+			Role: model.Role{
+				Name:        "研发工程师",
+				Code:        "developer",
+				Description: "研发工程师，负责开发和实现功能",
+				Status:      1,
+			},
+			Permissions: []string{
+				"dashboard",                    // 工作台
+				"daily-report:create",         // 写日报
+				"project-management",          // 项目管理菜单
+				"project:list",                // 项目列表
+				"project:read",                // 查看项目
+				"requirement:menu",            // 需求管理菜单
+				"requirement:read",            // 查看需求
+				"task:read",                   // 任务管理（菜单和查看）
+				"task:create",                 // 创建任务
+				"task:update",                 // 更新任务
+				"test-management",             // 测试管理菜单
+				"test-case:read",              // 查看测试用例（测试单管理菜单）
+				"test-case:create",            // 创建测试用例
+				"test-case:update",            // 更新测试用例
+				"bug:read",                    // Bug管理菜单
+				"bug:create",                  // 创建Bug
+				"bug:update",                  // 更新Bug
+				"bug:assign",                  // 分配Bug
+				"user:read",                   // 查看用户
+				"attachment:upload",           // 上传附件
+			},
+		},
+		{
+			Role: model.Role{
+				Name:        "测试工程师",
+				Code:        "tester",
+				Description: "测试工程师，负责测试和Bug管理",
+				Status:      1,
+			},
+			Permissions: []string{
+				"dashboard",                    // 工作台
+				"daily-report:create",         // 写日报
+				"project-management",          // 项目管理菜单
+				"project:list",                // 项目列表
+				"project:read",                // 查看项目
+				"requirement:menu",            // 需求管理菜单
+				"requirement:read",            // 查看需求
+				"task:read",                   // 任务管理（菜单和查看）
+				"test-management",             // 测试管理菜单
+				"test-case:read",              // 查看测试用例
+				"test-case:create",            // 创建测试用例
+				"test-case:update",            // 更新测试用例
+				"test-case:delete",            // 删除测试用例
+				"bug:read",                    // Bug管理菜单
+				"bug:create",                  // 创建Bug
+				"bug:update",                  // 更新Bug
+				"bug:delete",                  // 删除Bug
+				"bug:assign",                  // 分配Bug
+				"version:read",                 // 查看版本
+				"user:read",                   // 查看用户
+				"attachment:upload",           // 上传附件
+			},
+		},
+	}
+
+	// 创建或更新默认角色并分配权限
+	for _, roleData := range defaultRoles {
+		role := roleData.Role
+		var existingRole model.Role
+		if err := db.Where("code = ?", role.Code).First(&existingRole).Error; err != nil {
+			// 角色不存在，创建
+			if err := db.Create(&role).Error; err != nil {
+				return err
+			}
+			existingRole = role
+		} else {
+			// 角色已存在，更新描述（保留现有ID）
+			if err := db.Model(&existingRole).Updates(map[string]interface{}{
+				"name":        role.Name,
+				"description": role.Description,
+			}).Error; err != nil {
+				return err
+			}
+		}
+
+		// 分配权限（去重）
+		permCodeMap := make(map[string]bool)
+		var rolePermissions []model.Permission
+		for _, permCode := range roleData.Permissions {
+			// 跳过重复的权限代码
+			if permCodeMap[permCode] {
+				continue
+			}
+			permCodeMap[permCode] = true
+			if perm, ok := permMap[permCode]; ok {
+				rolePermissions = append(rolePermissions, *perm)
+			}
+		}
+		if len(rolePermissions) > 0 {
+			if err := db.Model(&existingRole).Association("Permissions").Replace(rolePermissions); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil

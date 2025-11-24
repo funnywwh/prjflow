@@ -594,13 +594,19 @@ func (h *PermissionHandler) GetMenus(c *gin.Context) {
 		}
 	}
 
-	// 排序根菜单和子菜单
+	// 排序根菜单和子菜单（当 Order 相同时，使用 ID 作为次要排序条件，确保排序稳定）
 	sort.Slice(rootMenus, func(i, j int) bool {
-		return rootMenus[i].Order < rootMenus[j].Order
+		if rootMenus[i].Order != rootMenus[j].Order {
+			return rootMenus[i].Order < rootMenus[j].Order
+		}
+		return rootMenus[i].ID < rootMenus[j].ID
 	})
 	for i := range rootMenus {
 		sort.Slice(rootMenus[i].Children, func(a, b int) bool {
-			return rootMenus[i].Children[a].Order < rootMenus[i].Children[b].Order
+			if rootMenus[i].Children[a].Order != rootMenus[i].Children[b].Order {
+				return rootMenus[i].Children[a].Order < rootMenus[i].Children[b].Order
+			}
+			return rootMenus[i].Children[a].ID < rootMenus[i].Children[b].ID
 		})
 	}
 
@@ -679,13 +685,19 @@ func (h *PermissionHandler) GetAllMenus(c *gin.Context) {
 		}
 	}
 
-	// 排序根菜单和子菜单
+	// 排序根菜单和子菜单（当 Order 相同时，使用 ID 作为次要排序条件，确保排序稳定）
 	sort.Slice(rootMenus, func(i, j int) bool {
-		return rootMenus[i].Order < rootMenus[j].Order
+		if rootMenus[i].Order != rootMenus[j].Order {
+			return rootMenus[i].Order < rootMenus[j].Order
+		}
+		return rootMenus[i].ID < rootMenus[j].ID
 	})
 	for i := range rootMenus {
 		sort.Slice(rootMenus[i].Children, func(a, b int) bool {
-			return rootMenus[i].Children[a].Order < rootMenus[i].Children[b].Order
+			if rootMenus[i].Children[a].Order != rootMenus[i].Children[b].Order {
+				return rootMenus[i].Children[a].Order < rootMenus[i].Children[b].Order
+			}
+			return rootMenus[i].Children[a].ID < rootMenus[i].Children[b].ID
 		})
 	}
 

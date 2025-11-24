@@ -124,6 +124,7 @@
     <a-modal
       v-model:open="progressModalVisible"
       title="更新任务进度"
+      :mask-closable="true"
       @ok="handleProgressSubmit"
       @cancel="handleProgressCancel"
     >
@@ -393,7 +394,8 @@ onMounted(() => {
 }
 
 .content-inner {
-  max-width: 1400px;
+  max-width: 100%;
+  width: 100%;
   margin: 0 auto;
 }
 

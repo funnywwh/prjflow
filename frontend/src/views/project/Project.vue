@@ -49,6 +49,7 @@
                 <a-table
                   :columns="projectColumns"
                   :data-source="projects"
+                  :scroll="{ x: 'max-content' }"
                   :loading="projectLoading"
                   :pagination="projectPagination"
                   @change="handleProjectTableChange"
@@ -67,6 +68,12 @@
                         </a-tag>
                       </div>
                       <span v-else>-</span>
+                    </template>
+                    <template v-else-if="column.key === 'start_date'">
+                      {{ formatDate(record.start_date) }}
+                    </template>
+                    <template v-else-if="column.key === 'end_date'">
+                      {{ formatDate(record.end_date) }}
                     </template>
                     <template v-else-if="column.key === 'action'">
                       <a-space>
@@ -102,11 +109,11 @@
     <a-modal
       v-model:open="projectModalVisible"
       :title="projectModalTitle"
+      :mask-closable="false"
       @ok="handleProjectSubmit"
       @cancel="handleProjectCancel"
       :confirm-loading="projectSubmitting"
       width="800px"
-      :mask-closable="false"
     >
       <a-form
         ref="projectFormRef"
@@ -173,6 +180,15 @@
         <a-form-item label="描述" name="description">
           <a-textarea v-model:value="projectFormData.description" placeholder="请输入描述" :rows="3" />
         </a-form-item>
+        <a-form-item label="附件">
+          <AttachmentUpload
+            v-if="projectFormData.id"
+            :project-id="projectFormData.id"
+            v-model="projectFormData.attachment_ids"
+            :existing-attachments="projectAttachments"
+          />
+          <span v-else style="color: #999;">请先保存项目后再上传附件</span>
+        </a-form-item>
         <a-form-item label="状态" name="status">
           <a-select v-model:value="projectFormData.status" placeholder="选择状态">
             <a-select-option :value="1">正常</a-select-option>
@@ -186,11 +202,13 @@
     <a-modal
       v-model:open="memberModalVisible"
       title="项目成员管理"
+      :mask-closable="true"
       @cancel="handleCloseMemberModal"
       @ok="handleCloseMemberModal"
       ok-text="关闭"
       width="800px"
-    >
+      
+      >
       <a-spin :spinning="memberLoading">
         <div style="margin-bottom: 16px">
           <a-space>
@@ -223,6 +241,7 @@
         <a-table
           :columns="memberColumns"
           :data-source="projectMembers"
+          :scroll="{ x: 'max-content' }"
           row-key="id"
         >
           <template #bodyCell="{ column, record }">
@@ -257,6 +276,7 @@
     <a-modal
       v-model:open="moduleManageModalVisible"
       title="功能模块管理（系统资源）"
+      :mask-closable="true"
       @cancel="moduleManageModalVisible = false"
       width="900px"
       :footer="null"
@@ -268,6 +288,7 @@
     <a-modal
       v-model:open="tagManageModalVisible"
       title="创建标签"
+      :mask-closable="true"
       @ok="handleTagManageSubmit"
       @cancel="tagManageModalVisible = false"
       :confirm-loading="tagSubmitting"
@@ -310,6 +331,7 @@ import { PlusOutlined } from '@ant-design/icons-vue'
 import AppHeader from '@/components/AppHeader.vue'
 import dayjs from 'dayjs'
 import type { Dayjs } from 'dayjs'
+import { formatDate } from '@/utils/date'
 import {
   getProjects,
   createProject,
@@ -326,6 +348,8 @@ import {
 import { getUsers, type User } from '@/api/user'
 import { getTags, createTag, type Tag } from '@/api/tag'
 import Module from './Module.vue'
+import AttachmentUpload from '@/components/AttachmentUpload.vue'
+import { getAttachments, type Attachment } from '@/api/attachment'
 
 const router = useRouter()
 
@@ -378,13 +402,16 @@ const memberColumns = [
 const projectModalVisible = ref(false)
 const projectModalTitle = ref('新增项目')
 const projectFormRef = ref()
-const projectFormData = reactive<Omit<CreateProjectRequest, 'start_date' | 'end_date'> & { id?: number; start_date?: Dayjs | undefined; end_date?: Dayjs | undefined }>({
+const projectFormData = reactive<Omit<CreateProjectRequest, 'start_date' | 'end_date'> & { id?: number; start_date?: Dayjs | undefined; end_date?: Dayjs | undefined; attachment_ids?: number[] }>({
   name: '',
   code: '',
   description: '',
   status: 1,
-  tag_ids: [] as number[] // 改为标签ID数组
+  tag_ids: [] as number[], // 改为标签ID数组
+  attachment_ids: [] as number[] // 附件ID列表
 })
+
+const projectAttachments = ref<Attachment[]>([]) // 项目附件列表
 
 const projectFormRules = {
   name: [{ required: true, message: '请输入项目名称', trigger: 'blur' }],
@@ -524,6 +551,8 @@ const handleCreateProject = () => {
     }
     projectFormData.start_date = undefined
     projectFormData.end_date = undefined
+    projectFormData.attachment_ids = []
+    projectAttachments.value = []
     // 打开对话框
     console.log('设置 projectModalVisible 为 true')
     projectModalVisible.value = true
@@ -546,7 +575,7 @@ const handleViewDetail = (record: Project) => {
 }
 
 // 编辑项目
-const handleEditProject = (record: Project) => {
+const handleEditProject = async (record: Project) => {
   projectModalTitle.value = '编辑项目'
   Object.assign(projectFormData, {
     id: record.id,
@@ -562,6 +591,17 @@ const handleEditProject = (record: Project) => {
   if (record.end_date) {
     projectFormData.end_date = dayjs(record.end_date) as Dayjs | undefined
   }
+  
+  // 加载项目附件
+  try {
+    projectAttachments.value = await getAttachments({ project_id: record.id })
+    projectFormData.attachment_ids = projectAttachments.value.map(a => a.id)
+  } catch (error: any) {
+    console.error('加载附件失败:', error)
+    projectAttachments.value = []
+    projectFormData.attachment_ids = []
+  }
+  
   projectModalVisible.value = true
 }
 
@@ -585,12 +625,23 @@ const handleProjectSubmit = async () => {
       data.end_date = projectFormData.end_date.format('YYYY-MM-DD')
     }
 
+    let projectId: number
     if (projectFormData.id) {
-      await updateProject(projectFormData.id, data)
+      projectId = projectFormData.id
+      await updateProject(projectId, data)
       message.success('更新成功')
     } else {
-      await createProject(data)
+      const newProject = await createProject(data)
+      projectId = newProject.id
       message.success('创建成功')
+      
+      // 创建项目后，如果有待上传的附件，需要关联到项目
+      // 注意：附件上传组件会在上传时自动关联，这里只需要处理已上传的附件
+    }
+
+    // 处理附件关联（如果有新上传的附件）
+    if (projectFormData.attachment_ids && projectFormData.attachment_ids.length > 0) {
+      // 附件上传组件已经在上传时自动关联到项目，这里不需要额外处理
     }
 
     projectModalVisible.value = false

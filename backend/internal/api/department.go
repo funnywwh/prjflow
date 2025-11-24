@@ -22,28 +22,100 @@ func (h *DepartmentHandler) GetDepartments(c *gin.Context) {
 	var departments []model.Department
 	query := h.db
 
-	// 获取所有部门
-	if err := query.Order("level, sort").Find(&departments).Error; err != nil {
+	// 获取所有部门（确保 ParentID 字段正确加载）
+	if err := query.Select("id, name, code, parent_id, level, sort, status, created_at, updated_at").Order("level, sort").Find(&departments).Error; err != nil {
 		utils.Error(c, utils.CodeError, "查询失败")
 		return
 	}
 
 	// 构建树形结构
 	tree := h.buildDepartmentTree(departments, nil)
+	
+	// 调试：打印构建后的树结构
+	fmt.Printf("=== 构建后的部门树 ===\n")
+	var printTree func([]model.Department, int)
+	printTree = func(nodes []model.Department, indent int) {
+		for _, node := range nodes {
+			prefix := ""
+			for i := 0; i < indent; i++ {
+				prefix += "  "
+			}
+			fmt.Printf("%sID: %d, Name: %s, Code: %s, Level: %d, Children: %d\n",
+				prefix, node.ID, node.Name, node.Code, node.Level, len(node.Children))
+			if len(node.Children) > 0 {
+				printTree(node.Children, indent+1)
+			}
+		}
+	}
+	printTree(tree, 0)
 
 	utils.Success(c, tree)
 }
 
 // buildDepartmentTree 构建部门树
+// 确保每个部门只出现一次
 func (h *DepartmentHandler) buildDepartmentTree(departments []model.Department, parentID *uint) []model.Department {
-	var result []model.Department
-	for _, dept := range departments {
-		if (parentID == nil && dept.ParentID == nil) || (parentID != nil && dept.ParentID != nil && *dept.ParentID == *parentID) {
-			children := h.buildDepartmentTree(departments, &dept.ID)
-			dept.Children = children
-			result = append(result, dept)
+	// 使用 processed map 确保每个部门只处理一次
+	processed := make(map[uint]bool)
+	
+	// 创建部门ID到部门的映射
+	deptMap := make(map[uint]*model.Department)
+	for i := range departments {
+		// 初始化 Children 为空切片
+		departments[i].Children = []model.Department{}
+		deptMap[departments[i].ID] = &departments[i]
+	}
+
+	// 收集所有根节点和子节点
+	var rootNodeIDs []uint
+	childMap := make(map[uint][]*model.Department) // 父ID -> 子节点列表
+	
+	for i := range departments {
+		dept := &departments[i]
+		if dept.ParentID == nil {
+			// 根节点
+			rootNodeIDs = append(rootNodeIDs, dept.ID)
+		} else {
+			// 子节点，按父ID分组
+			parentID := *dept.ParentID
+			childMap[parentID] = append(childMap[parentID], dept)
 		}
 	}
+
+	// 递归构建树形结构
+	var buildNode func(uint) *model.Department
+	buildNode = func(deptID uint) *model.Department {
+		if processed[deptID] {
+			// 部门已被处理，返回 nil 避免重复
+			return nil
+		}
+		processed[deptID] = true
+		
+		dept := *deptMap[deptID]
+		// 构建子节点
+		if children, exists := childMap[deptID]; exists {
+			dept.Children = make([]model.Department, 0, len(children))
+			for _, child := range children {
+				if !processed[child.ID] {
+					if childNode := buildNode(child.ID); childNode != nil {
+						dept.Children = append(dept.Children, *childNode)
+					}
+				}
+			}
+		}
+		return &dept
+	}
+
+	// 构建根节点
+	result := make([]model.Department, 0, len(rootNodeIDs))
+	for _, rootID := range rootNodeIDs {
+		if !processed[rootID] {
+			if rootNode := buildNode(rootID); rootNode != nil {
+				result = append(result, *rootNode)
+			}
+		}
+	}
+
 	return result
 }
 
@@ -67,6 +139,13 @@ func (h *DepartmentHandler) CreateDepartment(c *gin.Context) {
 		return
 	}
 
+	// 检查部门代码是否已存在
+	var existingDept model.Department
+	if err := h.db.Where("code = ?", department.Code).First(&existingDept).Error; err == nil {
+		utils.Error(c, 400, "部门代码已存在")
+		return
+	}
+
 	// 计算层级
 	if department.ParentID != nil {
 		var parent model.Department
@@ -80,7 +159,11 @@ func (h *DepartmentHandler) CreateDepartment(c *gin.Context) {
 	}
 
 	if err := h.db.Create(&department).Error; err != nil {
-		utils.Error(c, utils.CodeError, "创建失败")
+		if utils.IsUniqueConstraintError(err) {
+			utils.Error(c, 400, "部门代码已存在")
+			return
+		}
+		utils.Error(c, utils.CodeError, "创建失败: "+err.Error())
 		return
 	}
 
@@ -121,9 +204,16 @@ func (h *DepartmentHandler) UpdateDepartment(c *gin.Context) {
 	utils.Success(c, department)
 }
 
-// DeleteDepartment 删除部门
+// DeleteDepartment 删除部门（硬删除）
 func (h *DepartmentHandler) DeleteDepartment(c *gin.Context) {
 	id := c.Param("id")
+	
+	// 检查部门是否存在
+	var department model.Department
+	if err := h.db.First(&department, id).Error; err != nil {
+		utils.Error(c, 404, "部门不存在")
+		return
+	}
 	
 	// 检查是否有子部门
 	var count int64
@@ -140,8 +230,9 @@ func (h *DepartmentHandler) DeleteDepartment(c *gin.Context) {
 		return
 	}
 
-	if err := h.db.Delete(&model.Department{}, id).Error; err != nil {
-		utils.Error(c, utils.CodeError, "删除失败")
+	// 硬删除（物理删除）
+	if err := h.db.Unscoped().Delete(&department).Error; err != nil {
+		utils.Error(c, utils.CodeError, "删除失败: "+err.Error())
 		return
 	}
 

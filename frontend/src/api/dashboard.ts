@@ -24,6 +24,7 @@ export interface DashboardData {
   reports: {
     pending: number
     submitted: number
+    pending_approval: number
   }
   statistics: {
     total_tasks: number

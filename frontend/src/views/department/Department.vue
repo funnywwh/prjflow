@@ -16,11 +16,11 @@
           <a-card :bordered="false">
             <a-table
               :columns="columns"
-              :data-source="departmentList"
+              :data-source="departments"
               :loading="loading"
               :pagination="false"
               row-key="id"
-              :default-expand-all-rows="false"
+              :default-expand-all-rows="true"
             >
               <template #bodyCell="{ column, record }">
                 <template v-if="column.key === 'status'">
@@ -58,10 +58,12 @@
     <a-modal
       v-model:open="modalVisible"
       :title="modalTitle"
+      :mask-closable="true"
       @ok="handleSubmit"
       @cancel="handleCancel"
       :confirm-loading="submitting"
-    >
+      
+      >
       <a-form
         ref="formRef"
         :model="formData"
@@ -101,11 +103,13 @@
     <a-modal
       v-model:open="memberModalVisible"
       title="部门成员管理"
+      :mask-closable="true"
       @cancel="handleCloseMemberModal"
       @ok="handleCloseMemberModal"
       ok-text="关闭"
       width="800px"
-    >
+      
+      >
       <a-spin :spinning="memberLoading">
         <div style="margin-bottom: 16px">
           <a-space>
@@ -163,7 +167,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, h } from 'vue'
 // import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
@@ -236,23 +240,7 @@ const memberColumns = [
   { title: '操作', key: 'action', width: 100 }
 ]
 
-// 将树形结构转换为扁平列表（用于表格显示）
-const departmentList = computed(() => {
-  if (!departments.value || departments.value.length === 0) {
-    return []
-  }
-  const flatten = (list: Department[], level = 0): Department[] => {
-    const result: Department[] = []
-    list.forEach(item => {
-      result.push({ ...item, level })
-      if (item.children && item.children.length > 0) {
-        result.push(...flatten(item.children, level + 1))
-      }
-    })
-    return result
-  }
-  return flatten(departments.value)
-})
+// 表格直接使用 departments（树形数据），Ant Design Vue 会自动识别 children 字段并显示为树形结构
 
 // 树形数据（用于选择器）
 const departmentTreeData = computed(() => {

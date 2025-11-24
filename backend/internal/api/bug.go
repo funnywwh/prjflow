@@ -301,12 +301,23 @@ func (h *BugHandler) UpdateBug(c *gin.Context) {
 		return
 	}
 
+	// 调试：打印接收到的请求数据
+	fmt.Printf("UpdateBug: 接收到请求 - Title: %v, Description: %v\n", req.Title, req.Description)
+	if req.Description != nil {
+		fmt.Printf("UpdateBug: Description 值 = %q\n", *req.Description)
+	}
+
 	// 更新字段
 	if req.Title != nil {
 		bug.Title = *req.Title
 	}
+	// 注意：即使 description 是空字符串，也要更新（使用指针判断，空字符串指针不为 nil）
 	if req.Description != nil {
+		fmt.Printf("UpdateBug: 更新前 bug.Description = %q\n", bug.Description)
 		bug.Description = *req.Description
+		fmt.Printf("UpdateBug: 更新后 bug.Description = %q\n", bug.Description)
+	} else {
+		fmt.Printf("UpdateBug: req.Description 为 nil，不更新\n")
 	}
 	if req.Status != nil {
 		// 验证状态
@@ -403,6 +414,33 @@ func (h *BugHandler) UpdateBug(c *gin.Context) {
 		// 先加载分配人信息
 		h.db.Preload("Assignees").First(&bug, bug.ID)
 		
+		// 注意：重新查询后，需要恢复已更新的字段（如 description）
+		if req.Description != nil {
+			bug.Description = *req.Description
+		}
+		if req.Title != nil {
+			bug.Title = *req.Title
+		}
+		// 恢复其他可能已更新的字段
+		if req.Status != nil {
+			bug.Status = *req.Status
+		}
+		if req.Priority != nil {
+			bug.Priority = *req.Priority
+		}
+		if req.Severity != nil {
+			bug.Severity = *req.Severity
+		}
+		if req.RequirementID != nil {
+			bug.RequirementID = req.RequirementID
+		}
+		if req.ModuleID != nil {
+			bug.ModuleID = req.ModuleID
+		}
+		if req.EstimatedHours != nil {
+			bug.EstimatedHours = req.EstimatedHours
+		}
+		
 		// Bug可能有多个分配人，需要为每个分配人创建资源分配
 		// 这里先处理第一个分配人，或者需要前端指定分配人
 		// 暂时使用第一个分配人，如果没有分配人则直接设置actual_hours
@@ -434,10 +472,12 @@ func (h *BugHandler) UpdateBug(c *gin.Context) {
 		}
 	}
 	
+	fmt.Printf("UpdateBug: 保存前 bug.Description = %q\n", bug.Description)
 	if err := h.db.Save(&bug).Error; err != nil {
 		utils.Error(c, utils.CodeError, "更新失败")
 		return
 	}
+	fmt.Printf("UpdateBug: 保存后，重新查询前\n")
 
 	// 更新分配人
 	if req.AssigneeIDs != nil {
@@ -453,14 +493,19 @@ func (h *BugHandler) UpdateBug(c *gin.Context) {
 			return
 		}
 		// 如果有分配人且状态为open，自动变为assigned
+		// 注意：只更新状态字段，不要覆盖其他已更新的字段（如 description）
 		if len(assignees) > 0 && bug.Status == "open" {
+			if err := h.db.Model(&bug).Update("status", "assigned").Error; err != nil {
+				utils.Error(c, utils.CodeError, "更新状态失败")
+				return
+			}
 			bug.Status = "assigned"
-			h.db.Save(&bug)
 		}
 	}
 
 	// 重新加载关联数据
 	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").Preload("Module").Preload("ResolvedVersion").First(&bug, bug.ID)
+	fmt.Printf("UpdateBug: 重新加载后 bug.Description = %q\n", bug.Description)
 
 	utils.Success(c, bug)
 }

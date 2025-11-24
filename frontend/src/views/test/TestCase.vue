@@ -166,6 +166,7 @@
               :columns="projectStatsColumns"
               :data-source="statistics.project_stats"
               :pagination="false"
+              :scroll="{ x: 'max-content' }"
               size="small"
             >
               <template #bodyCell="{ column, record }">
@@ -184,6 +185,7 @@
               :columns="typeStatsColumns"
               :data-source="statistics.type_stats"
               :pagination="false"
+              :scroll="{ x: 'max-content' }"
               size="small"
             >
               <template #bodyCell="{ column, record }">
@@ -205,6 +207,7 @@
               :data-source="testCases"
               :loading="loading"
               :pagination="pagination"
+              :scroll="{ x: 'max-content' }"
               row-key="id"
               @change="handleTableChange"
             >
@@ -275,6 +278,7 @@
 
     <!-- 测试单编辑/创建模态框 -->
     <a-modal
+      :mask-closable="true"
       v-model:open="modalVisible"
       :title="modalTitle"
       :width="800"
@@ -703,8 +707,9 @@ onMounted(() => {
   padding: 24px;
 }
 .content-inner {
-  max-width: 1400px;
+  max-width: 100%;
   margin: 0 auto;
+  width: 100%;
 }
 </style>
 

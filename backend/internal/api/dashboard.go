@@ -176,9 +176,37 @@ func (h *DashboardHandler) getReportStats(userID uint) gin.H {
 		Where("user_id = ? AND status = ?", userID, "submitted").
 		Count(&weeklySubmitted)
 
+	// 待审批数量：需要当前用户审批的报告（状态为submitted且当前用户是审批人，且审批状态为pending）
+	var pendingApprovalCount int64
+	// 日报待审批：状态为submitted，且当前用户在审批人列表中，且当前用户的审批记录状态为pending
+	// 使用子查询避免重复计数
+	h.db.Raw(`
+		SELECT COUNT(DISTINCT daily_reports.id)
+		FROM daily_reports
+		INNER JOIN daily_report_approvers ON daily_reports.id = daily_report_approvers.daily_report_id
+		LEFT JOIN daily_report_approvals ON daily_reports.id = daily_report_approvals.daily_report_id AND daily_report_approvals.approver_id = ?
+		WHERE daily_reports.status = ? 
+		  AND daily_report_approvers.user_id = ? 
+		  AND (daily_report_approvals.status = 'pending' OR daily_report_approvals.id IS NULL)
+	`, userID, "submitted", userID).Scan(&pendingApprovalCount)
+
+	// 周报待审批
+	var weeklyPendingApproval int64
+	// 使用子查询避免重复计数
+	h.db.Raw(`
+		SELECT COUNT(DISTINCT weekly_reports.id)
+		FROM weekly_reports
+		INNER JOIN weekly_report_approvers ON weekly_reports.id = weekly_report_approvers.weekly_report_id
+		LEFT JOIN weekly_report_approvals ON weekly_reports.id = weekly_report_approvals.weekly_report_id AND weekly_report_approvals.approver_id = ?
+		WHERE weekly_reports.status = ? 
+		  AND weekly_report_approvers.user_id = ? 
+		  AND (weekly_report_approvals.status = 'pending' OR weekly_report_approvals.id IS NULL)
+	`, userID, "submitted", userID).Scan(&weeklyPendingApproval)
+
 	return gin.H{
-		"pending":   int(pendingCount + weeklyPending),
-		"submitted": int(submittedCount + weeklySubmitted),
+		"pending":         int(pendingCount + weeklyPending),
+		"submitted":       int(submittedCount + weeklySubmitted),
+		"pending_approval": int(pendingApprovalCount + weeklyPendingApproval),
 	}
 }
 

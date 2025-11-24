@@ -125,6 +125,7 @@
                 </a-list>
               </div>
               <a-table
+                :scroll="{ x: 'max-content' }"
                 v-if="conflictResult.allocations && conflictResult.allocations.length > 0"
                 :columns="allocationColumns"
                 :data-source="conflictResult.allocations"
@@ -145,6 +146,7 @@
             <a-col :span="12">
               <a-card title="按项目统计" :bordered="false">
                 <a-table
+                :scroll="{ x: 'max-content' }"
                   :columns="projectColumns"
                   :data-source="statistics.project_stats"
                   :pagination="false"
@@ -162,6 +164,7 @@
             <a-col :span="12">
               <a-card title="按人员统计" :bordered="false">
                 <a-table
+                :scroll="{ x: 'max-content' }"
                   :columns="userColumns"
                   :data-source="statistics.user_stats"
                   :pagination="false"
@@ -203,6 +206,7 @@
                 style="margin-bottom: 16px"
               />
               <a-table
+                :scroll="{ x: 'max-content' }"
                 :columns="utilizationColumns"
                 :data-source="utilizationData.utilization_stats"
                 :pagination="false"
@@ -432,8 +436,9 @@ onMounted(() => {
 }
 
 .content-inner {
-  max-width: 1400px;
+  max-width: 100%;
   margin: 0 auto;
+  width: 100%;
   background: #fff;
   padding: 24px;
   border-radius: 8px;

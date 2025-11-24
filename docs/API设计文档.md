@@ -406,35 +406,6 @@
 
 **DELETE** `/api/departments/:id`
 
-## 产品管理API（待实现）
-
-### 获取产品线列表
-
-**GET** `/product-lines`
-
-### 创建产品线
-
-**POST** `/product-lines`
-
-### 获取产品列表
-
-**GET** `/api/products?product_line_id=&keyword=&page=1&size=20`
-
-### 创建产品
-
-**POST** `/products`
-
-### 关联产品到项目
-
-**POST** `/products/:id/projects`
-
-**请求体**:
-```json
-{
-  "project_ids": [1, 2, 3]
-}
-```
-
 ## 项目管理API（待实现）
 
 ### 获取项目集列表
@@ -890,21 +861,35 @@
 
 ## 测试单管理API ✅
 
+**权限说明**：
+- 查看测试单：`project:read`
+- 创建测试单：`test-case:create`
+- 更新测试单：`test-case:update`
+- 删除测试单：`test-case:delete`
+
 ### 获取测试单列表
 
 **GET** `/api/test-cases?project_id=&status=&type=&keyword=&page=1&size=20`
+
+**权限要求**：`project:read`
 
 ### 获取测试单统计
 
 **GET** `/test-cases/statistics?project_id=&keyword=`
 
+**权限要求**：`project:read`
+
 ### 获取测试单详情
 
 **GET** `/test-cases/:id`
 
+**权限要求**：`project:read`
+
 ### 创建测试单
 
 **POST** `/test-cases`
+
+**权限要求**：`test-case:create`
 
 **请求体**:
 ```json
@@ -923,13 +908,19 @@
 
 **PUT** `/test-cases/:id`
 
+**权限要求**：`test-case:update`
+
 ### 删除测试单
 
 **DELETE** `/test-cases/:id`
 
+**权限要求**：`test-case:delete`
+
 ### 更新测试单状态
 
 **PATCH** `/test-cases/:id/status`
+
+**权限要求**：`test-case:update`
 
 **请求体**:
 ```json
@@ -986,11 +977,11 @@
 - `failed`: 失败
 - `blocked`: 阻塞
 
-## 资源统计API ✅
+## 资源管理API ✅
 
 ### 获取资源统计
 
-**GET** `/resources/statistics?user_id=&project_id=&start_date=&end_date=`
+**GET** `/api/resources/statistics?user_id=&project_id=&start_date=&end_date=`
 
 **响应**:
 ```json
@@ -1018,13 +1009,120 @@
 }
 ```
 
+### 获取资源利用率
+
+**GET** `/api/resources/utilization?user_id=&project_id=&start_date=&end_date=`
+
+**响应**:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "utilization_rate": 85.5,
+    "daily_utilization": [
+      {
+        "date": "2024-01-01",
+        "hours": 8.0,
+        "utilization_rate": 100.0
+      }
+    ]
+  }
+}
+```
+
+### 检查资源冲突
+
+**GET** `/api/resources/conflict?user_id=&start_date=&end_date=`
+
+**响应**:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "has_conflict": true,
+    "conflicts": [
+      {
+        "date": "2024-01-01",
+        "total_hours": 10.0,
+        "allocations": []
+      }
+    ]
+  }
+}
+```
+
 **说明**: 资源统计从任务和Bug的实际工时自动计算，资源分配通过更新任务和Bug的实际工时时自动创建。
 
-## 个人工作台API（待实现）
+## 资源分配管理API ✅
+
+### 获取资源分配列表
+
+**GET** `/api/resource-allocations?user_id=&project_id=&task_id=&bug_id=&start_date=&end_date=&page=1&size=20`
+
+### 获取资源分配详情
+
+**GET** `/api/resource-allocations/:id`
+
+### 创建资源分配
+
+**POST** `/api/resource-allocations`
+
+**请求体**:
+```json
+{
+  "resource_id": 1,
+  "date": "2024-01-01",
+  "hours": 8.0,
+  "task_id": 1,
+  "bug_id": null,
+  "requirement_id": null,
+  "project_id": 1,
+  "description": "工作描述"
+}
+```
+
+### 更新资源分配
+
+**PUT** `/api/resource-allocations/:id`
+
+### 删除资源分配
+
+**DELETE** `/api/resource-allocations/:id`
+
+### 获取资源分配日历视图
+
+**GET** `/api/resource-allocations/calendar?user_id=&project_id=&start_date=&end_date=`
+
+**响应**:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "calendar": [
+      {
+        "date": "2024-01-01",
+        "total_hours": 8.0,
+        "allocations": []
+      }
+    ]
+  }
+}
+```
+
+### 检查资源分配冲突
+
+**GET** `/api/resource-allocations/conflict?user_id=&start_date=&end_date=`
+
+## 个人工作台API ✅
 
 ### 获取工作台数据
 
-**GET** `/dashboard`
+**GET** `/api/dashboard`
+
+**Headers**: `Authorization: Bearer {token}`
 
 **响应**:
 ```json
@@ -1042,6 +1140,10 @@
       "in_progress": 1,
       "resolved": 5
     },
+    "requirements": {
+      "in_progress": 3,
+      "completed": 5
+    },
     "projects": [
       {
         "id": 1,
@@ -1056,12 +1158,253 @@
     "statistics": {
       "total_tasks": 18,
       "total_bugs": 8,
+      "total_requirements": 8,
       "total_projects": 3,
-      "week_hours": 40
+      "week_hours": 40.0,
+      "month_hours": 160.0
     }
   }
 }
 ```
+
+## 工作报告API ✅
+
+### 获取工作汇总
+
+**GET** `/api/reports/work-summary?start_date=2024-01-01&end_date=2024-01-07`
+
+**说明**：获取指定日期范围内的工作内容汇总，用于自动填充日报/周报内容。
+
+**权限要求**：已登录用户
+
+**请求参数**：
+- `start_date`：开始日期（格式：YYYY-MM-DD）
+- `end_date`：结束日期（格式：YYYY-MM-DD）
+
+**响应**:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "content": "## 需求\n\n- **需求1** (项目: 项目A) - 4.00小时\n\n**需求总工时**: 4.00小时\n\n## 任务\n\n- **任务1** (项目: 项目A) - 2.00小时\n\n**任务总工时**: 2.00小时\n\n## Bug\n\n- **Bug1** (项目: 项目A) - 1.00小时\n- **Bug2** (项目: 项目B) - 0.00小时\n\n**Bug总工时**: 1.00小时\n\n**总工时**: 7.00小时",
+    "hours": 7.0
+  }
+}
+```
+
+**工作汇总说明**：
+- 汇总内容包括：需求、任务、Bug的工作记录
+- 汇总来源：
+  1. 资源分配记录（ResourceAllocation）：包含工时的需求、任务、Bug
+  2. 用户创建的Bug：即使没有资源分配记录，也会显示在汇总中（工时为0）
+- 汇总格式：Markdown格式，包含工作项列表和工时统计
+- 日期范围：使用与工作台相同的日期范围逻辑（date >= startDate AND date < endDate+1）
+
+### 日报管理
+
+#### 获取日报列表
+
+**GET** `/api/daily-reports?user_id=&project_id=&start_date=&end_date=&status=&page=1&size=20`
+
+#### 获取日报详情
+
+**GET** `/api/daily-reports/:id`
+
+#### 创建日报
+
+**POST** `/api/daily-reports`
+
+**请求体**:
+```json
+{
+  "date": "2024-01-01",
+  "content": "工作内容（Markdown）",
+  "hours": 8.0,
+  "project_id": 1,
+  "task_id": 1,
+  "status": "draft"
+}
+```
+
+#### 更新日报
+
+**PUT** `/api/daily-reports/:id`
+
+#### 删除日报
+
+**DELETE** `/api/daily-reports/:id`
+
+#### 更新日报状态
+
+**PATCH** `/api/daily-reports/:id/status`
+
+**请求体**:
+```json
+{
+  "status": "submitted"
+}
+```
+
+**状态值**:
+- `draft`: 草稿
+- `submitted`: 已提交
+
+### 周报管理
+
+#### 获取周报列表
+
+**GET** `/api/weekly-reports?user_id=&project_id=&week_start=&week_end=&status=&page=1&size=20`
+
+#### 获取周报详情
+
+**GET** `/api/weekly-reports/:id`
+
+#### 创建周报
+
+**POST** `/api/weekly-reports`
+
+**请求体**:
+```json
+{
+  "week_start": "2024-01-01",
+  "week_end": "2024-01-07",
+  "summary": "工作总结（Markdown）",
+  "next_week_plan": "下周计划（Markdown）",
+  "project_id": 1,
+  "task_id": 1,
+  "status": "draft"
+}
+```
+
+#### 更新周报
+
+**PUT** `/api/weekly-reports/:id`
+
+#### 删除周报
+
+**DELETE** `/api/weekly-reports/:id`
+
+#### 更新周报状态
+
+**PATCH** `/api/weekly-reports/:id/status`
+
+**请求体**:
+```json
+{
+  "status": "submitted"
+}
+```
+
+## 附件管理API ✅
+
+### 上传文件
+
+**POST** `/api/attachments/upload`
+
+**Content-Type**: `multipart/form-data`
+
+**请求体**:
+- `file`: 文件（必填）
+- `entity_type`: 实体类型（可选，如 `task`, `bug`, `requirement`）
+- `entity_id`: 实体ID（可选）
+
+**响应**:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "id": 1,
+    "filename": "example.pdf",
+    "path": "/uploads/2024/01/01/example.pdf",
+    "size": 1024,
+    "mime_type": "application/pdf",
+    "url": "/uploads/2024/01/01/example.pdf"
+  }
+}
+```
+
+### 获取附件列表
+
+**GET** `/api/attachments?entity_type=&entity_id=&page=1&size=20`
+
+### 获取附件详情
+
+**GET** `/api/attachments/:id`
+
+### 下载文件
+
+**GET** `/api/attachments/:id/download`
+
+### 关联附件到实体
+
+**POST** `/api/attachments/:id/attach`
+
+**请求体**:
+```json
+{
+  "entity_type": "task",
+  "entity_id": 1
+}
+```
+
+### 删除附件
+
+**DELETE** `/api/attachments/:id`
+
+## 功能模块管理API ✅
+
+### 获取功能模块列表
+
+**GET** `/api/modules?keyword=&status=`
+
+**响应**:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": [
+    {
+      "id": 1,
+      "name": "用户管理",
+      "code": "user_management",
+      "description": "用户管理模块",
+      "status": 1,
+      "sort": 0
+    }
+  ]
+}
+```
+
+### 获取功能模块详情
+
+**GET** `/api/modules/:id`
+
+### 创建功能模块
+
+**POST** `/api/modules`
+
+**请求体**:
+```json
+{
+  "name": "用户管理",
+  "code": "user_management",
+  "description": "用户管理模块",
+  "status": 1,
+  "sort": 0
+}
+```
+
+### 更新功能模块
+
+**PUT** `/api/modules/:id`
+
+### 删除功能模块
+
+**DELETE** `/api/modules/:id`
+
+**说明**: 功能模块是系统资源，所有项目共享，用于关联Bug和需求。
 
 ## 错误处理
 
@@ -1100,6 +1443,6 @@ Authorization: Bearer {jwt_token}
 
 ---
 
-**文档版本**: v1.1  
-**最后更新**: 2025年11月19日
+**文档版本**: v1.2  
+**最后更新**: 2025年11月22日
 

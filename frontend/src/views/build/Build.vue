@@ -65,6 +65,7 @@
               :columns="columns"
               :data-source="builds"
               :loading="loading"
+              :scroll="{ x: 'max-content' }"
               :pagination="pagination"
               row-key="id"
               @change="handleTableChange"
@@ -131,6 +132,7 @@
       v-model:open="modalVisible"
       :title="modalTitle"
       :width="600"
+      :mask-closable="false"
       @ok="handleSubmit"
       @cancel="handleCancel"
     >
@@ -459,8 +461,9 @@ onMounted(() => {
   padding: 24px;
 }
 .content-inner {
-  max-width: 1400px;
+  max-width: 100%;
   margin: 0 auto;
+  width: 100%;
 }
 </style>
 

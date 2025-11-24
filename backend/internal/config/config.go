@@ -12,6 +12,7 @@ type Config struct {
 	Database DatabaseConfig `mapstructure:"database"`
 	JWT      JWTConfig      `mapstructure:"jwt"`
 	WeChat   WeChatConfig   `mapstructure:"wechat"`
+	Upload   UploadConfig   `mapstructure:"upload"`
 }
 
 type ServerConfig struct {
@@ -50,6 +51,12 @@ type WeChatConfig struct {
 	// 如果设置了此值，将优先使用此域名，确保与微信后台配置的授权回调域名一致
 	// 如果不设置，则从 Referer 头或查询参数获取
 	CallbackDomain string `mapstructure:"callback_domain"`
+}
+
+type UploadConfig struct {
+	StoragePath string   `mapstructure:"storage_path"` // 文件存储路径（相对路径或绝对路径）
+	MaxFileSize int64    `mapstructure:"max_file_size"` // 最大文件大小（字节），默认 100MB
+	AllowedTypes []string `mapstructure:"allowed_types"` // 允许的文件类型（MIME类型），空数组表示允许所有类型
 }
 
 var AppConfig *Config
@@ -97,5 +104,10 @@ func setDefaults() {
 	viper.SetDefault("wechat.account_type", "open_platform") // open_platform 或 official_account
 	viper.SetDefault("wechat.scope", "snsapi_userinfo")       // snsapi_base 或 snsapi_userinfo
 	viper.SetDefault("wechat.callback_domain", "")            // 回调域名，如：https://yourdomain.com
+
+	// 文件上传配置
+	viper.SetDefault("upload.storage_path", "uploads")                    // 默认存储路径
+	viper.SetDefault("upload.max_file_size", 100*1024*1024)               // 默认 100MB (104857600 字节)
+	viper.SetDefault("upload.allowed_types", []string{})                  // 空数组表示允许所有类型
 }
 

@@ -32,170 +32,162 @@
               </a-col>
             </a-row>
 
-            <!-- 任务卡片 -->
-            <a-card title="我的任务" class="dashboard-card" :bordered="false">
-              <a-row :gutter="16">
-                <a-col :span="8">
-                  <a-card
-                    class="stat-card todo-card"
-                    @click="goToTasks('todo')"
+            <!-- Tab标签页 -->
+            <a-card class="dashboard-card" :bordered="false">
+              <a-tabs v-model:activeKey="activeTab" type="card" class="centered-tabs">
+                <a-tab-pane key="projects" tab="我的项目">
+                  <a-list
+                    :data-source="projects"
+                    :loading="loading"
                   >
-                    <a-statistic
-                      title="待办"
-                      :value="tasks.todo"
-                      :value-style="{ color: '#1890ff' }"
-                    />
-                  </a-card>
-                </a-col>
-                <a-col :span="8">
-                  <a-card
-                    class="stat-card in-progress-card"
-                    @click="goToTasks('in_progress')"
-                  >
-                    <a-statistic
-                      title="进行中"
-                      :value="tasks.in_progress"
-                      :value-style="{ color: '#faad14' }"
-                    />
-                  </a-card>
-                </a-col>
-                <a-col :span="8">
-                  <a-card
-                    class="stat-card done-card"
-                    @click="goToTasks('done')"
-                  >
-                    <a-statistic
-                      title="已完成"
-                      :value="tasks.done"
-                      :value-style="{ color: '#52c41a' }"
-                    />
-                  </a-card>
-                </a-col>
-              </a-row>
-            </a-card>
+                    <template #renderItem="{ item }">
+                      <a-list-item @click="goToProject(item.id)">
+                        <a-list-item-meta>
+                          <template #title>
+                            {{ item.name }}
+                          </template>
+                          <template #description>
+                            <a-tag>{{ item.role }}</a-tag>
+                            <span style="margin-left: 8px;">{{ item.code }}</span>
+                          </template>
+                        </a-list-item-meta>
+                      </a-list-item>
+                    </template>
+                  </a-list>
+                </a-tab-pane>
 
-            <!-- Bug卡片 -->
-            <a-card title="我的Bug" class="dashboard-card" :bordered="false">
-              <a-row :gutter="16">
-                <a-col :span="8">
-                  <a-card
-                    class="stat-card"
-                    @click="goToBugs('open')"
-                  >
-                    <a-statistic
-                      title="待处理"
-                      :value="bugs.open"
-                      :value-style="{ color: '#ff4d4f' }"
-                    />
-                  </a-card>
-                </a-col>
-                <a-col :span="8">
-                  <a-card
-                    class="stat-card"
-                    @click="goToBugs('in_progress')"
-                  >
-                    <a-statistic
-                      title="处理中"
-                      :value="bugs.in_progress"
-                      :value-style="{ color: '#faad14' }"
-                    />
-                  </a-card>
-                </a-col>
-                <a-col :span="8">
-                  <a-card
-                    class="stat-card"
-                    @click="goToBugs('resolved')"
-                  >
-                    <a-statistic
-                      title="已解决"
-                      :value="bugs.resolved"
-                      :value-style="{ color: '#52c41a' }"
-                    />
-                  </a-card>
-                </a-col>
-              </a-row>
-            </a-card>
+                <a-tab-pane key="bugs" tab="我的Bug">
+                  <a-row :gutter="16">
+                    <a-col :span="8">
+                      <a-card
+                        class="stat-card"
+                        @click="goToBugs('open')"
+                      >
+                        <a-statistic
+                          title="待处理"
+                          :value="bugs.open"
+                          :value-style="{ color: '#ff4d4f' }"
+                        />
+                      </a-card>
+                    </a-col>
+                    <a-col :span="8">
+                      <a-card
+                        class="stat-card"
+                        @click="goToBugs('in_progress')"
+                      >
+                        <a-statistic
+                          title="处理中"
+                          :value="bugs.in_progress"
+                          :value-style="{ color: '#faad14' }"
+                        />
+                      </a-card>
+                    </a-col>
+                    <a-col :span="8">
+                      <a-card
+                        class="stat-card"
+                        @click="goToBugs('resolved')"
+                      >
+                        <a-statistic
+                          title="已解决"
+                          :value="bugs.resolved"
+                          :value-style="{ color: '#52c41a' }"
+                        />
+                      </a-card>
+                    </a-col>
+                  </a-row>
+                </a-tab-pane>
 
-            <!-- 需求卡片 -->
-            <a-card title="我的需求" class="dashboard-card" :bordered="false">
-              <a-row :gutter="16">
-                <a-col :span="12">
-                  <a-card
-                    class="stat-card"
-                    @click="goToRequirements('in_progress')"
-                  >
-                    <a-statistic
-                      title="进行中"
-                      :value="requirements.in_progress"
-                      :value-style="{ color: '#1890ff' }"
-                    />
-                  </a-card>
-                </a-col>
-                <a-col :span="12">
-                  <a-card
-                    class="stat-card"
-                    @click="goToRequirements('completed')"
-                  >
-                    <a-statistic
-                      title="已完成"
-                      :value="requirements.completed"
-                      :value-style="{ color: '#52c41a' }"
-                    />
-                  </a-card>
-                </a-col>
-              </a-row>
-            </a-card>
+                <a-tab-pane key="tasks" tab="我的任务">
+                  <a-row :gutter="16">
+                    <a-col :span="8">
+                      <a-card
+                        class="stat-card todo-card"
+                        @click="goToTasks('todo')"
+                      >
+                        <a-statistic
+                          title="待办"
+                          :value="tasks.todo"
+                          :value-style="{ color: '#1890ff' }"
+                        />
+                      </a-card>
+                    </a-col>
+                    <a-col :span="8">
+                      <a-card
+                        class="stat-card in-progress-card"
+                        @click="goToTasks('in_progress')"
+                      >
+                        <a-statistic
+                          title="进行中"
+                          :value="tasks.in_progress"
+                          :value-style="{ color: '#faad14' }"
+                        />
+                      </a-card>
+                    </a-col>
+                    <a-col :span="8">
+                      <a-card
+                        class="stat-card done-card"
+                        @click="goToTasks('done')"
+                      >
+                        <a-statistic
+                          title="已完成"
+                          :value="tasks.done"
+                          :value-style="{ color: '#52c41a' }"
+                        />
+                      </a-card>
+                    </a-col>
+                  </a-row>
+                </a-tab-pane>
 
-            <!-- 项目列表 -->
-            <a-card title="我的项目" class="dashboard-card" :bordered="false">
-              <a-list
-                :data-source="projects"
-                :loading="loading"
-              >
-                <template #renderItem="{ item }">
-                  <a-list-item @click="goToProject(item.id)">
-                    <a-list-item-meta>
-                      <template #title>
-                        {{ item.name }}
-                      </template>
-                      <template #description>
-                        <a-tag>{{ item.role }}</a-tag>
-                        <span style="margin-left: 8px;">{{ item.code }}</span>
-                      </template>
-                    </a-list-item-meta>
-                  </a-list-item>
-                </template>
-              </a-list>
-            </a-card>
-
-            <!-- 工作报告卡片 -->
-            <a-card title="工作报告" class="dashboard-card" :bordered="false">
-              <a-row :gutter="16">
-                <a-col :span="12">
-                  <a-card
-                    class="stat-card"
-                    @click="goToReports('pending')"
-                  >
-                    <a-statistic
-                      title="待提交"
-                      :value="reports.pending"
-                      :value-style="{ color: '#faad14' }"
-                    />
-                  </a-card>
-                </a-col>
-                <a-col :span="12">
-                  <a-card
-                    class="stat-card"
-                    @click="goToReports('submitted')"
-                  >
-                    <a-statistic
-                      title="已提交"
-                      :value="reports.submitted"
-                      :value-style="{ color: '#52c41a' }"
-                    />
-                  </a-card>
-                </a-col>
-              </a-row>
+                <a-tab-pane key="reports">
+                  <template #tab>
+                    <a-badge 
+                      :count="reports.pending_approval" 
+                      :number-style="{ backgroundColor: '#ff4d4f' }"
+                      :show-zero="false"
+                    >
+                      <span>工作报告</span>
+                    </a-badge>
+                  </template>
+                  <a-row :gutter="16">
+                    <a-col :span="8">
+                      <a-card
+                        class="stat-card"
+                        @click="goToReports('pending')"
+                      >
+                        <a-statistic
+                          title="待提交"
+                          :value="reports.pending"
+                          :value-style="{ color: '#faad14' }"
+                        />
+                      </a-card>
+                    </a-col>
+                    <a-col :span="8">
+                      <a-card
+                        class="stat-card"
+                        @click="goToReports('submitted')"
+                      >
+                        <a-statistic
+                          title="已提交"
+                          :value="reports.submitted"
+                          :value-style="{ color: '#52c41a' }"
+                        />
+                      </a-card>
+                    </a-col>
+                    <a-col :span="8">
+                      <a-card
+                        class="stat-card"
+                        @click="goToReports('approval')"
+                      >
+                        <a-statistic
+                          title="待审批"
+                          :value="reports.pending_approval"
+                          :value-style="{ color: '#1890ff' }"
+                        />
+                      </a-card>
+                    </a-col>
+                  </a-row>
+                </a-tab-pane>
+              </a-tabs>
             </a-card>
           </a-spin>
         </div>
@@ -207,7 +199,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { message } from 'ant-design-vue'
+import { message, Badge } from 'ant-design-vue'
 import { getDashboard, type DashboardData } from '@/api/dashboard'
 import { useAuthStore } from '@/stores/auth'
 import AppHeader from '@/components/AppHeader.vue'
@@ -216,12 +208,13 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 const loading = ref(false)
+const activeTab = ref('projects')
 const dashboardData = ref<DashboardData>({
   tasks: { todo: 0, in_progress: 0, done: 0 },
   bugs: { open: 0, in_progress: 0, resolved: 0 },
   requirements: { in_progress: 0, completed: 0 },
   projects: [],
-  reports: { pending: 0, submitted: 0 },
+  reports: { pending: 0, submitted: 0, pending_approval: 0 },
   statistics: {
     total_tasks: 0,
     total_bugs: 0,
@@ -273,14 +266,6 @@ const goToBugs = (status: string) => {
   })
 }
 
-// 跳转到需求列表
-const goToRequirements = (status: string) => {
-  router.push({
-    path: '/requirement',
-    query: { status, assignee: 'me' }
-  })
-}
-
 // 跳转到项目详情
 const goToProject = (projectId: number) => {
   router.push({
@@ -290,10 +275,17 @@ const goToProject = (projectId: number) => {
 
 // 跳转到工作报告
 const goToReports = (status: string) => {
-  router.push({
-    path: '/reports',
-    query: { status }
-  })
+  if (status === 'approval') {
+    router.push({
+      path: '/reports',
+      query: { tab: 'approval' }
+    })
+  } else {
+    router.push({
+      path: '/reports',
+      query: { status }
+    })
+  }
 }
 
 onMounted(() => {
@@ -361,5 +353,15 @@ onMounted(() => {
 
 .done-card:hover {
   border-color: #52c41a;
+}
+
+.centered-tabs :deep(.ant-tabs-nav) {
+  margin-bottom: 16px;
+}
+
+.centered-tabs :deep(.ant-tabs-nav-list) {
+  width: 100%;
+  display: flex;
+  justify-content: center;
 }
 </style>

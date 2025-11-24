@@ -95,6 +95,7 @@
             <!-- 成员工作量统计 -->
             <a-card title="成员工作量统计" :bordered="false">
               <a-table
+                :scroll="{ x: 'max-content' }"
                 :columns="memberColumns"
                 :data-source="progressData?.member_workload || []"
                 :pagination="false"
@@ -541,8 +542,9 @@ onBeforeUnmount(() => {
 }
 
 .content-inner {
-  max-width: 1400px;
+  max-width: 100%;
   margin: 0 auto;
+  width: 100%;
 }
 </style>
 

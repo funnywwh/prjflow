@@ -174,6 +174,12 @@ const routes: RouteRecordRaw[] = [
     name: 'WeChatSettings',
     component: () => import('../views/system/WeChatSettings.vue'),
     meta: { requiresAuth: false } // 初始化阶段也需要访问
+  },
+  {
+    path: '/reports/daily/create',
+    name: 'CreateDailyReport',
+    component: () => import('../views/report/Report.vue'),
+    meta: { requiresAuth: true }
   }
 ]
 

@@ -74,6 +74,7 @@
             :columns="columns"
             :data-source="resources"
             :loading="loading"
+            :scroll="{ x: 'max-content' }"
             :pagination="pagination"
             @change="handleTableChange"
             row-key="id"
@@ -112,6 +113,7 @@
 
     <!-- 资源创建/编辑模态框 -->
     <a-modal
+      :mask-closable="true"
       v-model:open="modalVisible"
       :title="modalTitle"
       :width="600"
@@ -172,8 +174,10 @@
       v-model:open="allocationModalVisible"
       title="资源分配管理"
       :width="1000"
+      :mask-closable="true"
       :footer="null"
-    >
+      
+      >
       <div style="margin-bottom: 16px">
         <a-space>
           <span>资源：{{ currentResource?.user?.nickname || currentResource?.user?.username }}({{ currentResource?.user?.username }})</span>
@@ -188,6 +192,7 @@
         :columns="allocationColumns"
         :data-source="allocations"
         :loading="allocationLoading"
+        :scroll="{ x: 'max-content' }"
         :pagination="allocationPagination"
         @change="handleAllocationTableChange"
         row-key="id"
@@ -231,6 +236,7 @@
 
     <!-- 资源分配创建/编辑模态框 -->
     <a-modal
+      :mask-closable="true"
       v-model:open="allocationFormVisible"
       :title="allocationModalTitle"
       :width="600"
@@ -840,8 +846,9 @@ onMounted(() => {
 }
 
 .content-inner {
-  max-width: 1400px;
+  max-width: 100%;
   margin: 0 auto;
+  width: 100%;
   background: #fff;
   padding: 24px;
   border-radius: 8px;

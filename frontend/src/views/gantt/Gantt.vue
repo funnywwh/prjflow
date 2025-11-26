@@ -17,7 +17,7 @@
           </a-page-header>
 
           <a-spin :spinning="loading">
-            <div class="gantt-container" v-if="tasks.length > 0">
+            <div class="gantt-container" ref="ganttContainerRef" v-if="tasks.length > 0">
               <!-- 甘特图时间轴 -->
               <div class="gantt-header">
                 <div class="gantt-task-column" style="width: 300px; border-right: 1px solid #d9d9d9;">
@@ -26,7 +26,7 @@
                   </div>
                 </div>
                 <div class="gantt-timeline" ref="timelineRef">
-                  <div class="gantt-header-cell" style="height: 60px; border-bottom: 1px solid #d9d9d9;">
+                  <div class="gantt-header-cell timeline-header-scrollable" style="height: 60px; border-bottom: 1px solid #d9d9d9;">
                     <div class="timeline-months">
                       <div
                         v-for="month in months"
@@ -93,7 +93,11 @@
                         :style="getTaskBarStyle(task)"
                         :title="getTaskTooltip(task)"
                       >
-                        <div class="gantt-bar-progress" :style="getProgressStyle(task)"></div>
+                        <div 
+                          v-if="(task.progress || 0) > 0" 
+                          class="gantt-bar-progress" 
+                          :style="getProgressStyle(task)"
+                        ></div>
                         <div class="gantt-bar-label">{{ task.title }}</div>
                       </div>
                       <!-- 依赖关系线 -->
@@ -133,7 +137,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import dayjs from 'dayjs'
@@ -150,6 +154,7 @@ const projectId = ref<number>(0)
 const selectedTask = ref<GanttTask | null>(null)
 const timelineRef = ref<HTMLElement>()
 const timelineBodyRef = ref<HTMLElement>()
+const ganttContainerRef = ref<HTMLElement>()
 
 const dayWidth = 30 // 每天的宽度（像素）
 const rowHeight = 60 // 每行的高度（像素）
@@ -254,8 +259,10 @@ const getTaskBarStyle = (task: GanttTask) => {
 
 // 计算进度样式
 const getProgressStyle = (task: GanttTask) => {
+  // 确保进度值在0-100之间
+  const progress = Math.max(0, Math.min(100, task.progress || 0))
   return {
-    width: `${task.progress}%`
+    width: `${progress}%`
   }
 }
 
@@ -425,9 +432,58 @@ const getPriorityText = (priority: string) => {
   return texts[priority] || priority
 }
 
-onMounted(() => {
+// 同步头部和主体的横向滚动
+let scrollCleanup: (() => void) | null = null
+
+const syncHorizontalScroll = () => {
+  if (timelineRef.value && timelineBodyRef.value) {
+    const headerTimeline = timelineRef.value.querySelector('.timeline-header-scrollable') as HTMLElement
+    if (headerTimeline) {
+      let isScrolling = false
+      
+      // 头部跟随主体滚动
+      const onBodyScroll = () => {
+        if (!isScrolling) {
+          isScrolling = true
+          headerTimeline.scrollLeft = timelineBodyRef.value?.scrollLeft || 0
+          setTimeout(() => { isScrolling = false }, 10)
+        }
+      }
+      
+      // 主体跟随头部滚动
+      const onHeaderScroll = () => {
+        if (!isScrolling) {
+          isScrolling = true
+          if (timelineBodyRef.value) {
+            timelineBodyRef.value.scrollLeft = headerTimeline.scrollLeft
+          }
+          setTimeout(() => { isScrolling = false }, 10)
+        }
+      }
+      
+      timelineBodyRef.value.addEventListener('scroll', onBodyScroll)
+      headerTimeline.addEventListener('scroll', onHeaderScroll)
+      
+      // 清理函数
+      scrollCleanup = () => {
+        timelineBodyRef.value?.removeEventListener('scroll', onBodyScroll)
+        headerTimeline.removeEventListener('scroll', onHeaderScroll)
+      }
+    }
+  }
+}
+
+onMounted(async () => {
   loadProject()
-  loadGanttData()
+  await loadGanttData()
+  await nextTick()
+  syncHorizontalScroll()
+})
+
+onUnmounted(() => {
+  if (scrollCleanup) {
+    scrollCleanup()
+  }
 })
 </script>
 
@@ -454,6 +510,42 @@ onMounted(() => {
   border: 1px solid #d9d9d9;
   border-radius: 4px;
   overflow: auto;
+  /* 设置高度限制，使内容可以滚动 */
+  max-height: calc(100vh - 200px);
+  height: calc(100vh - 200px);
+  /* 自动隐藏滚动条 */
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: transparent transparent; /* Firefox: 默认透明 */
+}
+
+/* 鼠标悬停时显示滚动条 */
+.gantt-container:hover {
+  scrollbar-color: rgba(0, 0, 0, 0.3) transparent; /* Firefox: 悬停时显示 */
+}
+
+/* Webkit浏览器（Chrome, Safari, Edge）滚动条样式 */
+.gantt-container::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.gantt-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.gantt-container::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 4px;
+  transition: background 0.3s;
+}
+
+/* 鼠标悬停时显示滚动条 */
+.gantt-container:hover::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.gantt-container:hover::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.5);
 }
 
 .gantt-header {
@@ -467,6 +559,7 @@ onMounted(() => {
 .gantt-body {
   display: flex;
   position: relative;
+  min-height: 0;
 }
 
 .gantt-task-column {
@@ -478,6 +571,71 @@ onMounted(() => {
   flex: 1;
   min-width: 0;
   position: relative;
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* 自动隐藏滚动条 */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.gantt-timeline:hover {
+  scrollbar-color: rgba(0, 0, 0, 0.3) transparent;
+}
+
+.gantt-timeline::-webkit-scrollbar {
+  height: 8px;
+}
+
+.gantt-timeline::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.gantt-timeline::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 4px;
+  transition: background 0.3s;
+}
+
+.gantt-timeline:hover::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.gantt-timeline:hover::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.timeline-header-scrollable {
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* 自动隐藏滚动条 */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.timeline-header-scrollable:hover {
+  scrollbar-color: rgba(0, 0, 0, 0.3) transparent;
+}
+
+.timeline-header-scrollable::-webkit-scrollbar {
+  height: 8px;
+}
+
+.timeline-header-scrollable::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.timeline-header-scrollable::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 4px;
+  transition: background 0.3s;
+}
+
+.timeline-header-scrollable:hover::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.timeline-header-scrollable:hover::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.5);
 }
 
 .gantt-header-cell {
@@ -615,16 +773,23 @@ onMounted(() => {
   left: 0;
   top: 0;
   height: 100%;
-  background: rgba(255, 255, 255, 0.3);
+  /* 使用更明显的进度条颜色 - 深色半透明覆盖层，表示已完成部分 */
+  background: rgba(0, 0, 0, 0.2);
   transition: width 0.3s;
+  z-index: 1;
+  /* 添加边框以更明显地区分进度 */
+  border-right: 2px solid rgba(255, 255, 255, 0.5);
+  box-sizing: border-box;
 }
 
 .gantt-bar-label {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* 确保文字在进度条上方可见 */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .dependency-lines {

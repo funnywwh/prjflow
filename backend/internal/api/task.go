@@ -710,14 +710,19 @@ func (h *TaskHandler) UpdateTaskProgress(c *gin.Context) {
 	// 计算并更新实际工时（从资源分配中汇总）
 	h.calculateAndUpdateActualHours(&task)
 	
-	// 如果更新了实际工时或预估工时，自动根据工时计算进度
-	// 进度 = 实际工时 / 预估工时 * 100，范围0-100%
-	if req.ActualHours != nil || req.EstimatedHours != nil {
-		h.calculateProgressFromHours(&task)
-	} else if req.Progress == nil {
-		// 如果没有更新工时，且没有手动设置进度，则根据当前工时计算进度
-		h.calculateProgressFromHours(&task)
+	// 如果用户手动设置了进度，优先使用手动设置的进度，不根据工时自动计算
+	// 只有在没有手动设置进度时，才根据工时自动计算进度
+	if req.Progress == nil {
+		// 如果更新了实际工时或预估工时，自动根据工时计算进度
+		// 进度 = 实际工时 / 预估工时 * 100，范围0-100%
+		if req.ActualHours != nil || req.EstimatedHours != nil {
+			h.calculateProgressFromHours(&task)
+		} else {
+			// 如果没有更新工时，根据当前工时计算进度
+			h.calculateProgressFromHours(&task)
+		}
 	}
+	// 如果 req.Progress != nil，说明用户手动设置了进度，已经在上面的代码中设置了，不需要再计算
 
 	// 重新加载关联数据
 	h.db.Preload("Project").Preload("Requirement").Preload("Creator").Preload("Assignee").Preload("Dependencies").First(&task, task.ID)

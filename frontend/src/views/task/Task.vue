@@ -142,10 +142,12 @@
                       </a-button>
                       <template #overlay>
                         <a-menu @click="(e: any) => handleStatusChange(record.id, e.key as string)">
-                          <a-menu-item key="todo">待办</a-menu-item>
-                          <a-menu-item key="in_progress">进行中</a-menu-item>
+                          <a-menu-item key="wait">未开始</a-menu-item>
+                          <a-menu-item key="doing">进行中</a-menu-item>
                           <a-menu-item key="done">已完成</a-menu-item>
-                          <a-menu-item key="cancelled">已取消</a-menu-item>
+                          <a-menu-item key="pause">已暂停</a-menu-item>
+                          <a-menu-item key="cancel">已取消</a-menu-item>
+                          <a-menu-item key="closed">已关闭</a-menu-item>
                         </a-menu>
                       </template>
                     </a-dropdown>

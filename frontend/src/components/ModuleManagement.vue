@@ -139,7 +139,8 @@ interface Props {
   title?: string // 卡片标题
 }
 
-const props = withDefaults(defineProps<Props>(), {
+// Props 在模板中使用，不需要在 script 中访问
+withDefaults(defineProps<Props>(), {
   showCard: true,
   title: '功能模块管理'
 })

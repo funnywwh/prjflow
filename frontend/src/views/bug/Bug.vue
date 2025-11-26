@@ -13,82 +13,11 @@
             </template>
           </a-page-header>
 
-          <a-card :bordered="false" style="margin-bottom: 16px">
-            <a-form layout="inline" :model="searchForm">
-              <a-form-item label="关键词">
-                <a-input
-                  v-model:value="searchForm.keyword"
-                  placeholder="Bug标题/描述"
-                  allow-clear
-                  style="width: 200px"
-                />
-              </a-form-item>
-              <a-form-item label="项目">
-                <a-select
-                  v-model:value="searchForm.project_id"
-                  placeholder="选择项目"
-                  allow-clear
-                  style="width: 150px"
-                  @change="handleSearchProjectChange"
-                >
-                  <a-select-option
-                    v-for="project in projects"
-                    :key="project.id"
-                    :value="project.id"
-                  >
-                    {{ project.name }}
-                  </a-select-option>
-                </a-select>
-              </a-form-item>
-              <a-form-item label="状态">
-                <a-select
-                  v-model:value="searchForm.status"
-                  placeholder="选择状态"
-                  allow-clear
-                  style="width: 120px"
-                >
-                  <a-select-option value="open">待处理</a-select-option>
-                  <a-select-option value="assigned">已分配</a-select-option>
-                  <a-select-option value="in_progress">处理中</a-select-option>
-                  <a-select-option value="resolved">已解决</a-select-option>
-                  <a-select-option value="closed">已关闭</a-select-option>
-                </a-select>
-              </a-form-item>
-              <a-form-item label="优先级">
-                <a-select
-                  v-model:value="searchForm.priority"
-                  placeholder="选择优先级"
-                  allow-clear
-                  style="width: 120px"
-                >
-                  <a-select-option value="low">低</a-select-option>
-                  <a-select-option value="medium">中</a-select-option>
-                  <a-select-option value="high">高</a-select-option>
-                  <a-select-option value="urgent">紧急</a-select-option>
-                </a-select>
-              </a-form-item>
-              <a-form-item label="严重程度">
-                <a-select
-                  v-model:value="searchForm.severity"
-                  placeholder="选择严重程度"
-                  allow-clear
-                  style="width: 120px"
-                >
-                  <a-select-option value="low">低</a-select-option>
-                  <a-select-option value="medium">中</a-select-option>
-                  <a-select-option value="high">高</a-select-option>
-                  <a-select-option value="critical">严重</a-select-option>
-                </a-select>
-              </a-form-item>
-              <a-form-item>
-                <a-button type="primary" @click="handleSearch">查询</a-button>
-                <a-button style="margin-left: 8px" @click="handleReset">重置</a-button>
-              </a-form-item>
-            </a-form>
-          </a-card>
-
-          <!-- 统计概览 -->
-          <a-row :gutter="16" style="margin-bottom: 16px">
+          <a-tabs v-model:activeKey="activeTab">
+            <!-- 统计标签页 -->
+            <a-tab-pane key="statistics" tab="统计">
+              <!-- 统计概览 -->
+              <a-row :gutter="16" style="margin-bottom: 16px">
             <a-col :span="6">
               <a-card :bordered="false">
                 <a-statistic
@@ -198,17 +127,94 @@
               </a-card>
             </a-col>
           </a-row>
+            </a-tab-pane>
 
-          <a-card :bordered="false" class="table-card">
-            <a-table
-              :columns="columns"
-              :data-source="bugs"
-              :loading="loading"
-              :pagination="pagination"
-              :scroll="{ x: 'max-content', y: tableScrollHeight }"
-              row-key="id"
-              @change="handleTableChange"
-            >
+            <!-- 列表标签页 -->
+            <a-tab-pane key="list" tab="列表">
+              <a-card :bordered="false" style="margin-bottom: 16px">
+                <a-form layout="inline" :model="searchForm">
+                  <a-form-item label="关键词">
+                    <a-input
+                      v-model:value="searchForm.keyword"
+                      placeholder="Bug标题/描述"
+                      allow-clear
+                      style="width: 200px"
+                    />
+                  </a-form-item>
+                  <a-form-item label="项目">
+                    <a-select
+                      v-model:value="searchForm.project_id"
+                      placeholder="选择项目"
+                      allow-clear
+                      style="width: 150px"
+                      @change="handleSearchProjectChange"
+                    >
+                      <a-select-option
+                        v-for="project in projects"
+                        :key="project.id"
+                        :value="project.id"
+                      >
+                        {{ project.name }}
+                      </a-select-option>
+                    </a-select>
+                  </a-form-item>
+                  <a-form-item label="状态">
+                    <a-select
+                      v-model:value="searchForm.status"
+                      placeholder="选择状态"
+                      allow-clear
+                      style="width: 120px"
+                    >
+                      <a-select-option value="open">待处理</a-select-option>
+                      <a-select-option value="assigned">已分配</a-select-option>
+                      <a-select-option value="in_progress">处理中</a-select-option>
+                      <a-select-option value="resolved">已解决</a-select-option>
+                      <a-select-option value="closed">已关闭</a-select-option>
+                    </a-select>
+                  </a-form-item>
+                  <a-form-item label="优先级">
+                    <a-select
+                      v-model:value="searchForm.priority"
+                      placeholder="选择优先级"
+                      allow-clear
+                      style="width: 120px"
+                    >
+                      <a-select-option value="low">低</a-select-option>
+                      <a-select-option value="medium">中</a-select-option>
+                      <a-select-option value="high">高</a-select-option>
+                      <a-select-option value="urgent">紧急</a-select-option>
+                    </a-select>
+                  </a-form-item>
+                  <a-form-item label="严重程度">
+                    <a-select
+                      v-model:value="searchForm.severity"
+                      placeholder="选择严重程度"
+                      allow-clear
+                      style="width: 120px"
+                    >
+                      <a-select-option value="low">低</a-select-option>
+                      <a-select-option value="medium">中</a-select-option>
+                      <a-select-option value="high">高</a-select-option>
+                      <a-select-option value="critical">严重</a-select-option>
+                    </a-select>
+                  </a-form-item>
+                  <a-form-item>
+                    <a-button type="primary" @click="handleSearch">查询</a-button>
+                    <a-button style="margin-left: 8px" @click="handleReset">重置</a-button>
+                  </a-form-item>
+                </a-form>
+              </a-card>
+
+              <a-card :bordered="false" class="table-card">
+                <a-table
+                  :columns="columns"
+                  :data-source="bugs"
+                  :loading="loading"
+                  :pagination="pagination"
+                  :scroll="{ x: 'max-content', y: tableScrollHeight }"
+                  row-key="id"
+                  @change="handleTableChange"
+                >
               <template #bodyCell="{ column, record }">
                 <template v-if="column.key === 'status'">
                   <a-tag :color="getStatusColor(record.status)">
@@ -287,6 +293,8 @@
               </template>
             </a-table>
           </a-card>
+            </a-tab-pane>
+          </a-tabs>
         </div>
       </a-layout-content>
     </a-layout>
@@ -647,6 +655,7 @@ const moduleLoading = ref(false)
 const versions = ref<Version[]>([])
 const versionLoading = ref(false)
 const statistics = ref<BugStatistics | null>(null)
+const activeTab = ref<string>('list')
 
 const searchForm = reactive({
   keyword: '',
@@ -1311,6 +1320,13 @@ const filterUserOption = (input: string, option: any) => {
   )
 }
 
+// 监听 tab 切换，切换到统计 tab 时加载统计信息
+watch(activeTab, (newTab) => {
+  if (newTab === 'statistics') {
+    loadStatistics()
+  }
+})
+
 onMounted(() => {
   // 从 localStorage 恢复最后选择的搜索项目
   const lastSearchProjectId = getLastSelected<number>('last_selected_bug_project_search')
@@ -1420,6 +1436,31 @@ onMounted(() => {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+}
+
+/* Tab 相关样式，避免水平滚动条 */
+.content-inner :deep(.ant-tabs-tabpane) {
+  overflow-x: hidden;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.content-inner :deep(.ant-tabs-tabpane) .ant-row {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  max-width: 100%;
+}
+
+.content-inner :deep(.ant-tabs-tabpane) .ant-col {
+  padding-left: 8px;
+  padding-right: 8px;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.content-inner :deep(.ant-tabs-tabpane) .ant-card {
+  max-width: 100%;
+  box-sizing: border-box;
 }
 </style>
 

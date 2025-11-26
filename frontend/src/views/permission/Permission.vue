@@ -1059,6 +1059,32 @@ onMounted(() => {
   background: white;
   padding: 24px;
   border-radius: 4px;
+  /* 隐藏滚动条但保持滚动功能 */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE 和 Edge */
+}
+
+.content-inner::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+/* 隐藏表格滚动条 */
+.permission-management :deep(.ant-table-body) {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE 和 Edge */
+}
+
+.permission-management :deep(.ant-table-body)::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+.permission-management :deep(.ant-table-body-inner) {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE 和 Edge */
+}
+
+.permission-management :deep(.ant-table-body-inner)::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
 }
 
 .permission-tree-node {

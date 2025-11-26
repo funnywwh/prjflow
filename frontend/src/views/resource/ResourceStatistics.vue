@@ -427,12 +427,27 @@ onMounted(() => {
 
 <style scoped>
 .resource-statistics {
-  min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.resource-statistics :deep(.ant-layout) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .content {
   padding: 24px;
   background: #f0f2f5;
+  flex: 1;
+  height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .content-inner {
@@ -442,6 +457,9 @@ onMounted(() => {
   background: #fff;
   padding: 24px;
   border-radius: 8px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 </style>
 

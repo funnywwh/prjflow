@@ -30,18 +30,9 @@
             <a-col :span="6">
               <a-card :bordered="false">
                 <a-statistic
-                  title="待处理"
-                  :value="statistics?.open || 0"
+                  title="激活"
+                  :value="statistics?.active || 0"
                   :value-style="{ color: '#faad14' }"
-                />
-              </a-card>
-            </a-col>
-            <a-col :span="6">
-              <a-card :bordered="false">
-                <a-statistic
-                  title="处理中"
-                  :value="statistics?.in_progress || 0"
-                  :value-style="{ color: '#1890ff' }"
                 />
               </a-card>
             </a-col>
@@ -50,6 +41,15 @@
                 <a-statistic
                   title="已解决"
                   :value="statistics?.resolved || 0"
+                  :value-style="{ color: '#1890ff' }"
+                />
+              </a-card>
+            </a-col>
+            <a-col :span="6">
+              <a-card :bordered="false">
+                <a-statistic
+                  title="已关闭"
+                  :value="statistics?.closed || 0"
                   :value-style="{ color: '#52c41a' }"
                 />
               </a-card>
@@ -165,9 +165,7 @@
                       allow-clear
                       style="width: 120px"
                     >
-                      <a-select-option value="open">待处理</a-select-option>
-                      <a-select-option value="assigned">已分配</a-select-option>
-                      <a-select-option value="in_progress">处理中</a-select-option>
+                      <a-select-option value="active">激活</a-select-option>
                       <a-select-option value="resolved">已解决</a-select-option>
                       <a-select-option value="closed">已关闭</a-select-option>
                     </a-select>
@@ -217,9 +215,13 @@
                 >
               <template #bodyCell="{ column, record }">
                 <template v-if="column.key === 'status'">
-                  <a-tag :color="getStatusColor(record.status)">
-                    {{ getStatusText(record.status) }}
-                  </a-tag>
+                  <a-space>
+                    <a-tag :color="getStatusColor(record.status)">
+                      {{ getStatusText(record.status) }}
+                    </a-tag>
+                    <a-tag v-if="record.confirmed" color="green">已确认</a-tag>
+                    <a-tag v-else-if="record.status === 'active'" color="orange">未确认</a-tag>
+                  </a-space>
                 </template>
                 <template v-else-if="column.key === 'priority'">
                   <a-tag :color="getPriorityColor(record.priority)">
@@ -266,22 +268,24 @@
                       编辑
                     </a-button>
                     <a-button type="link" size="small" @click="handleAssign(record)">
-                      分配
+                      指派
                     </a-button>
-                    <a-dropdown>
-                      <a-button type="link" size="small">
-                        状态 <DownOutlined />
-                      </a-button>
-                      <template #overlay>
-                        <a-menu @click="(e: any) => handleStatusChange(record, e.key as string)">
-                          <a-menu-item key="open">待处理</a-menu-item>
-                          <a-menu-item key="assigned">已分配</a-menu-item>
-                          <a-menu-item key="in_progress">处理中</a-menu-item>
-                          <a-menu-item key="resolved">已解决</a-menu-item>
-                          <a-menu-item key="closed">已关闭</a-menu-item>
-                        </a-menu>
-                      </template>
-                    </a-dropdown>
+                    <a-button
+                      v-if="record.status === 'active' && !record.confirmed"
+                      type="link"
+                      size="small"
+                      @click="handleConfirm(record)"
+                    >
+                      确认
+                    </a-button>
+                    <a-button
+                      v-if="record.status === 'active'"
+                      type="link"
+                      size="small"
+                      @click="handleResolve(record)"
+                    >
+                      解决
+                    </a-button>
                     <a-popconfirm
                       title="确定要删除这个Bug吗？"
                       @confirm="handleDelete(record.id)"
@@ -405,11 +409,11 @@
             <a-select-option value="critical">严重</a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item label="分配人" name="assignee_ids">
+        <a-form-item label="指派给" name="assignee_ids">
           <a-select
             v-model:value="formData.assignee_ids"
             mode="multiple"
-            placeholder="选择分配人（可选）"
+            placeholder="选择指派给（可选）"
             allow-clear
             show-search
             :filter-option="filterUserOption"
@@ -463,10 +467,10 @@
       </a-form>
     </a-modal>
 
-    <!-- Bug分配模态框 -->
+    <!-- Bug指派模态框 -->
     <a-modal
       v-model:open="assignModalVisible"
-      title="分配Bug"
+      title="指派Bug"
       :mask-closable="true"
       @ok="handleAssignSubmit"
       @cancel="handleAssignCancel"
@@ -478,11 +482,11 @@
         :label-col="{ span: 6 }"
         :wrapper-col="{ span: 18 }"
       >
-        <a-form-item label="分配人" name="assignee_ids">
+        <a-form-item label="指派给" name="assignee_ids">
           <a-select
             v-model:value="assignFormData.assignee_ids"
             mode="multiple"
-            placeholder="选择分配人"
+            placeholder="选择指派给"
             show-search
             :filter-option="filterUserOption"
           >
@@ -515,9 +519,7 @@
       >
         <a-form-item label="新状态">
           <a-select v-model:value="statusFormData.status" disabled>
-            <a-select-option value="open">待处理</a-select-option>
-            <a-select-option value="assigned">已分配</a-select-option>
-            <a-select-option value="in_progress">处理中</a-select-option>
+            <a-select-option value="active">激活</a-select-option>
             <a-select-option value="resolved">已解决</a-select-option>
             <a-select-option value="closed">已关闭</a-select-option>
           </a-select>
@@ -615,7 +617,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { type Dayjs } from 'dayjs'
 import { formatDateTime } from '@/utils/date'
-import { PlusOutlined, DownOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined } from '@ant-design/icons-vue'
 import AppHeader from '@/components/AppHeader.vue'
 import MarkdownEditor from '@/components/MarkdownEditor.vue'
 import AttachmentUpload from '@/components/AttachmentUpload.vue'
@@ -627,6 +629,7 @@ import {
   deleteBug,
   updateBugStatus,
   assignBug,
+  confirmBug,
   getBugStatistics,
   type Bug,
   type CreateBugRequest,
@@ -679,7 +682,7 @@ const columns = [
   { title: '状态', key: 'status', width: 100 },
   { title: '优先级', key: 'priority', width: 100 },
   { title: '严重程度', key: 'severity', width: 100 },
-  { title: '分配人', key: 'assignees', width: 200 },
+  { title: '指派给', key: 'assignees', width: 200 },
   { title: '工时', key: 'hours', width: 150 },
   { title: '关联需求', key: 'requirement', width: 150, ellipsis: true },
   { title: '创建时间', dataIndex: 'created_at', key: 'created_at', width: 180 },
@@ -734,7 +737,7 @@ const statusFormData = reactive({
 })
 
 const assignFormRules = {
-  assignee_ids: [{ required: true, message: '请选择分配人', trigger: 'change' }]
+  assignee_ids: [{ required: true, message: '请选择指派给', trigger: 'change' }]
 }
 
 // 计算表格滚动高度（视口高度减去头部、搜索表单、统计卡片等的高度）
@@ -1062,7 +1065,12 @@ const handleDelete = async (id: number) => {
   }
 }
 
-// 状态变更
+// 解决Bug（弹出对话框）
+const handleResolve = (record: Bug) => {
+  handleOpenStatusModal(record, 'resolved')
+}
+
+// 状态变更（保留用于其他场景，如详情页）
 const handleStatusChange = (record: Bug, status: string) => {
   // 只有"已解决"状态才弹出对话框
   if (status === 'resolved') {
@@ -1184,32 +1192,43 @@ const filterVersionOption = (input: string, option: any) => {
   return version.version_number.toLowerCase().includes(searchText)
 }
 
-// 分配
+// 指派
 const handleAssign = (record: Bug) => {
   assignFormData.bug_id = record.id
   assignFormData.assignee_ids = record.assignees?.map(a => a.id) || []
   assignModalVisible.value = true
 }
 
-// 分配提交
+// 指派提交
 const handleAssignSubmit = async () => {
   try {
     await assignFormRef.value.validate()
     await assignBug(assignFormData.bug_id, { assignee_ids: assignFormData.assignee_ids })
-    message.success('分配成功')
+    message.success('指派成功')
     assignModalVisible.value = false
     loadBugs()
   } catch (error: any) {
     if (error.errorFields) {
       return
     }
-    message.error(error.message || '分配失败')
+    message.error(error.message || '指派失败')
   }
 }
 
-// 分配取消
+// 指派取消
 const handleAssignCancel = () => {
   assignFormRef.value?.resetFields()
+}
+
+// 确认Bug
+const handleConfirm = async (record: Bug) => {
+  try {
+    await confirmBug(record.id)
+    message.success('确认成功')
+    loadBugs()
+  } catch (error: any) {
+    message.error(error.message || '确认失败')
+  }
 }
 
 // 获取状态颜色
@@ -1223,13 +1242,14 @@ const getStatusColor = (status: string) => {
 }
 
 // 获取状态文本
-const getStatusText = (status: string) => {
+const getStatusText = (status: string | undefined) => {
+  if (!status) return '-'
   const texts: Record<string, string> = {
     active: '激活',
     resolved: '已解决',
     closed: '已关闭'
   }
-  return texts[status] || status
+  return texts[status.toLowerCase()] || status
 }
 
 // 获取优先级颜色

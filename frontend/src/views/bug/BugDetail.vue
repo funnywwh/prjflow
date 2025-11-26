@@ -11,21 +11,19 @@
             <template #extra>
               <a-space>
                 <a-button @click="handleEdit">编辑</a-button>
-                <a-button @click="handleAssign">分配</a-button>
-                <a-dropdown>
-                  <a-button>
-                    状态 <DownOutlined />
-                  </a-button>
-                  <template #overlay>
-                    <a-menu @click="(e: any) => handleStatusChange(e.key as string)">
-                      <a-menu-item key="open">待处理</a-menu-item>
-                      <a-menu-item key="assigned">已分配</a-menu-item>
-                      <a-menu-item key="in_progress">处理中</a-menu-item>
-                      <a-menu-item key="resolved">已解决</a-menu-item>
-                      <a-menu-item key="closed">已关闭</a-menu-item>
-                    </a-menu>
-                  </template>
-                </a-dropdown>
+                <a-button @click="handleAssign">指派</a-button>
+                <a-button
+                  v-if="bug?.status === 'active' && !bug?.confirmed"
+                  @click="handleConfirm"
+                >
+                  确认
+                </a-button>
+                <a-button
+                  v-if="bug?.status === 'active'"
+                  @click="handleResolve"
+                >
+                  解决
+                </a-button>
                 <a-popconfirm
                   title="确定要删除这个Bug吗？"
                   @confirm="handleDelete"
@@ -42,9 +40,13 @@
               <a-descriptions :column="2" bordered>
                 <a-descriptions-item label="Bug标题">{{ bug?.title }}</a-descriptions-item>
                 <a-descriptions-item label="状态">
-                  <a-tag :color="getStatusColor(bug?.status || '')">
-                    {{ getStatusText(bug?.status || '') }}
-                  </a-tag>
+                  <a-space>
+                    <a-tag :color="getStatusColor(bug?.status || '')">
+                      {{ getStatusText(bug?.status || '') }}
+                    </a-tag>
+                    <a-tag v-if="bug?.confirmed" color="green">已确认</a-tag>
+                    <a-tag v-else-if="bug?.status === 'active'" color="orange">未确认</a-tag>
+                  </a-space>
                 </a-descriptions-item>
                 <a-descriptions-item label="优先级">
                   <a-tag :color="getPriorityColor(bug?.priority || '')">
@@ -65,7 +67,7 @@
                   </a>
                   <span v-else>-</span>
                 </a-descriptions-item>
-                <a-descriptions-item label="分配人">
+                <a-descriptions-item label="指派给">
                   <a-space>
                     <a-tag
                       v-for="assignee in bug?.assignees || []"
@@ -103,10 +105,10 @@
       </a-layout-content>
     </a-layout>
 
-    <!-- Bug分配模态框 -->
+    <!-- Bug指派模态框 -->
     <a-modal
       v-model:open="assignModalVisible"
-      title="分配Bug"
+      title="指派Bug"
       :mask-closable="true"
       @ok="handleAssignSubmit"
       @cancel="handleAssignCancel"
@@ -118,11 +120,11 @@
         :label-col="{ span: 6 }"
         :wrapper-col="{ span: 18 }"
       >
-        <a-form-item label="分配人" name="assignee_ids">
+        <a-form-item label="指派给" name="assignee_ids">
           <a-select
             v-model:value="assignFormData.assignee_ids"
             mode="multiple"
-            placeholder="选择分配人"
+            placeholder="选择指派给"
             show-search
             :filter-option="filterUserOption"
           >
@@ -137,6 +139,105 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <!-- Bug解决模态框 -->
+    <a-modal
+      v-model:open="statusModalVisible"
+      title="解决Bug"
+      :width="600"
+      :mask-closable="true"
+      @ok="handleStatusSubmit"
+      @cancel="handleStatusCancel"
+    >
+      <a-form
+        ref="statusFormRef"
+        :model="statusFormData"
+        :label-col="{ span: 6 }"
+        :wrapper-col="{ span: 18 }"
+      >
+        <a-form-item label="解决方案" name="solution">
+          <a-select
+            v-model:value="statusFormData.solution"
+            placeholder="选择解决方案（可选）"
+            allow-clear
+          >
+            <a-select-option value="设计如此">设计如此</a-select-option>
+            <a-select-option value="重复Bug">重复Bug</a-select-option>
+            <a-select-option value="外部原因">外部原因</a-select-option>
+            <a-select-option value="已解决">已解决</a-select-option>
+            <a-select-option value="无法重现">无法重现</a-select-option>
+            <a-select-option value="延期处理">延期处理</a-select-option>
+            <a-select-option value="不予解决">不予解决</a-select-option>
+            <a-select-option value="转为研发需求">转为研发需求</a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item label="备注" name="solution_note">
+          <a-textarea
+            v-model:value="statusFormData.solution_note"
+            placeholder="请输入备注（可选）"
+            :rows="4"
+          />
+        </a-form-item>
+        <a-form-item label="预估工时" name="estimated_hours">
+          <a-input-number
+            v-model:value="statusFormData.estimated_hours"
+            placeholder="预估工时（小时）"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
+        </a-form-item>
+        <a-form-item label="实际工时" name="actual_hours">
+          <a-input-number
+            v-model:value="statusFormData.actual_hours"
+            placeholder="实际工时（小时）"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
+          <span style="margin-left: 8px; color: #999">更新实际工时会自动创建资源分配</span>
+        </a-form-item>
+        <a-form-item label="工作日期" name="work_date" v-if="statusFormData.actual_hours">
+          <a-date-picker
+            v-model:value="statusFormData.work_date"
+            placeholder="选择工作日期（可选）"
+            style="width: 100%"
+            format="YYYY-MM-DD"
+          />
+          <span style="margin-left: 8px; color: #999">不填则使用今天</span>
+        </a-form-item>
+        <a-form-item label="解决版本" name="resolved_version_id">
+          <a-space direction="vertical" style="width: 100%">
+            <a-select
+              v-model:value="statusFormData.resolved_version_id"
+              placeholder="选择版本（可选）"
+              allow-clear
+              show-search
+              :filter-option="filterVersionOption"
+              :loading="versionLoading"
+              :disabled="statusFormData.create_version"
+              @focus="loadVersionsForProject(bug?.project_id || 0)"
+            >
+              <a-select-option
+                v-for="version in versions"
+                :key="version.id"
+                :value="version.id"
+              >
+                {{ version.version_number }}
+              </a-select-option>
+            </a-select>
+            <a-checkbox v-model:checked="statusFormData.create_version">
+              创建新版本
+            </a-checkbox>
+            <a-input
+              v-if="statusFormData.create_version"
+              v-model:value="statusFormData.version_number"
+              placeholder="输入版本号"
+            />
+          </a-space>
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -144,7 +245,6 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { DownOutlined } from '@ant-design/icons-vue'
 import { formatDateTime } from '@/utils/date'
 import AppHeader from '@/components/AppHeader.vue'
 import MarkdownEditor from '@/components/MarkdownEditor.vue'
@@ -153,9 +253,12 @@ import {
   updateBugStatus,
   deleteBug,
   assignBug,
+  confirmBug,
   type Bug
 } from '@/api/bug'
 import { getUsers, type User } from '@/api/user'
+import { getVersions, type Version } from '@/api/version'
+import type { Dayjs } from 'dayjs'
 
 const route = useRoute()
 const router = useRouter()
@@ -169,8 +272,25 @@ const assignFormData = reactive({
   assignee_ids: [] as number[]
 })
 
+// 解决对话框相关
+const statusModalVisible = ref(false)
+const statusFormRef = ref()
+const statusFormData = reactive({
+  status: 'resolved' as string,
+  solution: undefined as string | undefined,
+  solution_note: undefined as string | undefined,
+  estimated_hours: undefined as number | undefined,
+  actual_hours: undefined as number | undefined,
+  work_date: undefined as Dayjs | undefined,
+  resolved_version_id: undefined as number | undefined,
+  version_number: undefined as string | undefined,
+  create_version: false
+})
+const versions = ref<Version[]>([])
+const versionLoading = ref(false)
+
 const assignFormRules = {
-  assignee_ids: [{ required: true, message: '请选择分配人', trigger: 'change' }]
+  assignee_ids: [{ required: true, message: '请选择指派给', trigger: 'change' }]
 }
 
 // 加载Bug详情
@@ -208,44 +328,146 @@ const handleEdit = () => {
   router.push(`/bug?edit=${bug.value?.id}`)
 }
 
-// 分配
+// 指派
 const handleAssign = () => {
   if (!bug.value) return
   assignFormData.assignee_ids = bug.value.assignees?.map(a => a.id) || []
   assignModalVisible.value = true
 }
 
-// 分配提交
+// 指派提交
 const handleAssignSubmit = async () => {
   if (!bug.value) return
   try {
     await assignFormRef.value.validate()
     await assignBug(bug.value.id, { assignee_ids: assignFormData.assignee_ids })
-    message.success('分配成功')
+    message.success('指派成功')
     assignModalVisible.value = false
     loadBug()
   } catch (error: any) {
     if (error.errorFields) {
       return
     }
-    message.error(error.message || '分配失败')
+    message.error(error.message || '指派失败')
   }
 }
 
-// 分配取消
+// 指派取消
 const handleAssignCancel = () => {
   assignFormRef.value?.resetFields()
 }
 
-// 状态变更
-const handleStatusChange = async (status: string) => {
+// 解决Bug（弹出对话框）
+const handleResolve = () => {
+  if (!bug.value) return
+  handleOpenStatusModal('resolved')
+}
+
+// 打开解决对话框
+const handleOpenStatusModal = (status: string) => {
+  if (!bug.value) return
+  statusFormData.status = status
+  statusFormData.solution = bug.value.solution
+  statusFormData.solution_note = bug.value.solution_note
+  statusFormData.estimated_hours = bug.value.estimated_hours
+  statusFormData.actual_hours = bug.value.actual_hours
+  statusFormData.work_date = undefined
+  statusFormData.resolved_version_id = bug.value.resolved_version_id
+  statusFormData.version_number = undefined
+  statusFormData.create_version = false
+  // 加载项目下的版本列表
+  if (bug.value.project_id) {
+    loadVersionsForProject(bug.value.project_id)
+  }
+  statusModalVisible.value = true
+}
+
+// 加载项目下的版本列表
+const loadVersionsForProject = async (projectId: number) => {
+  if (!projectId) {
+    versions.value = []
+    return
+  }
+  try {
+    versionLoading.value = true
+    const response = await getVersions({ project_id: projectId, size: 1000 })
+    versions.value = response.list || []
+  } catch (error: any) {
+    console.error('加载版本列表失败:', error)
+  } finally {
+    versionLoading.value = false
+  }
+}
+
+// 版本筛选
+const filterVersionOption = (input: string, option: any) => {
+  const version = versions.value.find(v => v.id === option.value)
+  if (!version) return false
+  const searchText = input.toLowerCase()
+  return version.version_number.toLowerCase().includes(searchText)
+}
+
+// 解决提交
+const handleStatusSubmit = async () => {
   if (!bug.value) return
   try {
-    await updateBugStatus(bug.value.id, { status: status as any })
-    message.success('状态更新成功')
+    const data: any = {
+      status: statusFormData.status
+    }
+    if (statusFormData.solution) {
+      data.solution = statusFormData.solution
+    }
+    if (statusFormData.solution_note) {
+      data.solution_note = statusFormData.solution_note
+    }
+    if (statusFormData.estimated_hours !== undefined) {
+      data.estimated_hours = statusFormData.estimated_hours
+    }
+    if (statusFormData.actual_hours !== undefined) {
+      data.actual_hours = statusFormData.actual_hours
+      if (statusFormData.work_date && statusFormData.work_date.isValid()) {
+        data.work_date = statusFormData.work_date.format('YYYY-MM-DD')
+      }
+    }
+    if (statusFormData.create_version && statusFormData.version_number) {
+      data.create_version = true
+      data.version_number = statusFormData.version_number
+    } else if (statusFormData.resolved_version_id) {
+      data.resolved_version_id = statusFormData.resolved_version_id
+    }
+    await updateBugStatus(bug.value.id, data)
+    message.success('解决成功')
+    statusModalVisible.value = false
     loadBug()
   } catch (error: any) {
-    message.error(error.message || '状态更新失败')
+    message.error(error.message || '解决失败')
+  }
+}
+
+// 解决取消
+const handleStatusCancel = () => {
+  statusModalVisible.value = false
+  statusFormData.status = 'resolved'
+  statusFormData.solution = undefined
+  statusFormData.solution_note = undefined
+  statusFormData.estimated_hours = undefined
+  statusFormData.actual_hours = undefined
+  statusFormData.work_date = undefined
+  statusFormData.resolved_version_id = undefined
+  statusFormData.version_number = undefined
+  statusFormData.create_version = false
+}
+
+
+// 确认Bug
+const handleConfirm = async () => {
+  if (!bug.value) return
+  try {
+    await confirmBug(bug.value.id)
+    message.success('确认成功')
+    loadBug()
+  } catch (error: any) {
+    message.error(error.message || '确认失败')
   }
 }
 
@@ -272,16 +494,14 @@ const getStatusColor = (status: string) => {
 }
 
 // 获取状态文本
-const getStatusText = (status: string) => {
+const getStatusText = (status: string | undefined) => {
+  if (!status) return '-'
   const texts: Record<string, string> = {
     active: '激活',
     resolved: '已解决',
-    assigned: '已分配',
-    in_progress: '处理中',
-    resolved: '已解决',
     closed: '已关闭'
   }
-  return texts[status] || status
+  return texts[status.toLowerCase()] || status
 }
 
 // 获取优先级颜色

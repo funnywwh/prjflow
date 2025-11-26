@@ -415,6 +415,29 @@ func (h *BugHandler) UpdateBug(c *gin.Context) {
 			utils.Error(c, 400, "状态值无效，有效值：active, resolved, closed")
 			return
 		}
+
+		// 验证状态流转是否符合禅道规则
+		// 禅道规则：
+		// 1. active -> resolved (只有active状态可以解决)
+		// 2. resolved -> closed (只有resolved状态可以关闭)
+		// 3. resolved/closed -> active (只有非active状态可以激活)
+		currentStatus := bug.Status
+		newStatus := *req.Status
+
+		if currentStatus != newStatus {
+			if currentStatus == "active" && newStatus == "resolved" {
+				// active -> resolved: 允许
+			} else if currentStatus == "resolved" && newStatus == "closed" {
+				// resolved -> closed: 允许
+			} else if (currentStatus == "resolved" || currentStatus == "closed") && newStatus == "active" {
+				// resolved/closed -> active: 允许（激活）
+			} else {
+				// 其他状态转换不允许
+				utils.Error(c, 400, fmt.Sprintf("状态转换无效：不能从 %s 转换到 %s。允许的转换：active->resolved, resolved->closed, resolved/closed->active", currentStatus, newStatus))
+				return
+			}
+		}
+
 		bug.Status = *req.Status
 	}
 	if req.Priority != nil {
@@ -575,15 +598,8 @@ func (h *BugHandler) UpdateBug(c *gin.Context) {
 			utils.Error(c, utils.CodeError, "更新分配失败")
 			return
 		}
-		// 如果有分配人且状态为open，自动变为assigned
-		// 注意：只更新状态字段，不要覆盖其他已更新的字段（如 description）
-		if len(assignees) > 0 && bug.Status == "open" {
-			if err := h.db.Model(&bug).Update("status", "assigned").Error; err != nil {
-				utils.Error(c, utils.CodeError, "更新状态失败")
-				return
-			}
-			bug.Status = "assigned"
-		}
+		// 注意：禅道中Bug只有active/resolved/closed三种状态
+		// 分配Bug不会自动改变状态，状态需要手动更新
 	}
 
 	// 重新加载关联数据
@@ -661,6 +677,28 @@ func (h *BugHandler) UpdateBugStatus(c *gin.Context) {
 		return
 	}
 
+	// 验证状态流转是否符合禅道规则
+	// 禅道规则：
+	// 1. active -> resolved (只有active状态可以解决)
+	// 2. resolved -> closed (只有resolved状态可以关闭)
+	// 3. resolved/closed -> active (只有非active状态可以激活)
+	currentStatus := bug.Status
+	newStatus := req.Status
+
+	if currentStatus == newStatus {
+		// 状态未改变，允许
+	} else if currentStatus == "active" && newStatus == "resolved" {
+		// active -> resolved: 允许
+	} else if currentStatus == "resolved" && newStatus == "closed" {
+		// resolved -> closed: 允许
+	} else if (currentStatus == "resolved" || currentStatus == "closed") && newStatus == "active" {
+		// resolved/closed -> active: 允许（激活）
+	} else {
+		// 其他状态转换不允许
+		utils.Error(c, 400, fmt.Sprintf("状态转换无效：不能从 %s 转换到 %s。允许的转换：active->resolved, resolved->closed, resolved/closed->active", currentStatus, newStatus))
+		return
+	}
+
 	// 验证解决方案（如果提供了）
 	if req.Solution != nil {
 		validSolutions := map[string]bool{
@@ -683,6 +721,12 @@ func (h *BugHandler) UpdateBugStatus(c *gin.Context) {
 	// 更新解决方案备注
 	if req.SolutionNote != nil {
 		bug.SolutionNote = *req.SolutionNote
+	}
+
+	// 禅道逻辑：当有解决方案时，自动确认Bug
+	// 如果状态变为resolved且有解决方案，自动设置为已确认
+	if req.Status == "resolved" && req.Solution != nil && *req.Solution != "" {
+		bug.Confirmed = true
 	}
 
 	// 处理版本号
@@ -786,11 +830,9 @@ func (h *BugHandler) UpdateBugStatus(c *gin.Context) {
 func (h *BugHandler) GetBugStatistics(c *gin.Context) {
 	var stats struct {
 		Total            int64 `json:"total"`
-		Open             int64 `json:"open"`
-		Assigned         int64 `json:"assigned"`
-		InProgress       int64 `json:"in_progress"`
-		Resolved         int64 `json:"resolved"`
-		Closed           int64 `json:"closed"`
+		Active           int64 `json:"active"`   // 激活状态（对应原来的open）
+		Resolved         int64 `json:"resolved"` // 已解决
+		Closed           int64 `json:"closed"`   // 已关闭
 		LowPriority      int64 `json:"low_priority"`
 		MediumPriority   int64 `json:"medium_priority"`
 		HighPriority     int64 `json:"high_priority"`
@@ -823,13 +865,10 @@ func (h *BugHandler) GetBugStatistics(c *gin.Context) {
 	// 统计总数
 	baseQuery.Session(&gorm.Session{}).Count(&stats.Total)
 
-	// 按状态统计
-	baseQuery.Session(&gorm.Session{}).Where("status = ?", "active").Count(&stats.Open)
+	// 按状态统计（禅道状态：active, resolved, closed）
+	baseQuery.Session(&gorm.Session{}).Where("status = ?", "active").Count(&stats.Active)
 	baseQuery.Session(&gorm.Session{}).Where("status = ?", "resolved").Count(&stats.Resolved)
 	baseQuery.Session(&gorm.Session{}).Where("status = ?", "closed").Count(&stats.Closed)
-	// 注意：禅道中Bug只有active/resolved/closed三种状态，Assigned和InProgress字段保留但不再使用
-	stats.Assigned = 0
-	stats.InProgress = 0
 
 	// 按优先级统计
 	baseQuery.Session(&gorm.Session{}).Where("priority = ?", "low").Count(&stats.LowPriority)
@@ -885,6 +924,45 @@ func (h *BugHandler) AssignBug(c *gin.Context) {
 
 	// 如果有分配人，状态保持为active（禅道中Bug只有active/resolved/closed三种状态）
 	// 不需要改变状态
+
+	// 重新加载关联数据
+	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").Preload("Module").Preload("ResolvedVersion").First(&bug, bug.ID)
+
+	utils.Success(c, bug)
+}
+
+// ConfirmBug 确认Bug
+func (h *BugHandler) ConfirmBug(c *gin.Context) {
+	id := c.Param("id")
+	var bug model.Bug
+	if err := h.db.First(&bug, id).Error; err != nil {
+		utils.Error(c, 404, "Bug不存在")
+		return
+	}
+
+	// 权限检查：普通用户只能确认自己创建或参与的Bug
+	if !utils.CheckBugAccess(h.db, c, bug.ID) {
+		utils.Error(c, 403, "没有权限确认该Bug")
+		return
+	}
+
+	// 验证：只有状态为active且未确认的bug才能被确认
+	if bug.Status != "active" {
+		utils.Error(c, 400, "只有激活状态的Bug才能被确认")
+		return
+	}
+
+	if bug.Confirmed {
+		utils.Error(c, 400, "该Bug已经确认过了")
+		return
+	}
+
+	// 确认Bug
+	bug.Confirmed = true
+	if err := h.db.Save(&bug).Error; err != nil {
+		utils.Error(c, utils.CodeError, "确认失败")
+		return
+	}
 
 	// 重新加载关联数据
 	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").Preload("Module").Preload("ResolvedVersion").First(&bug, bug.ID)

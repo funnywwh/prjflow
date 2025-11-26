@@ -61,24 +61,12 @@
                     <a-col :span="8">
                       <a-card
                         class="stat-card"
-                        @click="goToBugs('open')"
+                        @click="goToBugs('active')"
                       >
                         <a-statistic
-                          title="待处理"
-                          :value="bugs.open"
+                          title="激活"
+                          :value="bugs.active"
                           :value-style="{ color: '#ff4d4f' }"
-                        />
-                      </a-card>
-                    </a-col>
-                    <a-col :span="8">
-                      <a-card
-                        class="stat-card"
-                        @click="goToBugs('in_progress')"
-                      >
-                        <a-statistic
-                          title="处理中"
-                          :value="bugs.in_progress"
-                          :value-style="{ color: '#faad14' }"
                         />
                       </a-card>
                     </a-col>
@@ -90,6 +78,18 @@
                         <a-statistic
                           title="已解决"
                           :value="bugs.resolved"
+                          :value-style="{ color: '#faad14' }"
+                        />
+                      </a-card>
+                    </a-col>
+                    <a-col :span="8">
+                      <a-card
+                        class="stat-card"
+                        @click="goToBugs('closed')"
+                      >
+                        <a-statistic
+                          title="已关闭"
+                          :value="bugs.closed"
                           :value-style="{ color: '#52c41a' }"
                         />
                       </a-card>

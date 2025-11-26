@@ -43,6 +43,7 @@ type Bug struct {
 	Status      string `gorm:"size:20;default:'active'" json:"status"` // 状态：active(激活), resolved(已解决), closed(已关闭)
 	Priority    string `gorm:"size:20;default:'medium'" json:"priority"` // 优先级：low, medium, high, urgent
 	Severity    string `gorm:"size:20;default:'medium'" json:"severity"` // 严重程度：low, medium, high, critical
+	Confirmed   bool   `gorm:"default:false" json:"confirmed"`      // 是否确认：false(未确认), true(已确认)
 
 	ProjectID uint    `gorm:"index;not null" json:"project_id"`
 	Project   Project `gorm:"foreignKey:ProjectID" json:"project,omitempty"`

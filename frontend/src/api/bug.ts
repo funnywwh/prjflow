@@ -7,6 +7,7 @@ export interface Bug {
   status: 'active' | 'resolved' | 'closed'
   priority: 'low' | 'medium' | 'high' | 'urgent'
   severity: 'low' | 'medium' | 'high' | 'critical'
+  confirmed?: boolean  // 是否确认
   project_id: number
   project?: any
   creator_id: number
@@ -105,11 +106,13 @@ export const assignBug = async (id: number, data: AssignBugRequest): Promise<Bug
   return request.post(`/bugs/${id}/assign`, data)
 }
 
+export const confirmBug = async (id: number): Promise<Bug> => {
+  return request.post(`/bugs/${id}/confirm`)
+}
+
 export interface BugStatistics {
   total: number
-  open: number
-  assigned: number
-  in_progress: number
+  active: number  // 激活状态
   resolved: number
   closed: number
   low_priority: number

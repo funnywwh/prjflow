@@ -49,7 +49,7 @@ func (h *DashboardHandler) GetDashboard(c *gin.Context) {
 	// 汇总统计
 	statistics := gin.H{
 		"total_tasks":        taskStats["todo"].(int) + taskStats["in_progress"].(int) + taskStats["done"].(int),
-		"total_bugs":         bugStats["open"].(int) + bugStats["in_progress"].(int) + bugStats["resolved"].(int),
+		"total_bugs":         bugStats["active"].(int) + bugStats["resolved"].(int) + bugStats["closed"].(int),
 		"total_requirements": requirementStats["in_progress"].(int) + requirementStats["completed"].(int),
 		"total_projects":     len(projects),
 		"week_hours":         resourceStats["week_hours"],
@@ -91,28 +91,28 @@ func (h *DashboardHandler) getTaskStats(userID uint) gin.H {
 
 // getBugStats 获取Bug统计
 func (h *DashboardHandler) getBugStats(userID uint) gin.H {
-	var openCount, inProgressCount, resolvedCount int64
+	var activeCount, resolvedCount, closedCount int64
 
-	// 查询分配给当前用户的Bug
+	// 查询分配给当前用户的Bug（禅道状态：active, resolved, closed）
 	h.db.Table("bugs").
 		Joins("JOIN bug_assignees ON bugs.id = bug_assignees.bug_id").
 		Where("bug_assignees.user_id = ? AND bugs.status = ?", userID, "active").
-		Count(&openCount)
-
-	h.db.Table("bugs").
-		Joins("JOIN bug_assignees ON bugs.id = bug_assignees.bug_id").
-		Where("bug_assignees.user_id = ? AND bugs.status = ?", userID, "resolved").
-		Count(&inProgressCount)
+		Count(&activeCount)
 
 	h.db.Table("bugs").
 		Joins("JOIN bug_assignees ON bugs.id = bug_assignees.bug_id").
 		Where("bug_assignees.user_id = ? AND bugs.status = ?", userID, "resolved").
 		Count(&resolvedCount)
 
+	h.db.Table("bugs").
+		Joins("JOIN bug_assignees ON bugs.id = bug_assignees.bug_id").
+		Where("bug_assignees.user_id = ? AND bugs.status = ?", userID, "closed").
+		Count(&closedCount)
+
 	return gin.H{
-		"open":        int(openCount),
-		"in_progress": int(inProgressCount),
-		"resolved":    int(resolvedCount),
+		"active":   int(activeCount),
+		"resolved": int(resolvedCount),
+		"closed":   int(closedCount),
 	}
 }
 

@@ -371,6 +371,7 @@ func main() {
 		bugGroup.DELETE("/:id", middleware.RequirePermission(db, "bug:delete"), bugHandler.DeleteBug)
 		bugGroup.PATCH("/:id/status", middleware.RequirePermission(db, "bug:update"), bugHandler.UpdateBugStatus)
 		bugGroup.POST("/:id/assign", middleware.RequirePermission(db, "bug:assign"), bugHandler.AssignBug)
+		bugGroup.POST("/:id/confirm", middleware.RequirePermission(db, "bug:update"), bugHandler.ConfirmBug)
 	}
 
 	// 任务管理路由

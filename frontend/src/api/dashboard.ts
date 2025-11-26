@@ -7,9 +7,9 @@ export interface DashboardData {
     done: number
   }
   bugs: {
-    open: number  // 对应active状态
-    in_progress: number  // 对应resolved状态（向后兼容）
-    resolved: number
+    active: number   // 激活状态
+    resolved: number // 已解决
+    closed: number   // 已关闭
   }
   requirements: {
     in_progress: number  // 对应active状态

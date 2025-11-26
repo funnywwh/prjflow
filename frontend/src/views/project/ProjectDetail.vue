@@ -17,6 +17,7 @@
                 <a-button @click="handleViewBoards">看板</a-button>
                 <a-button @click="handleViewGantt">甘特图</a-button>
                 <a-button @click="handleViewProgress">进度跟踪</a-button>
+                <a-button @click="handleViewResourceStatistics">资源统计</a-button>
                 <a-button @click="handleManageModules">功能模块</a-button>
                 <a-button @click="handleEdit">编辑</a-button>
                 <a-button @click="handleManageMembers">成员管理</a-button>
@@ -364,6 +365,15 @@ const handleViewGantt = () => {
 const handleViewProgress = () => {
   if (!project.value) return
   router.push(`/project/${project.value.id}/progress`)
+}
+
+// 查看资源统计
+const handleViewResourceStatistics = () => {
+  if (!project.value) return
+  router.push({
+    path: '/resource/statistics',
+    query: { project_id: project.value.id }
+  })
 }
 
 // 编辑项目

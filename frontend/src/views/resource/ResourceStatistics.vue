@@ -237,6 +237,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { saveLastSelected, getLastSelected } from '@/utils/storage'
 import { message } from 'ant-design-vue'
 import type { Dayjs } from 'dayjs'
@@ -251,6 +252,7 @@ import { getProjects } from '@/api/project'
 import type { User } from '@/api/user'
 import type { Project } from '@/api/project'
 
+const route = useRoute()
 const loading = ref(false)
 const users = ref<User[]>([])
 const projects = ref<Project[]>([])
@@ -410,10 +412,18 @@ const handleLoadUtilization = async () => {
 }
 
 onMounted(() => {
-  // 从 localStorage 恢复最后选择的搜索项目
-  const lastSearchProjectId = getLastSelected<number>('last_selected_resource_statistics_project_search')
-  if (lastSearchProjectId) {
-    searchForm.project_id = lastSearchProjectId
+  // 优先使用URL参数中的project_id
+  if (route.query.project_id) {
+    const projectId = Number(route.query.project_id)
+    if (projectId && !isNaN(projectId)) {
+      searchForm.project_id = projectId
+    }
+  } else {
+    // 从 localStorage 恢复最后选择的搜索项目
+    const lastSearchProjectId = getLastSelected<number>('last_selected_resource_statistics_project_search')
+    if (lastSearchProjectId) {
+      searchForm.project_id = lastSearchProjectId
+    }
   }
   loadUsers()
   loadProjects()

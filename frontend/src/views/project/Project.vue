@@ -80,8 +80,8 @@
                         <a-button type="link" size="small" @click="handleViewDetail(record)">
                           详情
                         </a-button>
-                        <a-button type="link" size="small" @click="handleEditProject(record)">
-                          编辑
+                        <a-button type="link" size="small" @click="handleManageRequirements(record)">
+                          需求管理
                         </a-button>
                         <a-button type="link" size="small" @click="handleManageTasks(record)">
                           任务管理
@@ -584,7 +584,8 @@ const handleViewDetail = (record: Project) => {
   router.push(`/project/${record.id}`)
 }
 
-// 编辑项目
+// 编辑项目（保留，可能在其他地方使用，如通过URL参数edit）
+// @ts-ignore
 const handleEditProject = async (record: Project) => {
   projectModalTitle.value = '编辑项目'
   Object.assign(projectFormData, {
@@ -681,6 +682,14 @@ const handleDeleteProject = async (id: number) => {
   } catch (error: any) {
     message.error(error.message || '删除失败')
   }
+}
+
+// 需求管理
+const handleManageRequirements = (record: Project) => {
+  router.push({
+    path: '/requirement',
+    query: { project_id: record.id }
+  })
 }
 
 // 任务管理

@@ -325,7 +325,7 @@ const getProgressStyle = (task: GanttTask) => {
   // 如果进度大于0，确保至少显示3px宽度（通过calc计算）
   if (progress > 0) {
     // 使用calc确保最小宽度，但优先使用百分比
-    return {
+  return {
       width: `calc(${progress}% + 0px)`,
       minWidth: '3px'
     }

@@ -52,7 +52,36 @@ func (h *TestCaseHandler) GetTestCases(c *gin.Context) {
 	offset := (page - 1) * pageSize
 
 	var total int64
-	query.Model(&model.TestCase{}).Count(&total)
+	// 计算总数时需要应用与查询相同的筛选条件
+	countQuery := h.db.Model(&model.TestCase{})
+
+	// 搜索
+	if keyword := c.Query("keyword"); keyword != "" {
+		countQuery = countQuery.Where("name LIKE ? OR description LIKE ? OR test_steps LIKE ?", "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
+	}
+
+	// 项目筛选
+	if projectID := c.Query("project_id"); projectID != "" {
+		countQuery = countQuery.Where("project_id = ?", projectID)
+	}
+
+	// 状态筛选
+	if status := c.Query("status"); status != "" {
+		countQuery = countQuery.Where("status = ?", status)
+	}
+
+	// 类型筛选（支持JSON数组字段查询）
+	if testType := c.Query("type"); testType != "" {
+		// 使用LIKE查询JSON数组字段（适用于SQLite和MySQL）
+		countQuery = countQuery.Where("types LIKE ?", "%\""+testType+"\"%")
+	}
+
+	// 创建人筛选
+	if creatorID := c.Query("creator_id"); creatorID != "" {
+		countQuery = countQuery.Where("creator_id = ?", creatorID)
+	}
+
+	countQuery.Count(&total)
 
 	if err := query.Offset(offset).Limit(pageSize).Order("created_at DESC").Find(&testCases).Error; err != nil {
 		utils.Error(c, utils.CodeError, "查询失败")

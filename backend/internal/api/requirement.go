@@ -62,8 +62,39 @@ func (h *RequirementHandler) GetRequirements(c *gin.Context) {
 	offset := (page - 1) * pageSize
 
 	var total int64
-	// 权限过滤：普通用户只能看到自己创建或参与的需求
+	// 计算总数时需要应用与查询相同的筛选条件
 	countQuery := utils.FilterRequirementsByUser(h.db, c, h.db.Model(&model.Requirement{}))
+
+	// 搜索
+	if keyword := c.Query("keyword"); keyword != "" {
+		countQuery = countQuery.Where("title LIKE ? OR description LIKE ?", "%"+keyword+"%", "%"+keyword+"%")
+	}
+
+	// 项目筛选
+	if projectID := c.Query("project_id"); projectID != "" {
+		countQuery = countQuery.Where("project_id = ?", projectID)
+	}
+
+	// 状态筛选
+	if status := c.Query("status"); status != "" {
+		countQuery = countQuery.Where("status = ?", status)
+	}
+
+	// 优先级筛选
+	if priority := c.Query("priority"); priority != "" {
+		countQuery = countQuery.Where("priority = ?", priority)
+	}
+
+	// 负责人筛选
+	if assigneeID := c.Query("assignee_id"); assigneeID != "" {
+		countQuery = countQuery.Where("assignee_id = ?", assigneeID)
+	}
+
+	// 创建人筛选
+	if creatorID := c.Query("creator_id"); creatorID != "" {
+		countQuery = countQuery.Where("creator_id = ?", creatorID)
+	}
+
 	countQuery.Count(&total)
 
 	if err := query.Offset(offset).Limit(pageSize).Order("created_at DESC").Find(&requirements).Error; err != nil {

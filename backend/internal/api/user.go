@@ -41,7 +41,20 @@ func (h *UserHandler) GetUsers(c *gin.Context) {
 	offset := (page - 1) * pageSize
 
 	var total int64
-	query.Model(&model.User{}).Count(&total)
+	// 计算总数时需要应用与查询相同的筛选条件
+	countQuery := h.db.Model(&model.User{})
+
+	// 搜索
+	if keyword := c.Query("keyword"); keyword != "" {
+		countQuery = countQuery.Where("username LIKE ? OR email LIKE ?", "%"+keyword+"%", "%"+keyword+"%")
+	}
+
+	// 部门筛选
+	if deptID := c.Query("department_id"); deptID != "" {
+		countQuery = countQuery.Where("department_id = ?", deptID)
+	}
+
+	countQuery.Count(&total)
 
 	if err := query.Offset(offset).Limit(pageSize).Find(&users).Error; err != nil {
 		utils.Error(c, utils.CodeError, "查询失败")

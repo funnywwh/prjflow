@@ -97,6 +97,45 @@ func (h *ResourceAllocationHandler) GetResourceAllocations(c *gin.Context) {
 			}
 		}
 	}
+
+	// 资源筛选
+	if resourceID := c.Query("resource_id"); resourceID != "" {
+		countQuery = countQuery.Where("resource_id = ?", resourceID)
+	}
+
+	// 用户筛选（通过资源）
+	if userID := c.Query("user_id"); userID != "" {
+		countQuery = countQuery.Joins("JOIN resources ON resource_allocations.resource_id = resources.id").
+			Where("resources.user_id = ?", userID)
+	}
+
+	// 项目筛选
+	if projectID := c.Query("project_id"); projectID != "" {
+		countQuery = countQuery.Where("resource_allocations.project_id = ?", projectID)
+	}
+
+	// 任务筛选
+	if taskID := c.Query("task_id"); taskID != "" {
+		countQuery = countQuery.Where("task_id = ?", taskID)
+	}
+
+	// Bug筛选
+	if bugID := c.Query("bug_id"); bugID != "" {
+		countQuery = countQuery.Where("bug_id = ?", bugID)
+	}
+
+	// 日期范围筛选
+	if startDate := c.Query("start_date"); startDate != "" {
+		if t, err := time.Parse("2006-01-02", startDate); err == nil {
+			countQuery = countQuery.Where("date >= ?", t)
+		}
+	}
+	if endDate := c.Query("end_date"); endDate != "" {
+		if t, err := time.Parse("2006-01-02", endDate); err == nil {
+			countQuery = countQuery.Where("date <= ?", t)
+		}
+	}
+
 	countQuery.Count(&total)
 
 	if err := query.Offset(offset).Limit(pageSize).Order("date DESC, created_at DESC").Find(&allocations).Error; err != nil {

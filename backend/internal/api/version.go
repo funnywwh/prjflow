@@ -43,7 +43,25 @@ func (h *VersionHandler) GetVersions(c *gin.Context) {
 	offset := (page - 1) * pageSize
 
 	var total int64
-	query.Model(&model.Version{}).Count(&total)
+	// 计算总数时需要应用与查询相同的筛选条件
+	countQuery := h.db.Model(&model.Version{})
+
+	// 搜索
+	if keyword := c.Query("keyword"); keyword != "" {
+		countQuery = countQuery.Where("version_number LIKE ? OR release_notes LIKE ?", "%"+keyword+"%", "%"+keyword+"%")
+	}
+
+	// 项目筛选
+	if projectID := c.Query("project_id"); projectID != "" {
+		countQuery = countQuery.Where("project_id = ?", projectID)
+	}
+
+	// 状态筛选
+	if status := c.Query("status"); status != "" {
+		countQuery = countQuery.Where("status = ?", status)
+	}
+
+	countQuery.Count(&total)
 
 	if err := query.Offset(offset).Limit(pageSize).Order("created_at DESC").Find(&versions).Error; err != nil {
 		utils.Error(c, utils.CodeError, "查询失败")

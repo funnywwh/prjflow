@@ -75,6 +75,22 @@ func (h *ResourceHandler) GetResources(c *gin.Context) {
 			}
 		}
 	}
+
+	// 用户筛选
+	if userID := c.Query("user_id"); userID != "" {
+		countQuery = countQuery.Where("user_id = ?", userID)
+	}
+
+	// 项目筛选
+	if projectID := c.Query("project_id"); projectID != "" {
+		countQuery = countQuery.Where("project_id = ?", projectID)
+	}
+
+	// 角色筛选
+	if role := c.Query("role"); role != "" {
+		countQuery = countQuery.Where("role = ?", role)
+	}
+
 	countQuery.Count(&total)
 
 	if err := query.Offset(offset).Limit(pageSize).Order("created_at DESC").Find(&resources).Error; err != nil {

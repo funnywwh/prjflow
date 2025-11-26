@@ -83,11 +83,11 @@
                         <a-button type="link" size="small" @click="handleEditProject(record)">
                           编辑
                         </a-button>
-                        <a-button type="link" size="small" @click="handleManageMembers(record)">
-                          成员管理
+                        <a-button type="link" size="small" @click="handleManageTasks(record)">
+                          任务管理
                         </a-button>
-                        <a-button type="link" size="small" @click="handleManageModules(record)">
-                          功能模块
+                        <a-button type="link" size="small" @click="handleManageBugs(record)">
+                          Bug管理
                         </a-button>
                         <a-popconfirm
                           title="确定要删除这个项目吗？"
@@ -681,7 +681,23 @@ const handleDeleteProject = async (id: number) => {
   }
 }
 
-// 管理成员
+// 任务管理
+const handleManageTasks = (record: Project) => {
+  router.push({
+    path: '/task',
+    query: { project_id: record.id }
+  })
+}
+
+// Bug管理
+const handleManageBugs = (record: Project) => {
+  router.push({
+    path: '/bug',
+    query: { project_id: record.id }
+  })
+}
+
+// 管理成员（保留，可能在其他地方使用）
 const handleManageMembers = async (record: Project) => {
   currentProjectId.value = record.id
   memberModalVisible.value = true
@@ -690,7 +706,7 @@ const handleManageMembers = async (record: Project) => {
   await loadProjectMembers(record.id)
 }
 
-// 功能模块管理
+// 功能模块管理（保留，可能在其他地方使用）
 const handleManageModules = async (record: Project) => {
   currentProjectId.value = record.id
   moduleManageModalVisible.value = true

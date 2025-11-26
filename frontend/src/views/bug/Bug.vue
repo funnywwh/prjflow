@@ -611,7 +611,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch, computed } from 'vue'
+import { ref, reactive, onMounted, watch, computed, nextTick } from 'vue'
 import { saveLastSelected, getLastSelected } from '@/utils/storage'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
@@ -810,7 +810,8 @@ const loadStatistics = async () => {
 // 加载项目列表
 const loadProjects = async () => {
   try {
-    const response = await getProjects()
+    // 获取所有项目（不分页），用于下拉选择器
+    const response = await getProjects({ size: 1000 })
     projects.value = response.list || []
   } catch (error: any) {
     console.error('加载项目列表失败:', error)
@@ -1341,11 +1342,20 @@ watch(activeTab, (newTab) => {
   }
 })
 
-onMounted(() => {
-  // 从 localStorage 恢复最后选择的搜索项目
-  const lastSearchProjectId = getLastSelected<number>('last_selected_bug_project_search')
-  if (lastSearchProjectId) {
-    searchForm.project_id = lastSearchProjectId
+onMounted(async () => {
+  // 先加载项目列表，确保项目选择器有数据
+  await loadProjects()
+  loadUsers()
+  
+  // 读取路由查询参数（优先级高于 localStorage）
+  if (route.query.project_id) {
+    searchForm.project_id = Number(route.query.project_id)
+  } else {
+    // 从 localStorage 恢复最后选择的搜索项目
+    const lastSearchProjectId = getLastSelected<number>('last_selected_bug_project_search')
+    if (lastSearchProjectId) {
+      searchForm.project_id = lastSearchProjectId
+    }
   }
   
   // 读取路由查询参数
@@ -1356,9 +1366,10 @@ onMounted(() => {
     searchForm.assignee_id = authStore.user.id
   }
   
-  loadBugs()
-  loadProjects()
-  loadUsers()
+  // 使用 nextTick 确保项目列表已渲染后再加载Bug
+  nextTick(() => {
+    loadBugs()
+  })
 })
 </script>
 

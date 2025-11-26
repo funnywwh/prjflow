@@ -57,10 +57,6 @@
                 <a-button type="primary" @click="handleSearch">查询</a-button>
                 <a-button style="margin-left: 8px" @click="handleReset">重置</a-button>
               </a-form-item>
-              <a-form-item>
-                <a-button type="primary" @click="handleSearch">查询</a-button>
-                <a-button style="margin-left: 8px" @click="handleReset">重置</a-button>
-              </a-form-item>
             </a-form>
           </a-card>
 

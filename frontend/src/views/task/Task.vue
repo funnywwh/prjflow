@@ -596,7 +596,8 @@ const loadTasks = async () => {
 // 加载项目列表
 const loadProjects = async () => {
   try {
-    const response = await getProjects()
+    // 获取所有项目（不分页），用于下拉选择器
+    const response = await getProjects({ size: 1000 })
     projects.value = response.list || []
   } catch (error: any) {
     console.error('加载项目列表失败:', error)
@@ -1027,10 +1028,25 @@ const filterUserOption = (input: string, option: any) => {
   )
 }
 
-onMounted(() => {
-  // 从 localStorage 恢复最后选择的搜索项目（如果没有路由参数）
-  const projectId = route.query.project_id
-  if (!projectId) {
+onMounted(async () => {
+  // 先加载项目列表，确保项目选择器有数据
+  await loadProjects()
+  loadUsers()
+  
+  // 读取路由查询参数（优先级高于 localStorage）
+  const projectIdFromQuery = route.query.project_id
+  if (projectIdFromQuery) {
+    const projectId = Number(projectIdFromQuery)
+    searchForm.project_id = projectId
+    formData.project_id = projectId
+    // 如果是从看板跳转过来，自动打开创建任务模态框
+    if (route.query.create === 'true' || route.query.from === 'board') {
+      nextTick(() => {
+        handleCreate()
+      })
+    }
+  } else {
+    // 从 localStorage 恢复最后选择的搜索项目
     const lastSearchProjectId = getLastSelected<number>('last_selected_task_project_search')
     if (lastSearchProjectId) {
       searchForm.project_id = lastSearchProjectId
@@ -1045,22 +1061,10 @@ onMounted(() => {
     searchForm.assignee_id = authStore.user.id
   }
   
-  loadTasks()
-  loadProjects()
-  loadUsers()
-  
-  // 检查是否有项目ID参数（从看板页面跳转过来）
-  if (projectId) {
-    formData.project_id = Number(projectId)
-    searchForm.project_id = Number(projectId)
-    handleSearch()
-    // 如果是从看板跳转过来，自动打开创建任务模态框
-    if (!route.query.edit) {
-      nextTick(() => {
-        handleCreate()
-      })
-    }
-  }
+  // 使用 nextTick 确保项目列表已渲染后再加载任务
+  nextTick(() => {
+    loadTasks()
+  })
   
   // 检查是否有编辑ID参数
   const editId = route.query.edit

@@ -11,6 +11,9 @@
           >
             <template #extra>
               <a-space>
+                <a-button @click="handleManageRequirements">需求管理</a-button>
+                <a-button @click="handleManageTasks">任务管理</a-button>
+                <a-button @click="handleManageBugs">Bug管理</a-button>
                 <a-button @click="handleViewBoards">看板</a-button>
                 <a-button @click="handleViewGantt">甘特图</a-button>
                 <a-button @click="handleViewProgress">进度跟踪</a-button>
@@ -284,6 +287,33 @@ const handleManageModules = () => {
   router.push({
     path: '/project',
     query: { manageModules: project.value?.id }
+  })
+}
+
+// 需求管理
+const handleManageRequirements = () => {
+  if (!project.value) return
+  router.push({
+    path: '/requirement',
+    query: { project_id: project.value.id }
+  })
+}
+
+// 任务管理
+const handleManageTasks = () => {
+  if (!project.value) return
+  router.push({
+    path: '/task',
+    query: { project_id: project.value.id }
+  })
+}
+
+// Bug管理
+const handleManageBugs = () => {
+  if (!project.value) return
+  router.push({
+    path: '/bug',
+    query: { project_id: project.value.id }
   })
 }
 

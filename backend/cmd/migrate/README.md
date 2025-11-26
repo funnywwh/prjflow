@@ -8,6 +8,7 @@
 - 角色 (zt_group + zt_grouppriv -> roles + permissions)
 - 用户 (zt_user -> users)
 - 项目 (zt_project -> projects)
+- 项目模块 (zt_module -> modules)
 - 需求 (zt_story -> requirements)
 - 任务 (zt_task -> tasks)
 - Bug (zt_bug -> bugs)
@@ -54,9 +55,10 @@ go build -o migrate cmd/migrate/main.go
 2. 角色和权限（需要先迁移，因为用户需要角色）
 3. 用户（依赖部门和角色）
 4. 项目（依赖用户）
-5. 需求（依赖项目和用户）
-6. 任务（依赖项目、需求和用户）
-7. Bug（依赖项目、需求和用户）
+5. 项目模块（依赖项目）
+6. 需求（依赖项目和用户）
+7. 任务（依赖项目、需求和用户）
+8. Bug（依赖项目、需求和用户）
 
 ## 数据映射规则
 
@@ -90,6 +92,15 @@ go build -o migrate cmd/migrate/main.go
 - `end` -> `end_date`
 - `status`: 转换（doing->1正常, done/closed->0禁用, wait->1）
 - 只迁移 `deleted='0'` 且 `type='sprint'` 或 `type='project'` 的项目
+
+### 项目模块映射
+- `name` -> `name`
+- `order` -> `sort`
+- `code`: 自动生成（格式：基于名称和ID生成）
+- `description`: 自动生成（包含原ID和类型信息）
+- `status`: 默认1（正常）
+- 只迁移 `deleted='0'` 的模块
+- 如果存在重名模块，只保留第一个（因为目标系统要求模块名称唯一）
 
 ### 需求映射
 - `title` -> `title`

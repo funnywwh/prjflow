@@ -241,6 +241,36 @@ func GenerateProjectCode(name string, id int) string {
 	return fmt.Sprintf("%s_%d", code, id)
 }
 
+// GenerateModuleCode 生成模块编码
+func GenerateModuleCode(name string, id int) string {
+	// 基于模块名称生成code，类似GenerateProjectCode
+	code := strings.ToLower(name)
+	code = strings.ReplaceAll(code, " ", "_")
+	code = strings.ReplaceAll(code, "-", "_")
+	code = strings.ReplaceAll(code, ".", "_")
+	// 移除其他特殊字符
+	var result strings.Builder
+	for _, r := range code {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' {
+			result.WriteRune(r)
+		}
+	}
+	code = result.String()
+	
+	// 如果code为空或太短，使用模块ID
+	if code == "" || len(code) < 2 {
+		return fmt.Sprintf("module_%d", id)
+	}
+	
+	// 限制code长度（最多30个字符，为ID后缀留空间）
+	if len(code) > 30 {
+		code = code[:30]
+	}
+	
+	// 添加模块ID作为后缀确保唯一性
+	return fmt.Sprintf("%s_%d", code, id)
+}
+
 // MapZenTaoPermissionToGoProject 将zentao权限映射到goproject权限代码
 func MapZenTaoPermissionToGoProject(module, method string) string {
 	// 根据zentao的module和method，映射到goproject的权限代码

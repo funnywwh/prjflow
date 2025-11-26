@@ -1044,7 +1044,24 @@ onMounted(() => {
   height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: auto;
+  /* 隐藏滚动条但保持滚动功能 */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE 和 Edge */
+}
+
+.content::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+/* 隐藏 ant-layout-content 滚动条 */
+.permission-management :deep(.ant-layout-content) {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE 和 Edge */
+}
+
+.permission-management :deep(.ant-layout-content)::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
 }
 
 .content-inner {

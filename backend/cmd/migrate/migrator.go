@@ -157,18 +157,67 @@ func (m *Migrator) MigrateDepartments() error {
 	}
 	
 	var zentaoDepts []ZenTaoDept
-	if err := m.zenTaoDB.Table("zt_dept").Find(&zentaoDepts).Error; err != nil {
+	if err := m.zenTaoDB.Table("zt_dept").Order("grade ASC, `order` ASC").Find(&zentaoDepts).Error; err != nil {
 		return err
 	}
 	
 	log.Printf("找到 %d 个部门", len(zentaoDepts))
 	
-	// 按层级排序，先迁移父部门
-	for _, zd := range zentaoDepts {
+	// 构建部门映射表，用于快速查找
+	deptMap := make(map[int]*ZenTaoDept)
+	for i := range zentaoDepts {
+		deptMap[zentaoDepts[i].ID] = &zentaoDepts[i]
+	}
+	
+	// 按层级排序，确保父部门先于子部门创建
+	// 使用拓扑排序：先处理没有父部门的，再处理有父部门的
+	sortedDepts := make([]*ZenTaoDept, 0, len(zentaoDepts))
+	processed := make(map[int]bool)
+	
+	// 第一轮：添加所有根部门（parent=0或parent不在列表中的）
+	for i := range zentaoDepts {
+		zd := &zentaoDepts[i]
+		if zd.Parent == 0 || deptMap[zd.Parent] == nil {
+			sortedDepts = append(sortedDepts, zd)
+			processed[zd.ID] = true
+		}
+	}
+	
+	// 后续轮次：添加父部门已处理的部门
+	maxIterations := len(zentaoDepts) // 防止无限循环
+	for iteration := 0; iteration < maxIterations && len(processed) < len(zentaoDepts); iteration++ {
+		for i := range zentaoDepts {
+			zd := &zentaoDepts[i]
+			if processed[zd.ID] {
+				continue
+			}
+			// 如果父部门已处理，则添加当前部门
+			if zd.Parent == 0 || processed[zd.Parent] {
+				sortedDepts = append(sortedDepts, zd)
+				processed[zd.ID] = true
+			}
+		}
+	}
+	
+	// 如果还有未处理的部门，按原顺序添加（可能是数据问题）
+	for i := range zentaoDepts {
+		zd := &zentaoDepts[i]
+		if !processed[zd.ID] {
+			sortedDepts = append(sortedDepts, zd)
+			log.Printf("警告: 部门 %s (ID: %d) 的父部门可能不存在，将按原顺序处理", zd.Name, zd.ID)
+		}
+	}
+	
+	log.Printf("部门排序完成，共 %d 个部门，将按层级顺序迁移", len(sortedDepts))
+	
+	// 按排序后的顺序迁移部门
+	for _, zd := range sortedDepts {
 		var parentID *uint
 		if zd.Parent > 0 {
 			if newID, ok := m.deptIDMap[zd.Parent]; ok {
 				parentID = &newID
+			} else {
+				log.Printf("警告: 部门 %s (ID: %d) 的父部门 (ID: %d) 未找到，将作为根部门处理", zd.Name, zd.ID, zd.Parent)
 			}
 		}
 		
@@ -185,7 +234,7 @@ func (m *Migrator) MigrateDepartments() error {
 		var existing model.Department
 		if err := m.goProjectDB.Where("code = ?", dept.Code).First(&existing).Error; err == nil {
 			m.deptIDMap[zd.ID] = existing.ID
-			log.Printf("部门已存在: %s (ID: %d -> %d)", dept.Name, zd.ID, existing.ID)
+			log.Printf("部门已存在: %s (ID: %d -> %d, 父部门: %v)", dept.Name, zd.ID, existing.ID, parentID)
 			continue
 		}
 		
@@ -195,7 +244,11 @@ func (m *Migrator) MigrateDepartments() error {
 		}
 		
 		m.deptIDMap[zd.ID] = dept.ID
-		log.Printf("迁移部门: %s (ID: %d -> %d)", dept.Name, zd.ID, dept.ID)
+		parentInfo := "根部门"
+		if parentID != nil {
+			parentInfo = fmt.Sprintf("父部门ID: %d", *parentID)
+		}
+		log.Printf("迁移部门: %s (ID: %d -> %d, 层级: %d, %s)", dept.Name, zd.ID, dept.ID, zd.Grade, parentInfo)
 	}
 	
 	log.Printf("部门迁移完成，共迁移 %d 个部门", len(m.deptIDMap))
@@ -388,6 +441,27 @@ func (m *Migrator) MigrateUsers() error {
 		if err := m.goProjectDB.Where("username = ?", user.Username).First(&existing).Error; err == nil {
 			m.userIDMap[zu.ID] = existing.ID
 			log.Printf("用户已存在: %s (ID: %d -> %d)", user.Username, zu.ID, existing.ID)
+			
+			// 如果用户已存在，检查admin账号是否有管理员角色
+			if strings.ToLower(zu.Account) == "admin" {
+				var existingRoles []model.Role
+				m.goProjectDB.Model(&existing).Association("Roles").Find(&existingRoles)
+				hasAdminRole := false
+				for _, r := range existingRoles {
+					if r.Code == "admin" {
+						hasAdminRole = true
+						break
+					}
+				}
+				if !hasAdminRole {
+					// 为已存在的admin账号添加管理员角色
+					if err := m.goProjectDB.Model(&existing).Association("Roles").Append(&adminRole); err != nil {
+						log.Printf("为已存在的admin账号添加管理员角色失败: %v", err)
+					} else {
+						log.Printf("为已存在的admin账号添加了管理员角色")
+					}
+				}
+			}
 			continue
 		}
 		
@@ -400,8 +474,11 @@ func (m *Migrator) MigrateUsers() error {
 		// 根据zentao的role字段判断，如果是admin则分配admin角色
 		// 否则查找对应的角色组
 		var roles []model.Role
-		if strings.ToLower(zu.Role) == "admin" || strings.Contains(strings.ToLower(zu.Role), "admin") {
+		
+		// 特殊处理：admin账号必须赋予管理员角色
+		if strings.ToLower(zu.Account) == "admin" || strings.ToLower(zu.Role) == "admin" || strings.Contains(strings.ToLower(zu.Role), "admin") {
 			roles = append(roles, adminRole)
+			log.Printf("用户 %s 被赋予管理员角色", user.Username)
 		}
 		
 		// 查找用户所属的角色组（通过zt_usergroup表）
@@ -430,10 +507,18 @@ func (m *Migrator) MigrateUsers() error {
 			}
 		}
 		
+		// 如果用户没有任何角色，且是admin账号，确保赋予管理员角色
+		if len(roles) == 0 && strings.ToLower(zu.Account) == "admin" {
+			roles = append(roles, adminRole)
+			log.Printf("admin账号未找到角色组，强制赋予管理员角色")
+		}
+		
 		if len(roles) > 0 {
 			if err := m.goProjectDB.Model(&user).Association("Roles").Replace(roles); err != nil {
 				log.Printf("分配角色失败: %s, 错误: %v", user.Username, err)
 			}
+		} else {
+			log.Printf("警告: 用户 %s 未分配任何角色", user.Username)
 		}
 		
 		m.userIDMap[zu.ID] = user.ID

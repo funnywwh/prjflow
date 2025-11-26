@@ -22,8 +22,21 @@ func GetPage(c *gin.Context) int {
 }
 
 // GetPageSize 获取每页数量
+// 同时支持 page_size 和 size 参数，优先使用 page_size
 func GetPageSize(c *gin.Context) int {
-	pageSize, err := strconv.Atoi(c.DefaultQuery("page_size", strconv.Itoa(DefaultPageSize)))
+	// 优先使用 page_size 参数
+	pageSizeStr := c.Query("page_size")
+	if pageSizeStr == "" {
+		// 如果没有 page_size，尝试使用 size 参数
+		pageSizeStr = c.Query("size")
+	}
+	
+	// 如果都没有，使用默认值
+	if pageSizeStr == "" {
+		return DefaultPageSize
+	}
+	
+	pageSize, err := strconv.Atoi(pageSizeStr)
 	if err != nil || pageSize < 1 {
 		return DefaultPageSize
 	}

@@ -5,7 +5,7 @@ export interface Project {
   name: string
   code: string
   description?: string
-  status: number
+  status: 'wait' | 'doing' | 'suspended' | 'closed' | 'done'
   tags?: Array<{ id: number; name: string; color?: string }>  // 标签对象数组
   start_date?: string
   end_date?: string
@@ -55,7 +55,7 @@ export interface CreateProjectRequest {
   name: string
   code: string
   description?: string
-  status?: number
+  status?: 'wait' | 'doing' | 'suspended' | 'closed' | 'done'
   tag_ids?: number[]  // 标签ID数组
   start_date?: string
   end_date?: string

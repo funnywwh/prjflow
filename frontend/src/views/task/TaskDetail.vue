@@ -327,10 +327,12 @@ const handleDelete = async () => {
 // 获取状态颜色
 const getStatusColor = (status: string) => {
   const colors: Record<string, string> = {
-    todo: 'orange',
-    in_progress: 'blue',
+    wait: 'orange',
+    doing: 'blue',
     done: 'green',
-    cancelled: 'red'
+    pause: 'purple',
+    cancel: 'red',
+    closed: 'default'
   }
   return colors[status] || 'default'
 }
@@ -338,10 +340,12 @@ const getStatusColor = (status: string) => {
 // 获取状态文本
 const getStatusText = (status: string) => {
   const texts: Record<string, string> = {
-    todo: '待办',
-    in_progress: '进行中',
+    wait: '未开始',
+    doing: '进行中',
     done: '已完成',
-    cancelled: '已取消'
+    pause: '已暂停',
+    cancel: '已取消',
+    closed: '已关闭'
   }
   return texts[status] || status
 }
@@ -370,7 +374,7 @@ const getPriorityText = (priority: string) => {
 
 // 判断是否逾期
 const isOverdue = (dueDate?: string, status?: string) => {
-  if (!dueDate || status === 'done' || status === 'cancelled') {
+  if (!dueDate || status === 'done' || status === 'cancel' || status === 'closed') {
     return false
   }
   const due = dayjs(dueDate)

@@ -127,10 +127,11 @@
                       allow-clear
                       style="width: 120px"
                     >
-                      <a-select-option value="pending">待处理</a-select-option>
-                      <a-select-option value="in_progress">进行中</a-select-option>
-                      <a-select-option value="completed">已完成</a-select-option>
-                      <a-select-option value="cancelled">已取消</a-select-option>
+                      <a-select-option value="draft">草稿</a-select-option>
+                      <a-select-option value="reviewing">评审中</a-select-option>
+                      <a-select-option value="active">激活</a-select-option>
+                      <a-select-option value="changing">变更中</a-select-option>
+                      <a-select-option value="closed">已关闭</a-select-option>
                     </a-select>
                   </a-form-item>
                   <a-form-item label="优先级">
@@ -205,9 +206,11 @@
                       <template #overlay>
                         <a-menu @click="(e: any) => handleStatusChange(record.id, e.key as string)">
                           <a-menu-item key="pending">待处理</a-menu-item>
-                          <a-menu-item key="in_progress">进行中</a-menu-item>
-                          <a-menu-item key="completed">已完成</a-menu-item>
-                          <a-menu-item key="cancelled">已取消</a-menu-item>
+                          <a-menu-item key="draft">草稿</a-menu-item>
+                          <a-menu-item key="reviewing">评审中</a-menu-item>
+                          <a-menu-item key="active">激活</a-menu-item>
+                          <a-menu-item key="changing">变更中</a-menu-item>
+                          <a-menu-item key="closed">已关闭</a-menu-item>
                         </a-menu>
                       </template>
                     </a-dropdown>
@@ -273,10 +276,11 @@
         </a-form-item>
         <a-form-item label="状态" name="status">
           <a-select v-model:value="formData.status">
-            <a-select-option value="pending">待处理</a-select-option>
-            <a-select-option value="in_progress">进行中</a-select-option>
-            <a-select-option value="completed">已完成</a-select-option>
-            <a-select-option value="cancelled">已取消</a-select-option>
+            <a-select-option value="draft">草稿</a-select-option>
+            <a-select-option value="reviewing">评审中</a-select-option>
+            <a-select-option value="active">激活</a-select-option>
+            <a-select-option value="changing">变更中</a-select-option>
+            <a-select-option value="closed">已关闭</a-select-option>
           </a-select>
         </a-form-item>
         <a-form-item label="优先级" name="priority">
@@ -423,7 +427,7 @@ const descriptionEditorRef = ref<InstanceType<typeof MarkdownEditor> | null>(nul
 const formData = reactive<Partial<CreateRequirementRequest> & { id?: number; actual_hours?: number; work_date?: Dayjs; attachment_ids?: number[] }>({
   title: '',
   description: '',
-  status: 'pending',
+  status: 'draft',
   priority: 'medium',
   project_id: undefined, // 表单中可以为undefined，提交时会验证
   assignee_id: undefined,
@@ -553,7 +557,7 @@ const handleCreate = () => {
   formData.id = undefined
   formData.title = ''
   formData.description = ''
-  formData.status = 'pending'
+  formData.status = 'draft'
   formData.priority = 'medium'
   // 从 localStorage 恢复最后选择的项目
   const lastProjectId = getLastSelected<number>('last_selected_requirement_project_form')
@@ -703,10 +707,11 @@ const handleStatusChange = async (id: number, status: string) => {
 // 获取状态颜色
 const getStatusColor = (status: string) => {
   const colors: Record<string, string> = {
-    pending: 'orange',
-    in_progress: 'blue',
-    completed: 'green',
-    cancelled: 'red'
+    draft: 'orange',
+    reviewing: 'purple',
+    active: 'blue',
+    changing: 'cyan',
+    closed: 'default'
   }
   return colors[status] || 'default'
 }
@@ -714,10 +719,11 @@ const getStatusColor = (status: string) => {
 // 获取状态文本
 const getStatusText = (status: string) => {
   const texts: Record<string, string> = {
-    pending: '待处理',
-    in_progress: '进行中',
-    completed: '已完成',
-    cancelled: '已取消'
+    draft: '草稿',
+    reviewing: '评审中',
+    active: '激活',
+    changing: '变更中',
+    closed: '已关闭'
   }
   return texts[status] || status
 }

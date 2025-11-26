@@ -6,7 +6,7 @@ export interface TestCase {
   description?: string
   test_steps?: string
   types?: string[] // 测试类型（多选）
-  status: 'pending' | 'running' | 'passed' | 'failed'
+  status: 'wait' | 'normal' | 'blocked' | 'investigate'
   project_id: number
   project?: any
   creator_id: number

@@ -108,10 +108,10 @@ func (h *VersionHandler) CreateVersion(c *gin.Context) {
 
 	// 验证状态
 	if req.Status == "" {
-		req.Status = "draft"
+		req.Status = "wait"
 	}
 	if !isValidVersionStatus(req.Status) {
-		utils.Error(c, 400, "无效的版本状态")
+		utils.Error(c, 400, "无效的版本状态，有效值：wait, normal, fail, terminate")
 		return
 	}
 
@@ -194,13 +194,13 @@ func (h *VersionHandler) UpdateVersion(c *gin.Context) {
 		version.ReleaseNotes = *req.ReleaseNotes
 	}
 	if req.Status != nil {
-		if !isValidVersionStatus(*req.Status) {
-			utils.Error(c, 400, "无效的版本状态")
-			return
-		}
+	if !isValidVersionStatus(*req.Status) {
+		utils.Error(c, 400, "无效的版本状态，有效值：wait, normal, fail, terminate")
+		return
+	}
 		version.Status = *req.Status
-		// 如果状态为 released，自动设置发布日期
-		if *req.Status == "released" && version.ReleaseDate == nil {
+		// 如果状态为 normal，自动设置发布日期
+		if *req.Status == "normal" && version.ReleaseDate == nil {
 			now := time.Now()
 			version.ReleaseDate = &now
 		}
@@ -286,13 +286,13 @@ func (h *VersionHandler) UpdateVersionStatus(c *gin.Context) {
 	}
 
 	if !isValidVersionStatus(req.Status) {
-		utils.Error(c, 400, "无效的版本状态")
+		utils.Error(c, 400, "无效的版本状态，有效值：wait, normal, fail, terminate")
 		return
 	}
 
 	version.Status = req.Status
-	// 如果状态为 released，自动设置发布日期
-	if req.Status == "released" && version.ReleaseDate == nil {
+	// 如果状态为 normal，自动设置发布日期
+	if req.Status == "normal" && version.ReleaseDate == nil {
 		now := time.Now()
 		version.ReleaseDate = &now
 	}
@@ -318,7 +318,7 @@ func (h *VersionHandler) ReleaseVersion(c *gin.Context) {
 		return
 	}
 
-	version.Status = "released"
+	version.Status = "normal"
 	if version.ReleaseDate == nil {
 		now := time.Now()
 		version.ReleaseDate = &now
@@ -336,10 +336,10 @@ func (h *VersionHandler) ReleaseVersion(c *gin.Context) {
 	utils.Success(c, version)
 }
 
-// isValidVersionStatus 检查版本状态是否合法
+// isValidVersionStatus 检查版本状态是否合法（禅道状态值）
 func isValidVersionStatus(status string) bool {
 	switch status {
-	case "draft", "released", "archived":
+	case "wait", "normal", "fail", "terminate":
 		return true
 	}
 	return false

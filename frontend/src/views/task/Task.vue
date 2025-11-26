@@ -230,10 +230,12 @@
         </a-form-item>
         <a-form-item label="状态" name="status">
           <a-select v-model:value="formData.status">
-            <a-select-option value="todo">待办</a-select-option>
-            <a-select-option value="in_progress">进行中</a-select-option>
+            <a-select-option value="wait">未开始</a-select-option>
+            <a-select-option value="doing">进行中</a-select-option>
             <a-select-option value="done">已完成</a-select-option>
-            <a-select-option value="cancelled">已取消</a-select-option>
+            <a-select-option value="pause">已暂停</a-select-option>
+            <a-select-option value="cancel">已取消</a-select-option>
+            <a-select-option value="closed">已关闭</a-select-option>
           </a-select>
         </a-form-item>
         <a-form-item label="优先级" name="priority">
@@ -495,7 +497,7 @@ const descriptionEditorRef = ref<InstanceType<typeof MarkdownEditor> | null>(nul
 const formData = reactive<Omit<CreateTaskRequest, 'start_date' | 'end_date' | 'due_date'> & { id?: number; start_date?: Dayjs | undefined; end_date?: Dayjs | undefined; due_date?: Dayjs | undefined; actual_hours?: number; work_date?: Dayjs | undefined; attachment_ids?: number[] }>({
   title: '',
   description: '',
-  status: 'todo',
+  status: 'wait',
   priority: 'medium',
   project_id: 0,
   requirement_id: undefined,
@@ -708,7 +710,7 @@ const handleCreate = () => {
   formData.id = undefined
   formData.title = ''
   formData.description = ''
-  formData.status = 'todo'
+  formData.status = 'wait'
   formData.priority = 'medium'
   // 如果有路由查询参数中的 project_id，使用它；否则从 localStorage 恢复最后选择的项目
   const projectIdFromQuery = route.query.project_id
@@ -931,10 +933,12 @@ const handleProgressCancel = () => {
 // 获取状态颜色
 const getStatusColor = (status: string) => {
   const colors: Record<string, string> = {
-    todo: 'orange',
-    in_progress: 'blue',
+    wait: 'orange',
+    doing: 'blue',
     done: 'green',
-    cancelled: 'red'
+    pause: 'purple',
+    cancel: 'red',
+    closed: 'default'
   }
   return colors[status] || 'default'
 }
@@ -942,10 +946,12 @@ const getStatusColor = (status: string) => {
 // 获取状态文本
 const getStatusText = (status: string) => {
   const texts: Record<string, string> = {
-    todo: '待办',
-    in_progress: '进行中',
+    wait: '未开始',
+    doing: '进行中',
     done: '已完成',
-    cancelled: '已取消'
+    pause: '已暂停',
+    cancel: '已取消',
+    closed: '已关闭'
   }
   return texts[status] || status
 }

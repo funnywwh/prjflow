@@ -16,7 +16,7 @@ type Project struct {
 	Name        string     `gorm:"size:100;not null" json:"name"`   // 项目名称
 	Code        string     `gorm:"size:50;uniqueIndex" json:"code"` // 项目编码
 	Description string     `gorm:"type:text" json:"description"`    // 描述
-	Status      int        `gorm:"default:1" json:"status"`         // 状态：1-正常，0-禁用
+	Status      string     `gorm:"size:20;default:'wait'" json:"status"` // 状态：wait(未开始), doing(进行中), suspended(已挂起), closed(已关闭), done(已完成)
 	StartDate   *time.Time `json:"start_date"`                      // 开始日期
 	EndDate     *time.Time `json:"end_date"`                        // 结束日期
 

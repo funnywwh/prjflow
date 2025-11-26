@@ -57,8 +57,8 @@
                 >
                   <template #bodyCell="{ column, record }">
                     <template v-if="column.key === 'status'">
-                      <a-tag :color="record.status === 1 ? 'green' : 'red'">
-                        {{ record.status === 1 ? '正常' : '禁用' }}
+                      <a-tag :color="getProjectStatusColor(record.status)">
+                        {{ getProjectStatusText(record.status) }}
                       </a-tag>
                     </template>
                     <template v-else-if="column.key === 'tags'">
@@ -191,8 +191,11 @@
         </a-form-item>
         <a-form-item label="状态" name="status">
           <a-select v-model:value="projectFormData.status" placeholder="选择状态">
-            <a-select-option :value="1">正常</a-select-option>
-            <a-select-option :value="0">禁用</a-select-option>
+            <a-select-option value="wait">未开始</a-select-option>
+            <a-select-option value="doing">进行中</a-select-option>
+            <a-select-option value="suspended">已挂起</a-select-option>
+            <a-select-option value="closed">已关闭</a-select-option>
+            <a-select-option value="done">已完成</a-select-option>
           </a-select>
         </a-form-item>
       </a-form>
@@ -411,7 +414,7 @@ const projectFormData = reactive<Omit<CreateProjectRequest, 'start_date' | 'end_
   name: '',
   code: '',
   description: '',
-  status: 1,
+  status: 'wait',
   tag_ids: [] as number[], // 改为标签ID数组
   attachment_ids: [] as number[] // 附件ID列表
 })
@@ -547,7 +550,7 @@ const handleCreateProject = () => {
     projectFormData.name = ''
     projectFormData.code = ''
     projectFormData.description = ''
-    projectFormData.status = 1
+    projectFormData.status = 'wait'
     // 从 localStorage 恢复最后选择的标签
     const lastTagIds = getLastSelected<number[]>('last_selected_project_tags_form')
     projectFormData.tag_ids = lastTagIds || []
@@ -825,6 +828,32 @@ const handleTagManageSubmit = async () => {
   } finally {
     tagSubmitting.value = false
   }
+}
+
+// 获取项目状态颜色
+const getProjectStatusColor = (status: string | number) => {
+  const statusStr = typeof status === 'number' ? (status === 1 ? 'doing' : 'closed') : status
+  const colors: Record<string, string> = {
+    wait: 'orange',
+    doing: 'blue',
+    suspended: 'purple',
+    closed: 'default',
+    done: 'green'
+  }
+  return colors[statusStr] || 'default'
+}
+
+// 获取项目状态文本
+const getProjectStatusText = (status: string | number) => {
+  const statusStr = typeof status === 'number' ? (status === 1 ? 'doing' : 'closed') : status
+  const texts: Record<string, string> = {
+    wait: '未开始',
+    doing: '进行中',
+    suspended: '已挂起',
+    closed: '已关闭',
+    done: '已完成'
+  }
+  return texts[statusStr] || String(status)
 }
 
 onMounted(() => {

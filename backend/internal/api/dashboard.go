@@ -3,10 +3,11 @@ package api
 import (
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 	"project-management/internal/model"
 	"project-management/internal/utils"
+
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type DashboardHandler struct {
@@ -47,21 +48,21 @@ func (h *DashboardHandler) GetDashboard(c *gin.Context) {
 
 	// 汇总统计
 	statistics := gin.H{
-		"total_tasks":       taskStats["todo"].(int) + taskStats["in_progress"].(int) + taskStats["done"].(int),
-		"total_bugs":        bugStats["open"].(int) + bugStats["in_progress"].(int) + bugStats["resolved"].(int),
+		"total_tasks":        taskStats["todo"].(int) + taskStats["in_progress"].(int) + taskStats["done"].(int),
+		"total_bugs":         bugStats["open"].(int) + bugStats["in_progress"].(int) + bugStats["resolved"].(int),
 		"total_requirements": requirementStats["in_progress"].(int) + requirementStats["completed"].(int),
-		"total_projects":    len(projects),
-		"week_hours":        resourceStats["week_hours"],
-		"month_hours":       resourceStats["month_hours"],
+		"total_projects":     len(projects),
+		"week_hours":         resourceStats["week_hours"],
+		"month_hours":        resourceStats["month_hours"],
 	}
 
 	utils.Success(c, gin.H{
-		"tasks":       taskStats,
-		"bugs":        bugStats,
+		"tasks":        taskStats,
+		"bugs":         bugStats,
 		"requirements": requirementStats,
-		"projects":    projects,
-		"reports":     reportStats,
-		"statistics":  statistics,
+		"projects":     projects,
+		"reports":      reportStats,
+		"statistics":   statistics,
 	})
 }
 
@@ -70,11 +71,11 @@ func (h *DashboardHandler) getTaskStats(userID uint) gin.H {
 	var todoCount, inProgressCount, doneCount int64
 
 	h.db.Model(&model.Task{}).
-		Where("assignee_id = ? AND status = ?", userID, "todo").
+		Where("assignee_id = ? AND status = ?", userID, "wait").
 		Count(&todoCount)
 
 	h.db.Model(&model.Task{}).
-		Where("assignee_id = ? AND status = ?", userID, "in_progress").
+		Where("assignee_id = ? AND status = ?", userID, "doing").
 		Count(&inProgressCount)
 
 	h.db.Model(&model.Task{}).
@@ -95,12 +96,12 @@ func (h *DashboardHandler) getBugStats(userID uint) gin.H {
 	// 查询分配给当前用户的Bug
 	h.db.Table("bugs").
 		Joins("JOIN bug_assignees ON bugs.id = bug_assignees.bug_id").
-		Where("bug_assignees.user_id = ? AND bugs.status = ?", userID, "open").
+		Where("bug_assignees.user_id = ? AND bugs.status = ?", userID, "active").
 		Count(&openCount)
 
 	h.db.Table("bugs").
 		Joins("JOIN bug_assignees ON bugs.id = bug_assignees.bug_id").
-		Where("bug_assignees.user_id = ? AND bugs.status = ?", userID, "in_progress").
+		Where("bug_assignees.user_id = ? AND bugs.status = ?", userID, "resolved").
 		Count(&inProgressCount)
 
 	h.db.Table("bugs").
@@ -120,7 +121,7 @@ func (h *DashboardHandler) getRequirementStats(userID uint) gin.H {
 	var inProgressCount, completedCount int64
 
 	h.db.Model(&model.Requirement{}).
-		Where("assignee_id = ? AND status = ?", userID, "in_progress").
+		Where("assignee_id = ? AND status = ?", userID, "active").
 		Count(&inProgressCount)
 
 	h.db.Model(&model.Requirement{}).
@@ -204,8 +205,8 @@ func (h *DashboardHandler) getReportStats(userID uint) gin.H {
 	`, userID, "submitted", userID).Scan(&weeklyPendingApproval)
 
 	return gin.H{
-		"pending":         int(pendingCount + weeklyPending),
-		"submitted":       int(submittedCount + weeklySubmitted),
+		"pending":          int(pendingCount + weeklyPending),
+		"submitted":        int(submittedCount + weeklySubmitted),
 		"pending_approval": int(pendingApprovalCount + weeklyPendingApproval),
 	}
 }
@@ -213,7 +214,7 @@ func (h *DashboardHandler) getReportStats(userID uint) gin.H {
 // getResourceStats 获取资源分配统计
 func (h *DashboardHandler) getResourceStats(userID uint) gin.H {
 	now := time.Now()
-	
+
 	// 本周开始和结束
 	weekStart := now
 	for weekStart.Weekday() != time.Monday {
@@ -249,4 +250,3 @@ func (h *DashboardHandler) getResourceStats(userID uint) gin.H {
 		"month_hours": monthHours,
 	}
 }
-

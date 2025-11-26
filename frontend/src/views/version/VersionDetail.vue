@@ -11,7 +11,7 @@
             <template #extra>
               <a-space>
                 <a-button @click="handleEdit">编辑</a-button>
-                <a-button v-if="version?.status === 'draft'" type="primary" @click="handleRelease">
+                <a-button v-if="version?.status === 'wait'" type="primary" @click="handleRelease">
                   发布
                 </a-button>
                 <a-dropdown>
@@ -236,17 +236,20 @@ const handleRelease = async () => {
 // 状态颜色和文本
 const getStatusColor = (status: string) => {
   const colors: Record<string, string> = {
-    draft: 'default',
-    released: 'success',
-    archived: 'default'
+    wait: 'orange',
+    normal: 'green',
+    fail: 'red',
+    terminate: 'default'
   }
   return colors[status] || 'default'
 }
 
 const getStatusText = (status: string) => {
   const texts: Record<string, string> = {
-    draft: '草稿',
-    released: '已发布',
+    wait: '未开始',
+    normal: '已发布',
+    fail: '发布失败',
+    terminate: '停止维护'
     archived: '已归档'
   }
   return texts[status] || status

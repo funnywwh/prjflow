@@ -15,7 +15,7 @@ type Version struct {
 
 	VersionNumber string `gorm:"size:50;not null" json:"version_number"` // 版本号
 	ReleaseNotes  string `gorm:"type:text" json:"release_notes"`         // 发布说明（Markdown）
-	Status        string `gorm:"size:20;default:'draft'" json:"status"`   // 状态：draft, released, archived
+	Status        string `gorm:"size:20;default:'wait'" json:"status"`   // 状态：wait(未开始), normal(已发布), fail(发布失败), terminate(停止维护)
 
 	ProjectID uint    `gorm:"index;not null" json:"project_id"` // 关联项目
 	Project   Project `gorm:"foreignKey:ProjectID" json:"project,omitempty"`

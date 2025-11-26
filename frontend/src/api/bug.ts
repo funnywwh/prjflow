@@ -4,7 +4,7 @@ export interface Bug {
   id: number
   title: string
   description?: string
-  status: 'open' | 'assigned' | 'in_progress' | 'resolved' | 'closed'
+  status: 'active' | 'resolved' | 'closed'
   priority: 'low' | 'medium' | 'high' | 'urgent'
   severity: 'low' | 'medium' | 'high' | 'critical'
   project_id: number
@@ -36,7 +36,7 @@ export interface BugListResponse {
 export interface CreateBugRequest {
   title: string
   description?: string
-  status?: 'open' | 'assigned' | 'in_progress' | 'resolved' | 'closed'
+  status?: 'active' | 'resolved' | 'closed'
   priority?: 'low' | 'medium' | 'high' | 'urgent'
   severity?: 'low' | 'medium' | 'high' | 'critical'
   project_id: number
@@ -49,7 +49,7 @@ export interface CreateBugRequest {
 }
 
 export interface UpdateBugStatusRequest {
-  status: 'open' | 'assigned' | 'in_progress' | 'resolved' | 'closed'
+  status: 'active' | 'resolved' | 'closed'
   solution?: string
   solution_note?: string
   estimated_hours?: number

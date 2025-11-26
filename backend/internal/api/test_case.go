@@ -135,10 +135,10 @@ func (h *TestCaseHandler) CreateTestCase(c *gin.Context) {
 
 	// 验证状态
 	if req.Status == "" {
-		req.Status = "pending"
+		req.Status = "wait"
 	}
 	if !isValidTestCaseStatus(req.Status) {
-		utils.Error(c, 400, "无效的测试单状态")
+		utils.Error(c, 400, "无效的测试单状态，有效值：wait, normal, blocked, investigate")
 		return
 	}
 
@@ -227,7 +227,7 @@ func (h *TestCaseHandler) UpdateTestCase(c *gin.Context) {
 	}
 	if req.Status != nil {
 		if !isValidTestCaseStatus(*req.Status) {
-			utils.Error(c, 400, "无效的测试单状态")
+			utils.Error(c, 400, "无效的测试单状态，有效值：wait, normal, blocked, investigate")
 			return
 		}
 		testCase.Status = *req.Status
@@ -288,7 +288,7 @@ func (h *TestCaseHandler) UpdateTestCaseStatus(c *gin.Context) {
 	}
 
 	if !isValidTestCaseStatus(req.Status) {
-		utils.Error(c, 400, "无效的测试单状态")
+		utils.Error(c, 400, "无效的测试单状态，有效值：wait, normal, blocked, investigate")
 		return
 	}
 
@@ -319,12 +319,17 @@ func (h *TestCaseHandler) GetTestCaseStatistics(c *gin.Context) {
 	}
 
 	// 使用独立的Session确保每个查询都是独立的
-	var total, pending, running, passed, failed int64
+	var total, wait, normal, blocked, investigate int64
 	baseQuery.Session(&gorm.Session{}).Count(&total)
-	baseQuery.Session(&gorm.Session{}).Where("status = ?", "pending").Count(&pending)
-	baseQuery.Session(&gorm.Session{}).Where("status = ?", "running").Count(&running)
-	baseQuery.Session(&gorm.Session{}).Where("status = ?", "passed").Count(&passed)
-	baseQuery.Session(&gorm.Session{}).Where("status = ?", "failed").Count(&failed)
+	baseQuery.Session(&gorm.Session{}).Where("status = ?", "wait").Count(&wait)
+	baseQuery.Session(&gorm.Session{}).Where("status = ?", "normal").Count(&normal)
+	baseQuery.Session(&gorm.Session{}).Where("status = ?", "blocked").Count(&blocked)
+	baseQuery.Session(&gorm.Session{}).Where("status = ?", "investigate").Count(&investigate)
+	// 注意：禅道中测试单状态只有wait/normal/blocked/investigate，没有passed/failed状态
+	// passed和failed应该从result字段获取，而不是status字段
+	var passed, failed int64
+	baseQuery.Session(&gorm.Session{}).Where("result = ?", "pass").Count(&passed)
+	baseQuery.Session(&gorm.Session{}).Where("result = ?", "fail").Count(&failed)
 
 	// 计算通过率和失败率
 	var passRate, failRate float64
@@ -424,21 +429,23 @@ func (h *TestCaseHandler) GetTestCaseStatistics(c *gin.Context) {
 
 	utils.Success(c, gin.H{
 		"total":        total,
-		"pending":      pending,
-		"running":      running,
-		"passed":       passed,
-		"failed":       failed,
-		"pass_rate":    passRate,
-		"fail_rate":    failRate,
+		"wait":          wait,
+		"normal":        normal,
+		"blocked":       blocked,
+		"investigate":   investigate,
+		"passed":        passed,
+		"failed":        failed,
+		"pass_rate":     passRate,
+		"fail_rate":     failRate,
 		"project_stats": projectStats,
-		"type_stats":   typeStats,
+		"type_stats":    typeStats,
 	})
 }
 
-// isValidTestCaseStatus 检查测试单状态是否合法
+// isValidTestCaseStatus 检查测试单状态是否合法（禅道状态值）
 func isValidTestCaseStatus(status string) bool {
 	switch status {
-	case "pending", "running", "passed", "failed":
+	case "wait", "normal", "blocked", "investigate":
 		return true
 	}
 	return false

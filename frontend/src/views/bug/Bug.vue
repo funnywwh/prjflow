@@ -384,9 +384,7 @@
         </a-form-item>
         <a-form-item label="状态" name="status">
           <a-select v-model:value="formData.status">
-            <a-select-option value="open">待处理</a-select-option>
-            <a-select-option value="assigned">已分配</a-select-option>
-            <a-select-option value="in_progress">处理中</a-select-option>
+            <a-select-option value="active">激活</a-select-option>
             <a-select-option value="resolved">已解决</a-select-option>
             <a-select-option value="closed">已关闭</a-select-option>
           </a-select>
@@ -695,7 +693,7 @@ const descriptionEditorRef = ref<InstanceType<typeof MarkdownEditor> | null>(nul
 const formData = reactive<CreateBugRequest & { id?: number; attachment_ids?: number[] }>({
   title: '',
   description: '',
-  status: 'open',
+  status: 'active',
   priority: 'medium',
   severity: 'medium',
   project_id: 0,
@@ -724,7 +722,7 @@ const statusModalVisible = ref(false)
 const statusFormRef = ref()
 const statusFormData = reactive({
   bug_id: 0,
-  status: 'open' as string,
+  status: 'active' as string,
   solution: undefined as string | undefined,
   solution_note: undefined as string | undefined,
   estimated_hours: undefined as number | undefined,
@@ -909,7 +907,7 @@ const handleCreate = () => {
   formData.id = undefined
   formData.title = ''
   formData.description = ''
-  formData.status = 'open'
+  formData.status = 'active'
   formData.priority = 'medium'
   formData.severity = 'medium'
   // 从 localStorage 恢复最后选择的项目
@@ -1167,7 +1165,7 @@ const handleStatusSubmit = async () => {
 const handleStatusCancel = () => {
   statusModalVisible.value = false
   statusFormData.bug_id = 0
-  statusFormData.status = 'open'
+  statusFormData.status = 'active'
   statusFormData.solution = undefined
   statusFormData.solution_note = undefined
   statusFormData.estimated_hours = undefined
@@ -1217,9 +1215,7 @@ const handleAssignCancel = () => {
 // 获取状态颜色
 const getStatusColor = (status: string) => {
   const colors: Record<string, string> = {
-    open: 'orange',
-    assigned: 'blue',
-    in_progress: 'processing',
+    active: 'orange',
     resolved: 'green',
     closed: 'default'
   }
@@ -1229,9 +1225,7 @@ const getStatusColor = (status: string) => {
 // 获取状态文本
 const getStatusText = (status: string) => {
   const texts: Record<string, string> = {
-    open: '待处理',
-    assigned: '已分配',
-    in_progress: '处理中',
+    active: '激活',
     resolved: '已解决',
     closed: '已关闭'
   }

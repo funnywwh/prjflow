@@ -15,7 +15,7 @@ type Requirement struct {
 
 	Title       string `gorm:"size:200;not null" json:"title"`        // 需求标题
 	Description string `gorm:"type:text" json:"description"`        // 需求描述（Markdown）
-	Status      string `gorm:"size:20;default:'pending'" json:"status"` // 状态：pending, in_progress, completed, cancelled
+	Status      string `gorm:"size:20;default:'draft'" json:"status"` // 状态：draft(草稿), reviewing(评审中), active(激活), changing(变更中), closed(已关闭)
 	Priority    string `gorm:"size:20;default:'medium'" json:"priority"` // 优先级：low, medium, high, urgent
 
 	ProjectID uint    `gorm:"index;not null" json:"project_id"` // 必填关联项目
@@ -40,7 +40,7 @@ type Bug struct {
 
 	Title       string `gorm:"size:200;not null" json:"title"`        // Bug标题
 	Description string `gorm:"type:text" json:"description"`         // Bug描述（Markdown）
-	Status      string `gorm:"size:20;default:'open'" json:"status"` // 状态：open, assigned, in_progress, resolved, closed
+	Status      string `gorm:"size:20;default:'active'" json:"status"` // 状态：active(激活), resolved(已解决), closed(已关闭)
 	Priority    string `gorm:"size:20;default:'medium'" json:"priority"` // 优先级：low, medium, high, urgent
 	Severity    string `gorm:"size:20;default:'medium'" json:"severity"` // 严重程度：low, medium, high, critical
 

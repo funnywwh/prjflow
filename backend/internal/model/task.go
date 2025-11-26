@@ -15,7 +15,7 @@ type Task struct {
 
 	Title       string `gorm:"size:200;not null" json:"title"`        // 任务标题
 	Description string `gorm:"type:text" json:"description"`         // 任务描述（Markdown）
-	Status      string `gorm:"size:20;default:'todo'" json:"status"`  // 状态：todo, in_progress, done, cancelled
+	Status      string `gorm:"size:20;default:'wait'" json:"status"`  // 状态：wait(未开始), doing(进行中), done(已完成), pause(已暂停), cancel(已取消), closed(已关闭)
 	Priority    string `gorm:"size:20;default:'medium'" json:"priority"` // 优先级：low, medium, high, urgent
 
 	ProjectID uint    `gorm:"index;not null" json:"project_id"`

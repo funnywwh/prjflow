@@ -160,10 +160,11 @@ const handleDelete = async () => {
 // 获取状态颜色
 const getStatusColor = (status: string) => {
   const colors: Record<string, string> = {
-    pending: 'orange',
-    in_progress: 'blue',
-    completed: 'green',
-    cancelled: 'red'
+    draft: 'orange',
+    reviewing: 'purple',
+    active: 'blue',
+    changing: 'cyan',
+    closed: 'default'
   }
   return colors[status] || 'default'
 }
@@ -171,7 +172,11 @@ const getStatusColor = (status: string) => {
 // 获取状态文本
 const getStatusText = (status: string) => {
   const texts: Record<string, string> = {
-    pending: '待处理',
+    draft: '草稿',
+    reviewing: '评审中',
+    active: '激活',
+    changing: '变更中',
+    closed: '已关闭'
     in_progress: '进行中',
     completed: '已完成',
     cancelled: '已取消'

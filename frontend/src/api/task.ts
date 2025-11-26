@@ -4,7 +4,7 @@ export interface Task {
   id: number
   title: string
   description?: string
-  status: 'todo' | 'in_progress' | 'done' | 'cancelled'
+  status: 'wait' | 'doing' | 'done' | 'pause' | 'cancel' | 'closed'
   priority: 'low' | 'medium' | 'high' | 'urgent'
   project_id: number
   project?: any
@@ -35,7 +35,7 @@ export interface TaskListResponse {
 export interface CreateTaskRequest {
   title: string
   description?: string
-  status?: 'todo' | 'in_progress' | 'done' | 'cancelled'
+  status?: 'wait' | 'doing' | 'done' | 'pause' | 'cancel' | 'closed'
   priority?: 'low' | 'medium' | 'high' | 'urgent'
   project_id: number
   requirement_id?: number
@@ -51,7 +51,7 @@ export interface CreateTaskRequest {
 }
 
 export interface UpdateTaskStatusRequest {
-  status: 'todo' | 'in_progress' | 'done' | 'cancelled'
+  status: 'wait' | 'doing' | 'done' | 'pause' | 'cancel' | 'closed'
 }
 
 export interface UpdateTaskProgressRequest {

@@ -154,16 +154,17 @@ func (h *RequirementHandler) CreateRequirement(c *gin.Context) {
 
 	// 验证状态
 	if req.Status == "" {
-		req.Status = "pending"
+		req.Status = "draft"
 	}
 	validStatuses := map[string]bool{
-		"pending":    true,
-		"in_progress": true,
-		"completed":  true,
-		"cancelled":  true,
+		"draft":     true,
+		"reviewing": true,
+		"active":    true,
+		"changing":  true,
+		"closed":    true,
 	}
 	if !validStatuses[req.Status] {
-		utils.Error(c, 400, "状态值无效")
+		utils.Error(c, 400, "状态值无效，有效值：draft, reviewing, active, changing, closed")
 		return
 	}
 
@@ -274,13 +275,14 @@ func (h *RequirementHandler) UpdateRequirement(c *gin.Context) {
 	if req.Status != nil {
 		// 验证状态
 		validStatuses := map[string]bool{
-			"pending":    true,
-			"in_progress": true,
-			"completed":  true,
-			"cancelled":  true,
+			"draft":     true,
+			"reviewing": true,
+			"active":    true,
+			"changing":  true,
+			"closed":    true,
 		}
 		if !validStatuses[*req.Status] {
-			utils.Error(c, 400, "状态值无效")
+			utils.Error(c, 400, "状态值无效，有效值：draft, reviewing, active, changing, closed")
 			return
 		}
 		requirement.Status = *req.Status
@@ -452,10 +454,12 @@ func (h *RequirementHandler) GetRequirementStatistics(c *gin.Context) {
 	// 统计总数
 	baseQuery.Session(&gorm.Session{}).Count(&stats.Total)
 
-	// 按状态统计
-	baseQuery.Session(&gorm.Session{}).Where("status = ?", "pending").Count(&stats.Pending)
-	baseQuery.Session(&gorm.Session{}).Where("status = ?", "in_progress").Count(&stats.InProgress)
-	baseQuery.Session(&gorm.Session{}).Where("status = ?", "completed").Count(&stats.Completed)
+	// 按状态统计（禅道状态值）
+	baseQuery.Session(&gorm.Session{}).Where("status = ?", "draft").Count(&stats.Pending)
+	baseQuery.Session(&gorm.Session{}).Where("status = ?", "reviewing").Count(&stats.Pending)
+	baseQuery.Session(&gorm.Session{}).Where("status = ?", "active").Count(&stats.InProgress)
+	baseQuery.Session(&gorm.Session{}).Where("status = ?", "changing").Count(&stats.InProgress)
+	baseQuery.Session(&gorm.Session{}).Where("status = ?", "closed").Count(&stats.Completed)
 	baseQuery.Session(&gorm.Session{}).Where("status = ?", "cancelled").Count(&stats.Cancelled)
 
 	// 按优先级统计
@@ -493,13 +497,14 @@ func (h *RequirementHandler) UpdateRequirementStatus(c *gin.Context) {
 
 	// 验证状态
 	validStatuses := map[string]bool{
-		"pending":    true,
-		"in_progress": true,
-		"completed":  true,
-		"cancelled":  true,
+		"draft":     true,
+		"reviewing": true,
+		"active":    true,
+		"changing":  true,
+		"closed":    true,
 	}
 	if !validStatuses[req.Status] {
-		utils.Error(c, 400, "状态值无效")
+		utils.Error(c, 400, "状态值无效，有效值：draft, reviewing, active, changing, closed")
 		return
 	}
 

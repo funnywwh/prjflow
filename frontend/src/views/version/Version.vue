@@ -110,7 +110,7 @@
                     <a-button type="link" size="small" @click="handleEdit(record)">
                       编辑
                     </a-button>
-                    <a-button v-if="record.status === 'draft'" type="link" size="small" @click="handleRelease(record.id)">
+                    <a-button v-if="record.status === 'wait'" type="link" size="small" @click="handleRelease(record.id)">
                       发布
                     </a-button>
                     <a-dropdown>
@@ -179,9 +179,10 @@
         </a-form-item>
         <a-form-item label="状态" name="status">
           <a-select v-model:value="formData.status">
-            <a-select-option value="draft">草稿</a-select-option>
-            <a-select-option value="released">已发布</a-select-option>
-            <a-select-option value="archived">已归档</a-select-option>
+            <a-select-option value="wait">未开始</a-select-option>
+            <a-select-option value="normal">已发布</a-select-option>
+            <a-select-option value="fail">发布失败</a-select-option>
+            <a-select-option value="terminate">停止维护</a-select-option>
           </a-select>
         </a-form-item>
         <a-form-item label="发布日期" name="release_date">
@@ -307,7 +308,7 @@ const formRef = ref()
 const formData = reactive<Omit<CreateVersionRequest, 'release_date'> & { id?: number; release_date?: Dayjs | undefined }>({
   version_number: '',
   release_notes: '',
-  status: 'draft',
+  status: 'wait',
   project_id: 0,
   release_date: undefined,
   requirement_ids: [],
@@ -404,7 +405,7 @@ const handleCreate = () => {
   formData.id = undefined
   formData.version_number = ''
   formData.release_notes = ''
-  formData.status = 'draft'
+  formData.status = 'wait'
   // 从 localStorage 恢复最后选择的项目
   const lastProjectId = getLastSelected<number>('last_selected_version_project_form')
   formData.project_id = lastProjectId || 0
@@ -514,9 +515,10 @@ const handleRelease = async (id: number) => {
 // 状态颜色
 const getStatusColor = (status: string) => {
   const colors: Record<string, string> = {
-    draft: 'default',
-    released: 'success',
-    archived: 'default'
+    wait: 'orange',
+    normal: 'green',
+    fail: 'red',
+    terminate: 'default'
   }
   return colors[status] || 'default'
 }
@@ -524,9 +526,10 @@ const getStatusColor = (status: string) => {
 // 状态文本
 const getStatusText = (status: string) => {
   const texts: Record<string, string> = {
-    draft: '草稿',
-    released: '已发布',
-    archived: '已归档'
+    wait: '未开始',
+    normal: '已发布',
+    fail: '发布失败',
+    terminate: '停止维护'
   }
   return texts[status] || status
 }

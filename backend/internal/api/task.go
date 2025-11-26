@@ -160,16 +160,18 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 
 	// 验证状态
 	if req.Status == "" {
-		req.Status = "todo"
+		req.Status = "wait"
 	}
 	validStatuses := map[string]bool{
-		"todo":       true,
-		"in_progress": true,
-		"done":       true,
-		"cancelled":  true,
+		"wait":    true,
+		"doing":   true,
+		"done":    true,
+		"pause":   true,
+		"cancel":  true,
+		"closed":  true,
 	}
 	if !validStatuses[req.Status] {
-		utils.Error(c, 400, "状态值无效")
+		utils.Error(c, 400, "状态值无效，有效值：wait, doing, done, pause, cancel, closed")
 		return
 	}
 
@@ -342,13 +344,15 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 	if req.Status != nil {
 		// 验证状态
 		validStatuses := map[string]bool{
-			"todo":       true,
-			"in_progress": true,
-			"done":       true,
-			"cancelled":  true,
+			"wait":    true,
+			"doing":   true,
+			"done":    true,
+			"pause":   true,
+			"cancel":  true,
+			"closed":  true,
 		}
 		if !validStatuses[*req.Status] {
-			utils.Error(c, 400, "状态值无效")
+			utils.Error(c, 400, "状态值无效，有效值：wait, doing, done, pause, cancel, closed")
 			return
 		}
 		task.Status = *req.Status
@@ -579,13 +583,15 @@ func (h *TaskHandler) UpdateTaskStatus(c *gin.Context) {
 
 	// 验证状态
 	validStatuses := map[string]bool{
-		"todo":       true,
-		"in_progress": true,
-		"done":       true,
-		"cancelled":  true,
+		"wait":    true,
+		"doing":   true,
+		"done":    true,
+		"pause":   true,
+		"cancel":  true,
+		"closed":  true,
 	}
 	if !validStatuses[req.Status] {
-		utils.Error(c, 400, "状态值无效")
+		utils.Error(c, 400, "状态值无效，有效值：wait, doing, done, pause, cancel, closed")
 		return
 	}
 
@@ -594,8 +600,8 @@ func (h *TaskHandler) UpdateTaskStatus(c *gin.Context) {
 	if req.Status == "done" {
 		task.Progress = 100
 	}
-	// 如果状态为cancelled，进度保持原值
-	// 如果状态为in_progress且进度为0，可以设置一个默认值（可选）
+	// 如果状态为cancel或closed，进度保持原值
+	// 如果状态为doing且进度为0，可以设置一个默认值（可选）
 
 	if err := h.db.Save(&task).Error; err != nil {
 		utils.Error(c, utils.CodeError, "更新失败")
@@ -647,9 +653,9 @@ func (h *TaskHandler) UpdateTaskProgress(c *gin.Context) {
 		if *req.Progress == 100 {
 			task.Status = "done"
 		}
-		// 如果进度大于0且状态为todo，自动设置为in_progress
-		if *req.Progress > 0 && task.Status == "todo" {
-			task.Status = "in_progress"
+		// 如果进度大于0且状态为wait，自动设置为doing
+		if *req.Progress > 0 && task.Status == "wait" {
+			task.Status = "doing"
 		}
 	}
 
@@ -813,9 +819,9 @@ func (h *TaskHandler) calculateProgressFromHours(task *model.Task) {
 	if progress == 100 && task.Status != "done" {
 		task.Status = "done"
 	}
-	// 如果进度大于0且状态为todo，自动设置为in_progress
-	if progress > 0 && task.Status == "todo" {
-		task.Status = "in_progress"
+	// 如果进度大于0且状态为wait，自动设置为doing
+	if progress > 0 && task.Status == "wait" {
+		task.Status = "doing"
 	}
 
 	// 保存更新

@@ -263,9 +263,11 @@ const getProgressStyle = (task: GanttTask) => {
 const getTaskBarClass = (task: GanttTask) => {
   const classes = []
   if (task.status === 'done') classes.push('status-done')
-  else if (task.status === 'in_progress') classes.push('status-in-progress')
-  else if (task.status === 'cancelled') classes.push('status-cancelled')
-  else classes.push('status-todo')
+  else if (task.status === 'doing') classes.push('status-doing')
+  else if (task.status === 'cancel') classes.push('status-cancel')
+  else if (task.status === 'pause') classes.push('status-pause')
+  else if (task.status === 'closed') classes.push('status-closed')
+  else classes.push('status-wait')
   
   if (task.priority === 'urgent') classes.push('priority-urgent')
   else if (task.priority === 'high') classes.push('priority-high')
@@ -380,10 +382,12 @@ const handleViewTask = () => {
 // 获取状态颜色
 const getStatusColor = (status: string) => {
   const colors: Record<string, string> = {
-    todo: 'orange',
-    in_progress: 'blue',
+    wait: 'orange',
+    doing: 'blue',
     done: 'green',
-    cancelled: 'red'
+    pause: 'purple',
+    cancel: 'red',
+    closed: 'default'
   }
   return colors[status] || 'default'
 }
@@ -391,7 +395,7 @@ const getStatusColor = (status: string) => {
 // 获取状态文本
 const getStatusText = (status: string) => {
   const texts: Record<string, string> = {
-    todo: '待办',
+    wait: '未开始',
     in_progress: '进行中',
     done: '已完成',
     cancelled: '已取消'
@@ -581,11 +585,11 @@ onMounted(() => {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
-.gantt-bar.status-todo {
+.gantt-bar.status-wait {
   background: #faad14;
 }
 
-.gantt-bar.status-in-progress {
+.gantt-bar.status-doing {
   background: #1890ff;
 }
 
@@ -593,7 +597,7 @@ onMounted(() => {
   background: #52c41a;
 }
 
-.gantt-bar.status-cancelled {
+.gantt-bar.status-cancel {
   background: #ff4d4f;
   opacity: 0.6;
 }

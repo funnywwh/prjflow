@@ -233,17 +233,15 @@ func (h *BugHandler) CreateBug(c *gin.Context) {
 
 	// 验证状态
 	if req.Status == "" {
-		req.Status = "open"
+		req.Status = "active"
 	}
 	validStatuses := map[string]bool{
-		"open":        true,
-		"assigned":    true,
-		"in_progress": true,
-		"resolved":    true,
-		"closed":      true,
+		"active":   true,
+		"resolved": true,
+		"closed":   true,
 	}
 	if !validStatuses[req.Status] {
-		utils.Error(c, 400, "状态值无效")
+		utils.Error(c, 400, "状态值无效，有效值：active, resolved, closed")
 		return
 	}
 
@@ -343,11 +341,8 @@ func (h *BugHandler) CreateBug(c *gin.Context) {
 			utils.Error(c, utils.CodeError, "分配失败")
 			return
 		}
-		// 如果有分配人，状态自动变为assigned
-		if bug.Status == "open" {
-			bug.Status = "assigned"
-			h.db.Save(&bug)
-		}
+		// 如果有分配人，状态保持为active（禅道中Bug只有active/resolved/closed三种状态）
+		// 不需要改变状态
 	}
 
 	// 重新加载关联数据
@@ -412,14 +407,12 @@ func (h *BugHandler) UpdateBug(c *gin.Context) {
 	if req.Status != nil {
 		// 验证状态
 		validStatuses := map[string]bool{
-			"open":        true,
-			"assigned":    true,
-			"in_progress": true,
-			"resolved":    true,
-			"closed":      true,
+			"active":   true,
+			"resolved": true,
+			"closed":   true,
 		}
 		if !validStatuses[*req.Status] {
-			utils.Error(c, 400, "状态值无效")
+			utils.Error(c, 400, "状态值无效，有效值：active, resolved, closed")
 			return
 		}
 		bug.Status = *req.Status
@@ -659,14 +652,12 @@ func (h *BugHandler) UpdateBugStatus(c *gin.Context) {
 
 	// 验证状态
 	validStatuses := map[string]bool{
-		"open":        true,
-		"assigned":    true,
-		"in_progress": true,
-		"resolved":    true,
-		"closed":      true,
+		"active":   true,
+		"resolved": true,
+		"closed":   true,
 	}
 	if !validStatuses[req.Status] {
-		utils.Error(c, 400, "状态值无效")
+		utils.Error(c, 400, "状态值无效，有效值：active, resolved, closed")
 		return
 	}
 
@@ -833,11 +824,12 @@ func (h *BugHandler) GetBugStatistics(c *gin.Context) {
 	baseQuery.Session(&gorm.Session{}).Count(&stats.Total)
 
 	// 按状态统计
-	baseQuery.Session(&gorm.Session{}).Where("status = ?", "open").Count(&stats.Open)
-	baseQuery.Session(&gorm.Session{}).Where("status = ?", "assigned").Count(&stats.Assigned)
-	baseQuery.Session(&gorm.Session{}).Where("status = ?", "in_progress").Count(&stats.InProgress)
+	baseQuery.Session(&gorm.Session{}).Where("status = ?", "active").Count(&stats.Open)
 	baseQuery.Session(&gorm.Session{}).Where("status = ?", "resolved").Count(&stats.Resolved)
 	baseQuery.Session(&gorm.Session{}).Where("status = ?", "closed").Count(&stats.Closed)
+	// 注意：禅道中Bug只有active/resolved/closed三种状态，Assigned和InProgress字段保留但不再使用
+	stats.Assigned = 0
+	stats.InProgress = 0
 
 	// 按优先级统计
 	baseQuery.Session(&gorm.Session{}).Where("priority = ?", "low").Count(&stats.LowPriority)
@@ -891,11 +883,8 @@ func (h *BugHandler) AssignBug(c *gin.Context) {
 		return
 	}
 
-	// 如果有分配人且状态为open，自动变为assigned
-	if bug.Status == "open" {
-		bug.Status = "assigned"
-		h.db.Save(&bug)
-	}
+	// 如果有分配人，状态保持为active（禅道中Bug只有active/resolved/closed三种状态）
+	// 不需要改变状态
 
 	// 重新加载关联数据
 	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").Preload("Module").Preload("ResolvedVersion").First(&bug, bug.ID)

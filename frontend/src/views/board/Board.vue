@@ -116,10 +116,12 @@
           <a-space style="width: 100%">
             <a-input v-model:value="column.name" placeholder="列名称" style="width: 150px" />
             <a-select v-model:value="column.status" placeholder="关联状态" style="width: 150px">
-              <a-select-option value="todo">待办</a-select-option>
-              <a-select-option value="in_progress">进行中</a-select-option>
+              <a-select-option value="wait">未开始</a-select-option>
+              <a-select-option value="doing">进行中</a-select-option>
               <a-select-option value="done">已完成</a-select-option>
-              <a-select-option value="cancelled">已取消</a-select-option>
+              <a-select-option value="pause">已暂停</a-select-option>
+              <a-select-option value="cancel">已取消</a-select-option>
+              <a-select-option value="closed">已关闭</a-select-option>
             </a-select>
             <a-input v-model:value="column.color" placeholder="颜色" style="width: 100px" />
             <a-input-number v-model:value="column.sort" placeholder="排序" :min="0" style="width: 100px" />
@@ -331,7 +333,7 @@ const handleManageColumns = () => {
 const handleAddColumn = () => {
   columnsFormData.push({
     name: '',
-    status: 'todo',
+    status: 'wait',
     color: '#1890ff',
     sort: columnsFormData.length
   })

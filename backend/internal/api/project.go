@@ -3,10 +3,11 @@ package api
 import (
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 	"project-management/internal/model"
 	"project-management/internal/utils"
+
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type ProjectHandler struct {
@@ -119,7 +120,7 @@ func (h *ProjectHandler) GetProject(c *gin.Context) {
 // GetProjectStatistics 获取项目统计信息
 func (h *ProjectHandler) GetProjectStatistics(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	// 验证项目是否存在
 	var project model.Project
 	if err := h.db.First(&project, id).Error; err != nil {
@@ -146,37 +147,37 @@ func (h *ProjectHandler) getProjectStatistics(projectID uint) gin.H {
 
 	// 任务统计
 	h.db.Model(&model.Task{}).Where("project_id = ?", projectID).Count(&taskCount)
-	h.db.Model(&model.Task{}).Where("project_id = ? AND status = ?", projectID, "todo").Count(&todoTaskCount)
-	h.db.Model(&model.Task{}).Where("project_id = ? AND status = ?", projectID, "in_progress").Count(&inProgressTaskCount)
+	h.db.Model(&model.Task{}).Where("project_id = ? AND status = ?", projectID, "wait").Count(&todoTaskCount)
+	h.db.Model(&model.Task{}).Where("project_id = ? AND status = ?", projectID, "doing").Count(&inProgressTaskCount)
 	h.db.Model(&model.Task{}).Where("project_id = ? AND status = ?", projectID, "done").Count(&doneTaskCount)
 
 	// Bug统计
 	h.db.Model(&model.Bug{}).Where("project_id = ?", projectID).Count(&bugCount)
-	h.db.Model(&model.Bug{}).Where("project_id = ? AND status = ?", projectID, "open").Count(&openBugCount)
-	h.db.Model(&model.Bug{}).Where("project_id = ? AND status = ?", projectID, "in_progress").Count(&inProgressBugCount)
+	h.db.Model(&model.Bug{}).Where("project_id = ? AND status = ?", projectID, "active").Count(&openBugCount)
+	h.db.Model(&model.Bug{}).Where("project_id = ? AND status = ?", projectID, "resolved").Count(&inProgressBugCount)
 	h.db.Model(&model.Bug{}).Where("project_id = ? AND status = ?", projectID, "resolved").Count(&resolvedBugCount)
 
 	// 需求统计
 	h.db.Model(&model.Requirement{}).Where("project_id = ?", projectID).Count(&requirementCount)
-	h.db.Model(&model.Requirement{}).Where("project_id = ? AND status = ?", projectID, "in_progress").Count(&inProgressRequirementCount)
-	h.db.Model(&model.Requirement{}).Where("project_id = ? AND status = ?", projectID, "completed").Count(&completedRequirementCount)
+	h.db.Model(&model.Requirement{}).Where("project_id = ? AND status = ?", projectID, "active").Count(&inProgressRequirementCount)
+	h.db.Model(&model.Requirement{}).Where("project_id = ? AND status = ?", projectID, "closed").Count(&completedRequirementCount)
 
 	// 成员统计
 	h.db.Model(&model.ProjectMember{}).Where("project_id = ?", projectID).Count(&memberCount)
 
 	return gin.H{
-		"total_tasks":       int(taskCount),
-		"todo_tasks":        int(todoTaskCount),
-		"in_progress_tasks": int(inProgressTaskCount),
-		"done_tasks":       int(doneTaskCount),
-		"total_bugs":       int(bugCount),
-		"open_bugs":         int(openBugCount),
-		"in_progress_bugs":  int(inProgressBugCount),
-		"resolved_bugs":     int(resolvedBugCount),
-		"total_requirements": int(requirementCount),
+		"total_tasks":              int(taskCount),
+		"todo_tasks":               int(todoTaskCount),
+		"in_progress_tasks":        int(inProgressTaskCount),
+		"done_tasks":               int(doneTaskCount),
+		"total_bugs":               int(bugCount),
+		"open_bugs":                int(openBugCount),
+		"in_progress_bugs":         int(inProgressBugCount),
+		"resolved_bugs":            int(resolvedBugCount),
+		"total_requirements":       int(requirementCount),
 		"in_progress_requirements": int(inProgressRequirementCount),
 		"completed_requirements":   int(completedRequirementCount),
-		"total_members":     int(memberCount),
+		"total_members":            int(memberCount),
 	}
 }
 
@@ -186,14 +187,23 @@ func (h *ProjectHandler) CreateProject(c *gin.Context) {
 		Name        string  `json:"name" binding:"required"`
 		Code        string  `json:"code"`
 		Description string  `json:"description"`
-		Status      int     `json:"status"`
-		TagIDs      []uint  `json:"tag_ids"`     // 标签ID数组
+		Status      string  `json:"status"`
+		TagIDs      []uint  `json:"tag_ids"`    // 标签ID数组
 		StartDate   *string `json:"start_date"` // 接收字符串格式的日期
 		EndDate     *string `json:"end_date"`   // 接收字符串格式的日期
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.Error(c, 400, "参数错误")
+		return
+	}
+
+	// 验证状态
+	if req.Status == "" {
+		req.Status = "wait"
+	}
+	if !isValidProjectStatus(req.Status) {
+		utils.Error(c, 400, "状态值无效，有效值：wait, doing, suspended, closed, done")
 		return
 	}
 
@@ -286,8 +296,8 @@ func (h *ProjectHandler) UpdateProject(c *gin.Context) {
 		Name        *string `json:"name"`
 		Code        *string `json:"code"`
 		Description *string `json:"description"`
-		Status      *int    `json:"status"`
-		TagIDs      *[]uint `json:"tag_ids"`     // 标签ID数组
+		Status      *string `json:"status"`
+		TagIDs      *[]uint `json:"tag_ids"`    // 标签ID数组
 		StartDate   *string `json:"start_date"` // 接收字符串格式的日期
 		EndDate     *string `json:"end_date"`   // 接收字符串格式的日期
 	}
@@ -308,9 +318,13 @@ func (h *ProjectHandler) UpdateProject(c *gin.Context) {
 		project.Description = *req.Description
 	}
 	if req.Status != nil {
+		if !isValidProjectStatus(*req.Status) {
+			utils.Error(c, 400, "状态值无效，有效值：wait, doing, suspended, closed, done")
+			return
+		}
 		project.Status = *req.Status
 	}
-	
+
 	// 更新标签关联
 	if req.TagIDs != nil {
 		var tags []model.Tag
@@ -407,20 +421,20 @@ func (h *ProjectHandler) DeleteProject(c *gin.Context) {
 // GetProjectMembers 获取项目成员列表
 func (h *ProjectHandler) GetProjectMembers(c *gin.Context) {
 	projectID := c.Param("id")
-	
+
 	// 验证项目是否存在并检查权限
 	var project model.Project
 	if err := h.db.First(&project, projectID).Error; err != nil {
 		utils.Error(c, 404, "项目不存在")
 		return
 	}
-	
+
 	// 权限检查：普通用户只能查看自己参与的项目的成员
 	if !utils.CheckProjectAccess(h.db, c, project.ID) {
 		utils.Error(c, 403, "没有权限访问该项目")
 		return
 	}
-	
+
 	var members []model.ProjectMember
 	if err := h.db.Where("project_id = ?", projectID).Preload("User").Preload("User.Department").Find(&members).Error; err != nil {
 		utils.Error(c, utils.CodeError, "查询失败")
@@ -433,7 +447,7 @@ func (h *ProjectHandler) GetProjectMembers(c *gin.Context) {
 // GetProjectGantt 获取项目甘特图数据
 func (h *ProjectHandler) GetProjectGantt(c *gin.Context) {
 	projectID := c.Param("id")
-	
+
 	// 验证项目是否存在
 	var project model.Project
 	if err := h.db.First(&project, projectID).Error; err != nil {
@@ -460,26 +474,26 @@ func (h *ProjectHandler) GetProjectGantt(c *gin.Context) {
 
 	// 转换为甘特图数据格式
 	type GanttTask struct {
-		ID          uint     `json:"id"`
-		Title       string   `json:"title"`
-		StartDate   string   `json:"start_date,omitempty"`
-		EndDate     string   `json:"end_date,omitempty"`
-		DueDate     string   `json:"due_date,omitempty"`
-		Progress    int      `json:"progress"`
-		Status      string   `json:"status"`
-		Priority    string   `json:"priority"`
-		Assignee    string   `json:"assignee,omitempty"`
-		Dependencies []uint   `json:"dependencies,omitempty"`
+		ID           uint   `json:"id"`
+		Title        string `json:"title"`
+		StartDate    string `json:"start_date,omitempty"`
+		EndDate      string `json:"end_date,omitempty"`
+		DueDate      string `json:"due_date,omitempty"`
+		Progress     int    `json:"progress"`
+		Status       string `json:"status"`
+		Priority     string `json:"priority"`
+		Assignee     string `json:"assignee,omitempty"`
+		Dependencies []uint `json:"dependencies,omitempty"`
 	}
 
 	ganttTasks := make([]GanttTask, 0, len(tasks))
 	for _, task := range tasks {
 		ganttTask := GanttTask{
-			ID:          task.ID,
-			Title:       task.Title,
-			Progress:    task.Progress,
-			Status:      task.Status,
-			Priority:    task.Priority,
+			ID:       task.ID,
+			Title:    task.Title,
+			Progress: task.Progress,
+			Status:   task.Status,
+			Priority: task.Priority,
 		}
 
 		// 格式化日期
@@ -522,7 +536,7 @@ func (h *ProjectHandler) GetProjectGantt(c *gin.Context) {
 // GetProjectProgress 获取项目进度跟踪数据
 func (h *ProjectHandler) GetProjectProgress(c *gin.Context) {
 	projectID := c.Param("id")
-	
+
 	// 验证项目是否存在
 	var project model.Project
 	if err := h.db.First(&project, projectID).Error; err != nil {
@@ -561,9 +575,9 @@ func (h *ProjectHandler) GetProjectProgress(c *gin.Context) {
 	requirementTrend := h.getRequirementTrend(project.ID, 30)
 
 	utils.Success(c, gin.H{
-		"statistics":                statistics,
-		"task_progress_trend":       taskProgressTrend,
-		"task_status_distribution":  taskStatusDistribution,
+		"statistics":                 statistics,
+		"task_progress_trend":        taskProgressTrend,
+		"task_status_distribution":   taskStatusDistribution,
 		"task_priority_distribution": taskPriorityDistribution,
 		"task_completion_trend":      taskCompletionTrend,
 		"member_workload":            memberWorkload,
@@ -638,7 +652,7 @@ func (h *ProjectHandler) getTaskPriorityDistribution(projectID uint) []gin.H {
 	for priority, count := range priorityCount {
 		result = append(result, gin.H{
 			"priority": priority,
-			"count":     count,
+			"count":    count,
 		})
 	}
 
@@ -693,11 +707,11 @@ func (h *ProjectHandler) getMemberWorkload(projectID uint) []gin.H {
 		assigneeID := *task.AssigneeID
 		if _, exists := memberWorkload[assigneeID]; !exists {
 			memberWorkload[assigneeID] = gin.H{
-				"user_id":   assigneeID,
-				"username":  task.Assignee.Username,
-				"nickname":  task.Assignee.Nickname,
-				"total":     0,
-				"completed": 0,
+				"user_id":     assigneeID,
+				"username":    task.Assignee.Username,
+				"nickname":    task.Assignee.Nickname,
+				"total":       0,
+				"completed":   0,
 				"in_progress": 0,
 			}
 		}
@@ -705,7 +719,7 @@ func (h *ProjectHandler) getMemberWorkload(projectID uint) []gin.H {
 		workload["total"] = workload["total"].(int) + 1
 		if task.Status == "done" {
 			workload["completed"] = workload["completed"].(int) + 1
-		} else if task.Status == "in_progress" {
+		} else if task.Status == "doing" {
 			workload["in_progress"] = workload["in_progress"].(int) + 1
 		}
 	}
@@ -907,3 +921,11 @@ func parseTime(s string) (*time.Time, error) {
 	return &t, nil
 }
 
+// isValidProjectStatus 检查项目状态是否合法（禅道状态值）
+func isValidProjectStatus(status string) bool {
+	switch status {
+	case "wait", "doing", "suspended", "closed", "done":
+		return true
+	}
+	return false
+}

@@ -4,7 +4,7 @@ export interface Version {
   id: number
   version_number: string
   release_notes?: string
-  status: 'draft' | 'released' | 'archived'
+  status: 'wait' | 'normal' | 'fail' | 'terminate'
   project_id: number
   project?: any
   release_date?: string

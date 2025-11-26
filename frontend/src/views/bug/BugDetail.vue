@@ -264,9 +264,7 @@ const handleDelete = async () => {
 // 获取状态颜色
 const getStatusColor = (status: string) => {
   const colors: Record<string, string> = {
-    open: 'orange',
-    assigned: 'blue',
-    in_progress: 'processing',
+    active: 'orange',
     resolved: 'green',
     closed: 'default'
   }
@@ -276,7 +274,8 @@ const getStatusColor = (status: string) => {
 // 获取状态文本
 const getStatusText = (status: string) => {
   const texts: Record<string, string> = {
-    open: '待处理',
+    active: '激活',
+    resolved: '已解决',
     assigned: '已分配',
     in_progress: '处理中',
     resolved: '已解决',

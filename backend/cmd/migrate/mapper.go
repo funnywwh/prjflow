@@ -8,68 +8,109 @@ import (
 
 // 状态转换函数
 
-// ConvertProjectStatus 转换项目状态
-func ConvertProjectStatus(status string) int {
-	switch strings.ToLower(status) {
-	case "doing":
-		return 1 // 正常
-	case "done", "closed":
-		return 0 // 禁用
-	case "wait":
-		return 1 // 正常
-	default:
-		return 1 // 默认正常
+// ConvertProjectStatus 转换项目状态（直接使用禅道状态值）
+func ConvertProjectStatus(status string) string {
+	// 验证状态值是否合法
+	validStatuses := map[string]bool{
+		"wait":      true,
+		"doing":     true,
+		"suspended": true,
+		"closed":    true,
+		"done":      true,
 	}
+	statusLower := strings.ToLower(status)
+	if validStatuses[statusLower] {
+		return statusLower
+	}
+	// 默认返回wait
+	return "wait"
 }
 
-// ConvertRequirementStatus 转换需求状态
+// ConvertRequirementStatus 转换需求状态（直接使用禅道状态值）
 func ConvertRequirementStatus(status string) string {
-	switch strings.ToLower(status) {
-	case "active":
-		return "in_progress"
-	case "closed":
-		return "completed"
-	case "draft":
-		return "pending"
-	case "changing":
-		return "pending"
-	case "reviewing":
-		return "pending"
-	default:
-		return "pending"
+	// 验证状态值是否合法
+	validStatuses := map[string]bool{
+		"draft":     true,
+		"reviewing": true,
+		"active":    true,
+		"changing":  true,
+		"closed":    true,
 	}
+	statusLower := strings.ToLower(status)
+	if validStatuses[statusLower] {
+		return statusLower
+	}
+	// 默认返回draft
+	return "draft"
 }
 
-// ConvertTaskStatus 转换任务状态
+// ConvertTaskStatus 转换任务状态（直接使用禅道状态值）
 func ConvertTaskStatus(status string) string {
-	switch strings.ToLower(status) {
-	case "wait":
-		return "todo"
-	case "doing":
-		return "in_progress"
-	case "done":
-		return "done"
-	case "pause", "cancel":
-		return "cancelled"
-	case "closed":
-		return "done"
-	default:
-		return "todo"
+	// 验证状态值是否合法
+	validStatuses := map[string]bool{
+		"wait":   true,
+		"doing":  true,
+		"done":   true,
+		"pause":  true,
+		"cancel": true,
+		"closed": true,
 	}
+	statusLower := strings.ToLower(status)
+	if validStatuses[statusLower] {
+		return statusLower
+	}
+	// 默认返回wait
+	return "wait"
 }
 
-// ConvertBugStatus 转换Bug状态
+// ConvertBugStatus 转换Bug状态（直接使用禅道状态值）
 func ConvertBugStatus(status string) string {
-	switch strings.ToLower(status) {
-	case "active":
-		return "open"
-	case "resolved":
-		return "resolved"
-	case "closed":
-		return "closed"
-	default:
-		return "open"
+	// 验证状态值是否合法
+	validStatuses := map[string]bool{
+		"active":   true,
+		"resolved": true,
+		"closed":   true,
 	}
+	statusLower := strings.ToLower(status)
+	if validStatuses[statusLower] {
+		return statusLower
+	}
+	// 默认返回active
+	return "active"
+}
+
+// ConvertTestCaseStatus 转换测试单状态（直接使用禅道状态值）
+func ConvertTestCaseStatus(status string) string {
+	// 验证状态值是否合法
+	validStatuses := map[string]bool{
+		"wait":        true,
+		"normal":      true,
+		"blocked":     true,
+		"investigate": true,
+	}
+	statusLower := strings.ToLower(status)
+	if validStatuses[statusLower] {
+		return statusLower
+	}
+	// 默认返回wait
+	return "wait"
+}
+
+// ConvertVersionStatus 转换版本状态（直接使用禅道状态值）
+func ConvertVersionStatus(status string) string {
+	// 验证状态值是否合法
+	validStatuses := map[string]bool{
+		"wait":      true,
+		"normal":    true,
+		"fail":      true,
+		"terminate": true,
+	}
+	statusLower := strings.ToLower(status)
+	if validStatuses[statusLower] {
+		return statusLower
+	}
+	// 默认返回wait
+	return "wait"
 }
 
 // ConvertPriority 转换优先级 (zentao: 1-4, goproject: urgent/high/medium/low)

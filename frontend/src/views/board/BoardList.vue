@@ -88,10 +88,12 @@
             >
               <a-input v-model:value="column.name" placeholder="列名称" style="width: 150px" />
               <a-select v-model:value="column.status" placeholder="关联状态" style="width: 150px">
-                <a-select-option value="todo">待办</a-select-option>
-                <a-select-option value="in_progress">进行中</a-select-option>
+                <a-select-option value="wait">未开始</a-select-option>
+                <a-select-option value="doing">进行中</a-select-option>
                 <a-select-option value="done">已完成</a-select-option>
-                <a-select-option value="cancelled">已取消</a-select-option>
+                <a-select-option value="pause">已暂停</a-select-option>
+                <a-select-option value="cancel">已取消</a-select-option>
+                <a-select-option value="closed">已关闭</a-select-option>
               </a-select>
               <a-input v-model:value="column.color" placeholder="颜色" style="width: 100px" />
               <a-button type="link" danger @click="handleRemoveColumn(index)" v-if="boardFormData.columns.length > 1">
@@ -149,8 +151,8 @@ const boardFormData = reactive<{
   name: '',
   description: '',
   columns: [
-    { name: '待办', status: 'todo', color: '#1890ff', sort: 0 },
-    { name: '进行中', status: 'in_progress', color: '#52c41a', sort: 1 },
+    { name: '未开始', status: 'wait', color: '#1890ff', sort: 0 },
+    { name: '进行中', status: 'doing', color: '#52c41a', sort: 1 },
     { name: '已完成', status: 'done', color: '#faad14', sort: 2 }
   ]
 })
@@ -201,8 +203,8 @@ const createDefaultBoard = async () => {
       name: '默认看板',
       description: '项目默认看板',
       columns: [
-        { name: '待办', status: 'todo', color: '#1890ff', sort: 0 },
-        { name: '进行中', status: 'in_progress', color: '#52c41a', sort: 1 },
+        { name: '未开始', status: 'wait', color: '#1890ff', sort: 0 },
+        { name: '进行中', status: 'doing', color: '#52c41a', sort: 1 },
         { name: '已完成', status: 'done', color: '#faad14', sort: 2 }
       ]
     })
@@ -302,7 +304,7 @@ const handleDeleteBoard = async (id: number) => {
 const handleAddColumn = () => {
   boardFormData.columns.push({
     name: '',
-    status: 'todo',
+    status: 'wait',
     color: '#1890ff',
     sort: boardFormData.columns.length
   })

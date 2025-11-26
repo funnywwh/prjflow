@@ -48,7 +48,7 @@ type TestCase struct {
 	Description string      `gorm:"type:text" json:"description"`         // 测试描述
 	TestSteps   string      `gorm:"type:text" json:"test_steps"`          // 测试步骤（Markdown）
 	Types       StringArray  `gorm:"type:text" json:"types"`                // 测试类型（多选）：functional, performance, security, etc. (JSON数组)
-	Status      string       `gorm:"size:20;default:'pending'" json:"status"` // 状态：pending, running, passed, failed
+	Status      string       `gorm:"size:20;default:'wait'" json:"status"` // 状态：wait(待评审), normal(正常), blocked(被阻塞), investigate(研究中)
 	Result      string       `gorm:"size:20" json:"result"`                 // 测试结果：passed, failed, blocked（合并自TestReport）
 	Summary     string       `gorm:"type:text" json:"summary"`              // 测试摘要（合并自TestReport）
 

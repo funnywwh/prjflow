@@ -4,7 +4,7 @@ export interface Requirement {
   id: number
   title: string
   description?: string
-  status: 'pending' | 'in_progress' | 'completed' | 'cancelled'
+  status: 'draft' | 'reviewing' | 'active' | 'changing' | 'closed'
   priority: 'low' | 'medium' | 'high' | 'urgent'
   project_id: number // 必填
   project?: any
@@ -28,7 +28,7 @@ export interface RequirementListResponse {
 export interface CreateRequirementRequest {
   title: string
   description?: string
-  status?: 'pending' | 'in_progress' | 'completed' | 'cancelled'
+  status?: 'draft' | 'reviewing' | 'active' | 'changing' | 'closed'
   priority?: 'low' | 'medium' | 'high' | 'urgent'
   project_id: number // 必填
   assignee_id?: number
@@ -36,7 +36,7 @@ export interface CreateRequirementRequest {
 }
 
 export interface UpdateRequirementStatusRequest {
-  status: 'pending' | 'in_progress' | 'completed' | 'cancelled'
+  status: 'draft' | 'reviewing' | 'active' | 'changing' | 'closed'
 }
 
 // 需求相关API

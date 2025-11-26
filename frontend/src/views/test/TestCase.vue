@@ -346,10 +346,10 @@
         </a-form-item>
         <a-form-item label="状态" name="status">
           <a-select v-model:value="formData.status">
-            <a-select-option value="pending">待测试</a-select-option>
-            <a-select-option value="running">测试中</a-select-option>
-            <a-select-option value="passed">通过</a-select-option>
-            <a-select-option value="failed">失败</a-select-option>
+            <a-select-option value="wait">待评审</a-select-option>
+            <a-select-option value="normal">正常</a-select-option>
+            <a-select-option value="blocked">被阻塞</a-select-option>
+            <a-select-option value="investigate">研究中</a-select-option>
           </a-select>
         </a-form-item>
         <a-form-item label="关联Bug" name="bug_ids">
@@ -462,7 +462,7 @@ const formData = reactive<CreateTestCaseRequest & { id?: number }>({
   description: '',
   test_steps: '',
   types: [],
-  status: 'pending',
+  status: 'wait',
   project_id: 0,
   bug_ids: []
 })
@@ -570,7 +570,7 @@ const handleCreate = () => {
   formData.description = ''
   formData.test_steps = ''
   formData.types = []
-  formData.status = 'pending'
+  formData.status = 'wait'
   // 从 localStorage 恢复最后选择的项目
   const lastProjectId = getLastSelected<number>('last_selected_testcase_project_form')
   formData.project_id = lastProjectId || 0
@@ -662,10 +662,10 @@ const handleStatusChange = async (id: number, status: string) => {
 // 状态颜色
 const getStatusColor = (status: string) => {
   const colors: Record<string, string> = {
-    pending: 'default',
-    running: 'processing',
-    passed: 'success',
-    failed: 'error'
+    wait: 'orange',
+    normal: 'green',
+    blocked: 'red',
+    investigate: 'purple'
   }
   return colors[status] || 'default'
 }
@@ -673,10 +673,10 @@ const getStatusColor = (status: string) => {
 // 状态文本
 const getStatusText = (status: string) => {
   const texts: Record<string, string> = {
-    pending: '待测试',
-    running: '测试中',
-    passed: '通过',
-    failed: '失败'
+    wait: '待评审',
+    normal: '正常',
+    blocked: '被阻塞',
+    investigate: '研究中'
   }
   return texts[status] || status
 }

@@ -59,12 +59,12 @@
             </a-form>
           </a-card>
 
-          <a-card :bordered="false">
+          <a-card :bordered="false" class="table-card">
             <a-table
               :columns="columns"
               :data-source="versions"
               :loading="loading"
-              :scroll="{ x: 'max-content' }"
+              :scroll="{ x: 'max-content', y: tableScrollHeight }"
               :pagination="pagination"
               row-key="id"
               @change="handleTableChange"
@@ -241,7 +241,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, nextTick } from 'vue'
+import { ref, reactive, onMounted, nextTick, computed } from 'vue'
 import { saveLastSelected, getLastSelected } from '@/utils/storage'
 import { message } from 'ant-design-vue'
 import { PlusOutlined, DownOutlined } from '@ant-design/icons-vue'
@@ -283,6 +283,11 @@ const pagination = reactive({
   showTotal: (total: number) => `共 ${total} 条`,
   showSizeChanger: true,
   showQuickJumper: true
+})
+
+// 计算表格滚动高度
+const tableScrollHeight = computed(() => {
+  return 'calc(100vh - 400px)'
 })
 
 const columns = [
@@ -558,15 +563,100 @@ onMounted(() => {
 
 <style scoped>
 .version-management {
-  min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
+
+.version-management :deep(.ant-layout) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .content {
   padding: 24px;
+  flex: 1;
+  height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.content-inner {
+  max-width: 100%;
+  margin: 0 auto;
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 0;
+}
+
+.table-card {
+  margin-top: 16px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.table-card :deep(.ant-card-body) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 16px;
+}
+
+.table-card :deep(.ant-table-wrapper) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.table-card :deep(.ant-spin-nested-loading) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.table-card :deep(.ant-spin-container) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.table-card :deep(.ant-table) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.table-card :deep(.ant-table-container) {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 .content-inner {
   max-width: 100%;
   margin: 0 auto;
   width: 100%;
+}
+
+.table-card {
+  margin-top: 16px;
 }
 </style>
 

@@ -53,9 +53,9 @@
                 </a-form>
               </a-card>
 
-              <a-card :bordered="false">
+              <a-card :bordered="false" class="table-card">
                 <a-table
-                  :scroll="{ x: 'max-content' }"
+                  :scroll="{ x: 'max-content', y: tableScrollHeight }"
                   :columns="dailyColumns"
                   :data-source="dailyReports"
                   :loading="dailyLoading"
@@ -160,9 +160,9 @@
                 </a-form>
               </a-card>
 
-              <a-card :bordered="false">
+              <a-card :bordered="false" class="table-card">
                 <a-table
-                  :scroll="{ x: 'max-content' }"
+                  :scroll="{ x: 'max-content', y: tableScrollHeight }"
                   :columns="weeklyColumns"
                   :data-source="weeklyReports"
                   :loading="weeklyLoading"
@@ -723,6 +723,11 @@ const dailySearchForm = reactive({
   start_date: undefined as Dayjs | undefined,
   end_date: undefined as Dayjs | undefined
 })
+// 计算表格滚动高度
+const tableScrollHeight = computed(() => {
+  return 'calc(100vh - 500px)'
+})
+
 const dailyPagination = reactive({
   current: 1,
   pageSize: 10,
@@ -1754,18 +1759,102 @@ watch(() => route.query, () => {
 
 <style scoped>
 .report-management {
-  min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.report-management :deep(.ant-layout) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .content {
   padding: 24px;
   background: #f0f2f5;
+  flex: 1;
+  height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .content-inner {
   max-width: 100%;
   margin: 0 auto;
   width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 0;
+}
+
+.table-card {
+  margin-top: 16px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.table-card :deep(.ant-card-body) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 16px;
+}
+
+.table-card :deep(.ant-table-wrapper) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.table-card :deep(.ant-spin-nested-loading) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.table-card :deep(.ant-spin-container) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.table-card :deep(.ant-table) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.table-card :deep(.ant-table-container) {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.content-inner {
+  max-width: 100%;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.table-card {
+  margin-top: 16px;
 }
 
 /* 审批弹窗中的Markdown渲染样式 */

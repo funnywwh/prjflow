@@ -74,7 +74,7 @@
             :columns="columns"
             :data-source="resources"
             :loading="loading"
-            :scroll="{ x: 'max-content' }"
+            :scroll="{ x: 'max-content', y: tableScrollHeight }"
             :pagination="pagination"
             @change="handleTableChange"
             row-key="id"
@@ -335,7 +335,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { saveLastSelected, getLastSelected } from '@/utils/storage'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
@@ -393,6 +393,11 @@ const pagination = reactive({
   showTotal: (total: number) => `共 ${total} 条`,
   showSizeChanger: true,
   showQuickJumper: true
+})
+
+// 计算表格滚动高度
+const tableScrollHeight = computed(() => {
+  return 'calc(100vh - 400px)'
 })
 
 const columns = [
@@ -840,9 +845,39 @@ onMounted(() => {
   min-height: 100vh;
 }
 
+.resource-management {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.resource-management :deep(.ant-layout) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .content {
   padding: 24px;
   background: #f0f2f5;
+  flex: 1;
+  height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.content-inner {
+  max-width: 100%;
+  margin: 0 auto;
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 0;
 }
 
 .content-inner {

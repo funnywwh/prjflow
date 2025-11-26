@@ -108,12 +108,13 @@
                 </a-form>
               </a-card>
 
-              <a-card :bordered="false">
+              <a-card :bordered="false" class="table-card">
                 <a-table
                   :columns="productColumns"
                   :data-source="products"
                   :loading="productLoading"
                   :pagination="productPagination"
+                  :scroll="{ y: tableScrollHeight }"
                   @change="handleProductTableChange"
                   row-key="id"
                 >
@@ -232,7 +233,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 // import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
@@ -288,6 +289,11 @@ const productLineColumns = [
   { title: '状态', key: 'status', width: 80 },
   { title: '操作', key: 'action', width: 150, fixed: 'right' as const }
 ]
+
+// 计算表格滚动高度
+const tableScrollHeight = computed(() => {
+  return 'calc(100vh - 450px)'
+})
 
 const productColumns = [
   { title: '产品名称', dataIndex: 'name', key: 'name' },
@@ -544,10 +550,93 @@ onMounted(() => {
   min-height: 100vh;
 }
 
+.product-management {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.product-management :deep(.ant-layout) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .content {
   padding: 24px;
   background: #f0f2f5;
-  min-height: calc(100vh - 64px);
+  flex: 1;
+  height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.content-inner {
+  max-width: 100%;
+  margin: 0 auto;
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 0;
+}
+
+.table-card {
+  margin-top: 16px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.table-card :deep(.ant-card-body) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 16px;
+}
+
+.table-card :deep(.ant-table-wrapper) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.table-card :deep(.ant-spin-nested-loading) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.table-card :deep(.ant-spin-container) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.table-card :deep(.ant-table) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.table-card :deep(.ant-table-container) {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .content-inner {

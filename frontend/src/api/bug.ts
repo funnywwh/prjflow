@@ -134,3 +134,51 @@ export const getBugStatistics = async (params?: {
   return request.get('/bugs/statistics', { params })
 }
 
+// 历史记录相关接口
+export interface History {
+  id: number
+  action_id: number
+  field: string
+  old: string
+  old_value: string
+  new: string
+  new_value: string
+  diff?: string
+  created_at?: string
+}
+
+export interface Action {
+  id: number
+  object_type: string
+  object_id: number
+  project_id: number
+  actor_id: number
+  actor?: {
+    id: number
+    username: string
+    nickname?: string
+  }
+  action: 'created' | 'edited' | 'assigned' | 'resolved' | 'closed' | 'confirmed' | 'commented'
+  date: string
+  comment?: string
+  extra?: string
+  histories?: History[]
+  created_at?: string
+}
+
+export interface BugHistoryResponse {
+  list: Action[]
+}
+
+export interface AddBugHistoryNoteRequest {
+  comment: string
+}
+
+export const getBugHistory = async (id: number): Promise<BugHistoryResponse> => {
+  return request.get(`/bugs/${id}/history`)
+}
+
+export const addBugHistoryNote = async (id: number, data: AddBugHistoryNoteRequest): Promise<{ message: string }> => {
+  return request.post(`/bugs/${id}/history/note`, data)
+}
+

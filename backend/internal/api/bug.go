@@ -348,6 +348,12 @@ func (h *BugHandler) CreateBug(c *gin.Context) {
 	// 重新加载关联数据
 	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").Preload("Module").Preload("ResolvedVersion").First(&bug, bug.ID)
 
+	// 记录创建操作
+	dbValue, _ := c.Get("db")
+	if db, ok := dbValue.(*gorm.DB); ok {
+		utils.RecordAction(db, "bug", bug.ID, "created", userID.(uint), "", nil)
+	}
+
 	utils.Success(c, bug)
 }
 
@@ -365,6 +371,9 @@ func (h *BugHandler) UpdateBug(c *gin.Context) {
 		utils.Error(c, 403, "没有权限更新该Bug")
 		return
 	}
+
+	// 保存旧对象用于比较
+	oldBug := bug
 
 	var req struct {
 		Title          *string  `json:"title"`
@@ -606,6 +615,16 @@ func (h *BugHandler) UpdateBug(c *gin.Context) {
 	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").Preload("Module").Preload("ResolvedVersion").First(&bug, bug.ID)
 	fmt.Printf("UpdateBug: 重新加载后 bug.Description = %q\n", bug.Description)
 
+	// 记录编辑操作和字段变更
+	userID, exists := c.Get("user_id")
+	if exists {
+		dbValue, _ := c.Get("db")
+		if db, ok := dbValue.(*gorm.DB); ok {
+			// 比较新旧对象并记录变更
+			utils.CompareAndRecord(db, oldBug, bug, "bug", bug.ID, userID.(uint), "edited")
+		}
+	}
+
 	utils.Success(c, bug)
 }
 
@@ -648,6 +667,9 @@ func (h *BugHandler) UpdateBugStatus(c *gin.Context) {
 		utils.Error(c, 403, "没有权限更新该Bug")
 		return
 	}
+
+	// 保存旧对象用于比较
+	oldBug := bug
 
 	var req struct {
 		Status            string   `json:"status" binding:"required"`
@@ -823,6 +845,39 @@ func (h *BugHandler) UpdateBugStatus(c *gin.Context) {
 	// 重新加载关联数据
 	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").Preload("Module").Preload("ResolvedVersion").First(&bug, bug.ID)
 
+	// 记录解决/关闭操作和字段变更
+	userID, exists := c.Get("user_id")
+	if exists {
+		dbValue, _ := c.Get("db")
+		if db, ok := dbValue.(*gorm.DB); ok {
+			actionType := "resolved"
+			if req.Status == "closed" {
+				actionType = "closed"
+			}
+			// 准备extra信息（包含解决方案等）
+			extra := make(map[string]interface{})
+			if req.Solution != nil {
+				extra["solution"] = *req.Solution
+			}
+			if req.ResolvedVersionID != nil {
+				extra["resolved_version_id"] = *req.ResolvedVersionID
+			}
+			// 记录操作（包含备注）
+			comment := ""
+			if req.SolutionNote != nil {
+				comment = *req.SolutionNote
+			}
+			// 使用CompareAndRecord会自动记录操作和字段变更，但我们需要先记录操作以包含extra信息
+			// 所以先记录操作，然后记录字段变更
+			actionID, _ := utils.RecordAction(db, "bug", bug.ID, actionType, userID.(uint), comment, extra)
+			// 记录字段变更
+			changes := utils.CompareObjects(oldBug, bug)
+			if len(changes) > 0 {
+				utils.RecordHistory(db, actionID, changes)
+			}
+		}
+	}
+
 	utils.Success(c, bug)
 }
 
@@ -900,6 +955,10 @@ func (h *BugHandler) AssignBug(c *gin.Context) {
 		return
 	}
 
+	// 获取旧的分配人ID列表
+	var oldAssigneeIDs []uint
+	h.db.Model(&model.BugAssignee{}).Where("bug_id = ?", bug.ID).Pluck("user_id", &oldAssigneeIDs)
+
 	var req struct {
 		AssigneeIDs []uint `json:"assignee_ids" binding:"required"`
 	}
@@ -928,7 +987,38 @@ func (h *BugHandler) AssignBug(c *gin.Context) {
 	// 重新加载关联数据
 	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").Preload("Module").Preload("ResolvedVersion").First(&bug, bug.ID)
 
+	// 记录分配操作
+	userID, exists := c.Get("user_id")
+	if exists {
+		dbValue, _ := c.Get("db")
+		if db, ok := dbValue.(*gorm.DB); ok {
+			// 记录分配操作
+			actionID, _ := utils.RecordAction(db, "bug", bug.ID, "assigned", userID.(uint), "", nil)
+			// 记录指派字段变更
+			oldIDsStr := formatUintSlice(oldAssigneeIDs)
+			newIDsStr := formatUintSlice(req.AssigneeIDs)
+			if oldIDsStr != newIDsStr {
+				changes := []utils.HistoryChange{
+					{Field: "assignee_ids", Old: oldIDsStr, New: newIDsStr},
+				}
+				utils.RecordHistory(db, actionID, changes)
+			}
+		}
+	}
+
 	utils.Success(c, bug)
+}
+
+// formatUintSlice 格式化uint切片为字符串
+func formatUintSlice(ids []uint) string {
+	if len(ids) == 0 {
+		return ""
+	}
+	str := fmt.Sprintf("%d", ids[0])
+	for i := 1; i < len(ids); i++ {
+		str += fmt.Sprintf(",%d", ids[i])
+	}
+	return str
 }
 
 // ConfirmBug 确认Bug
@@ -966,6 +1056,15 @@ func (h *BugHandler) ConfirmBug(c *gin.Context) {
 
 	// 重新加载关联数据
 	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").Preload("Module").Preload("ResolvedVersion").First(&bug, bug.ID)
+
+	// 记录确认操作
+	userID, exists := c.Get("user_id")
+	if exists {
+		dbValue, _ := c.Get("db")
+		if db, ok := dbValue.(*gorm.DB); ok {
+			utils.RecordAction(db, "bug", bug.ID, "confirmed", userID.(uint), "", nil)
+		}
+	}
 
 	utils.Success(c, bug)
 }
@@ -1023,4 +1122,87 @@ func (h *BugHandler) calculateAndUpdateActualHours(bug *model.Bug) {
 
 	bug.ActualHours = &totalHours
 	h.db.Model(bug).Update("actual_hours", totalHours)
+}
+
+// GetBugHistory 获取Bug历史记录列表（参考禅道的 getList() 方法）
+func (h *BugHandler) GetBugHistory(c *gin.Context) {
+	id := c.Param("id")
+	var bug model.Bug
+	if err := h.db.First(&bug, id).Error; err != nil {
+		utils.Error(c, 404, "Bug不存在")
+		return
+	}
+
+	// 权限检查：普通用户只能查看自己创建或参与的Bug的历史记录
+	if !utils.CheckBugAccess(h.db, c, bug.ID) {
+		utils.Error(c, 403, "没有权限查看该Bug的历史记录")
+		return
+	}
+
+	// 查询操作记录
+	var actions []model.Action
+	if err := h.db.Where("object_type = ? AND object_id = ?", "bug", id).
+		Preload("Actor").
+		Preload("Histories").
+		Order("date DESC").
+		Find(&actions).Error; err != nil {
+		utils.Error(c, utils.CodeError, "查询历史记录失败")
+		return
+	}
+
+	// 处理历史记录，转换字段值显示
+	for i := range actions {
+		for j := range actions[i].Histories {
+			processedHistory := utils.ProcessHistory(h.db, &actions[i].Histories[j])
+			actions[i].Histories[j] = *processedHistory
+		}
+	}
+
+	utils.Success(c, gin.H{
+		"list": actions,
+	})
+}
+
+// AddBugHistoryNote 添加备注（参考禅道的 commented 操作）
+func (h *BugHandler) AddBugHistoryNote(c *gin.Context) {
+	id := c.Param("id")
+	var bug model.Bug
+	if err := h.db.First(&bug, id).Error; err != nil {
+		utils.Error(c, 404, "Bug不存在")
+		return
+	}
+
+	// 权限检查：普通用户只能为自己创建或参与的Bug添加备注
+	if !utils.CheckBugAccess(h.db, c, bug.ID) {
+		utils.Error(c, 403, "没有权限为该Bug添加备注")
+		return
+	}
+
+	var req struct {
+		Comment string `json:"comment" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Error(c, 400, "参数错误")
+		return
+	}
+
+	// 获取当前用户ID
+	userID, exists := c.Get("user_id")
+	if !exists {
+		utils.Error(c, 401, "未登录")
+		return
+	}
+
+	// 记录备注操作
+	dbValue, _ := c.Get("db")
+	if db, ok := dbValue.(*gorm.DB); ok {
+		_, err := utils.RecordAction(db, "bug", bug.ID, "commented", userID.(uint), req.Comment, nil)
+		if err != nil {
+			utils.Error(c, utils.CodeError, "添加备注失败")
+			return
+		}
+	}
+
+	utils.Success(c, gin.H{"message": "添加备注成功"})
 }

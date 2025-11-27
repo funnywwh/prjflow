@@ -38,6 +38,10 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.Bug{},
 		&model.BugAssignee{},
 
+		// 操作记录与历史
+		&model.Action{},
+		&model.History{},
+
 		// 任务与看板
 		&model.Task{},
 		&model.TaskDependency{},

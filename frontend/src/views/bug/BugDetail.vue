@@ -100,6 +100,70 @@
               </div>
               <a-empty v-else description="暂无描述" />
             </a-card>
+
+            <!-- 历史记录 -->
+            <a-card :bordered="false" style="margin-bottom: 16px">
+              <template #title>
+                <span>历史记录</span>
+                <a-button 
+                  type="link" 
+                  size="small"
+                  @click.stop="handleAddNote" 
+                  :disabled="historyLoading"
+                  style="margin-left: 8px; padding: 0"
+                >
+                  添加备注
+                </a-button>
+              </template>
+              <a-spin :spinning="historyLoading" :style="{ minHeight: '100px' }">
+                <a-timeline v-if="historyList.length > 0">
+                  <a-timeline-item
+                    v-for="(action, index) in historyList"
+                    :key="action.id"
+                  >
+                    <template #dot>
+                      <span style="font-weight: bold; color: #1890ff">{{ historyList.length - index }}</span>
+                    </template>
+                    <div>
+                      <div style="margin-bottom: 8px">
+                        <span style="color: #666; margin-right: 8px">{{ formatDateTime(action.date) }}</span>
+                        <span>{{ getActionDescription(action) }}</span>
+                        <a-button
+                          v-if="hasHistoryDetails(action)"
+                          type="link"
+                          size="small"
+                          @click="toggleHistoryDetail(action.id)"
+                          style="padding: 0; height: auto; margin-left: 8px"
+                        >
+                          {{ expandedHistoryIds.has(action.id) ? '收起' : '展开' }}
+                        </a-button>
+                      </div>
+                      <!-- 字段变更详情和备注内容（可折叠） -->
+                      <div
+                        v-show="expandedHistoryIds.has(action.id)"
+                        style="margin-left: 24px; margin-top: 8px"
+                      >
+                        <!-- 字段变更详情 -->
+                        <div v-if="action.histories && action.histories.length > 0">
+                          <div
+                            v-for="history in action.histories"
+                            :key="history.id"
+                            style="margin-bottom: 4px; color: #666"
+                          >
+                            修改了{{ getFieldDisplayName(history.field) }}, 旧值为"{{ history.old_value || history.old || '-' }}",新值为"{{ history.new_value || history.new || '-' }}"。
+                          </div>
+                        </div>
+                        <!-- 备注内容 -->
+                        <div v-if="action.comment" style="margin-top: 8px; color: #666">
+                          {{ action.comment }}
+                        </div>
+                      </div>
+                    </div>
+                  </a-timeline-item>
+                </a-timeline>
+                <a-empty v-else description="暂无历史记录" />
+              </a-spin>
+            </a-card>
           </a-spin>
         </div>
       </a-layout-content>
@@ -238,26 +302,225 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <!-- Bug编辑模态框 -->
+    <a-modal
+      v-model:open="editModalVisible"
+      title="编辑Bug"
+      :width="800"
+      :mask-closable="false"
+      @ok="handleEditSubmit"
+      @cancel="handleEditCancel"
+    >
+      <a-form
+        ref="editFormRef"
+        :model="editFormData"
+        :rules="editFormRules"
+        :label-col="{ span: 6 }"
+        :wrapper-col="{ span: 18 }"
+      >
+        <a-form-item label="Bug标题" name="title">
+          <a-input v-model:value="editFormData.title" placeholder="请输入Bug标题" />
+        </a-form-item>
+        <a-form-item label="Bug描述" name="description">
+          <MarkdownEditor
+            ref="editDescriptionEditorRef"
+            v-model="editFormData.description"
+            placeholder="请输入Bug描述（支持Markdown）"
+            :rows="8"
+            :project-id="editFormData.project_id || 0"
+          />
+        </a-form-item>
+        <a-form-item label="项目" name="project_id">
+          <a-select
+            v-model:value="editFormData.project_id"
+            placeholder="选择项目"
+            show-search
+            :filter-option="filterProjectOption"
+            @change="handleEditFormProjectChange"
+          >
+            <a-select-option
+              v-for="project in projects"
+              :key="project.id"
+              :value="project.id"
+            >
+              {{ project.name }}
+            </a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item label="关联需求" name="requirement_id">
+          <a-select
+            v-model:value="editFormData.requirement_id"
+            placeholder="选择关联需求（可选）"
+            allow-clear
+            show-search
+            :filter-option="filterRequirementOption"
+            :loading="requirementLoading"
+            @focus="loadRequirementsForProject"
+          >
+            <a-select-option
+              v-for="requirement in requirements"
+              :key="requirement.id"
+              :value="requirement.id"
+            >
+              {{ requirement.title }}
+            </a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item label="功能模块" name="module_id">
+          <a-select
+            v-model:value="editFormData.module_id"
+            placeholder="选择功能模块（可选）"
+            allow-clear
+            show-search
+            :filter-option="filterModuleOption"
+            :loading="moduleLoading"
+            @focus="loadModulesForProject"
+          >
+            <a-select-option
+              v-for="module in modules"
+              :key="module.id"
+              :value="module.id"
+            >
+              {{ module.name }}
+            </a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item label="状态" name="status">
+          <a-select v-model:value="editFormData.status">
+            <a-select-option value="active">激活</a-select-option>
+            <a-select-option value="resolved">已解决</a-select-option>
+            <a-select-option value="closed">已关闭</a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item label="优先级" name="priority">
+          <a-select v-model:value="editFormData.priority">
+            <a-select-option value="low">低</a-select-option>
+            <a-select-option value="medium">中</a-select-option>
+            <a-select-option value="high">高</a-select-option>
+            <a-select-option value="urgent">紧急</a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item label="严重程度" name="severity">
+          <a-select v-model:value="editFormData.severity">
+            <a-select-option value="low">低</a-select-option>
+            <a-select-option value="medium">中</a-select-option>
+            <a-select-option value="high">高</a-select-option>
+            <a-select-option value="critical">严重</a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item label="指派给" name="assignee_ids">
+          <a-select
+            v-model:value="editFormData.assignee_ids"
+            mode="multiple"
+            placeholder="选择指派给（可选）"
+            allow-clear
+            show-search
+            :filter-option="filterUserOption"
+          >
+            <a-select-option
+              v-for="user in users"
+              :key="user.id"
+              :value="user.id"
+            >
+              {{ user.username }}{{ user.nickname ? `(${user.nickname})` : '' }}
+            </a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item label="预估工时" name="estimated_hours">
+          <a-input-number
+            v-model:value="editFormData.estimated_hours"
+            placeholder="预估工时（小时）"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
+        </a-form-item>
+        <a-form-item label="实际工时" name="actual_hours">
+          <a-input-number
+            v-model:value="editFormData.actual_hours"
+            placeholder="实际工时（小时）"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
+          <span style="margin-left: 8px; color: #999">更新实际工时会自动创建资源分配（使用第一个分配人）</span>
+        </a-form-item>
+        <a-form-item label="工作日期" name="work_date" v-if="editFormData.actual_hours">
+          <a-date-picker
+            v-model:value="editFormData.work_date"
+            placeholder="选择工作日期（可选）"
+            style="width: 100%"
+            format="YYYY-MM-DD"
+          />
+          <span style="margin-left: 8px; color: #999">不填则使用今天</span>
+        </a-form-item>
+        <a-form-item label="附件">
+          <AttachmentUpload
+            v-if="editFormData.project_id && editFormData.project_id > 0"
+            :project-id="editFormData.project_id"
+            v-model="editFormData.attachment_ids"
+            :existing-attachments="bugAttachments"
+          />
+          <span v-else style="color: #999;">请先选择项目后再上传附件</span>
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <!-- 添加备注模态框 -->
+    <a-modal
+      v-model:open="noteModalVisible"
+      title="添加备注"
+      :mask-closable="true"
+      @ok="handleNoteSubmit"
+      @cancel="handleNoteCancel"
+    >
+      <a-form
+        ref="noteFormRef"
+        :model="noteFormData"
+        :rules="noteFormRules"
+        :label-col="{ span: 6 }"
+        :wrapper-col="{ span: 18 }"
+      >
+        <a-form-item label="备注" name="comment">
+          <a-textarea
+            v-model:value="noteFormData.comment"
+            placeholder="请输入备注"
+            :rows="4"
+          />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { formatDateTime } from '@/utils/date'
 import AppHeader from '@/components/AppHeader.vue'
 import MarkdownEditor from '@/components/MarkdownEditor.vue'
+import AttachmentUpload from '@/components/AttachmentUpload.vue'
 import {
   getBug,
+  updateBug,
   updateBugStatus,
   deleteBug,
   assignBug,
   confirmBug,
-  type Bug
+  getBugHistory,
+  addBugHistoryNote,
+  type Bug,
+  type Action,
+  type CreateBugRequest
 } from '@/api/bug'
 import { getUsers, type User } from '@/api/user'
 import { getVersions, type Version } from '@/api/version'
+import { getProjects, type Project } from '@/api/project'
+import { getRequirements, type Requirement } from '@/api/requirement'
+import { getModules, type Module } from '@/api/module'
+import { getAttachments, attachToEntity, uploadFile, type Attachment } from '@/api/attachment'
 import type { Dayjs } from 'dayjs'
 
 const route = useRoute()
@@ -266,11 +529,29 @@ const router = useRouter()
 const loading = ref(false)
 const bug = ref<Bug | null>(null)
 const users = ref<User[]>([])
+const projects = ref<Project[]>([])
+const requirements = ref<Requirement[]>([])
+const requirementLoading = ref(false)
+const modules = ref<Module[]>([])
+const moduleLoading = ref(false)
 const assignModalVisible = ref(false)
 const assignFormRef = ref()
 const assignFormData = reactive({
   assignee_ids: [] as number[]
 })
+
+// 历史记录相关
+const historyLoading = ref(false)
+const historyList = ref<Action[]>([])
+const expandedHistoryIds = ref<Set<number>>(new Set()) // 展开的历史记录ID集合
+const noteModalVisible = ref(false)
+const noteFormRef = ref()
+const noteFormData = reactive({
+  comment: ''
+})
+const noteFormRules = {
+  comment: [{ required: true, message: '请输入备注', trigger: 'blur' }]
+}
 
 // 解决对话框相关
 const statusModalVisible = ref(false)
@@ -294,8 +575,8 @@ const assignFormRules = {
 }
 
 // 加载Bug详情
-const loadBug = async () => {
-  const id = Number(route.params.id)
+const loadBug = async (bugId?: number) => {
+  const id = bugId || Number(route.params.id)
   if (!id) {
     message.error('Bug ID无效')
     router.push('/bug')
@@ -305,11 +586,29 @@ const loadBug = async () => {
   loading.value = true
   try {
     bug.value = await getBug(id)
+    // 加载历史记录
+    await loadBugHistory(id)
   } catch (error: any) {
     message.error(error.message || '加载Bug详情失败')
     router.push('/bug')
   } finally {
     loading.value = false
+  }
+}
+
+// 加载历史记录
+const loadBugHistory = async (bugId?: number) => {
+  const id = bugId || Number(route.params.id)
+  if (!id) return
+
+  historyLoading.value = true
+  try {
+    const response = await getBugHistory(id)
+    historyList.value = response.list || []
+  } catch (error: any) {
+    console.error('加载历史记录失败:', error)
+  } finally {
+    historyLoading.value = false
   }
 }
 
@@ -323,9 +622,202 @@ const loadUsers = async () => {
   }
 }
 
+// 编辑模态框相关
+const editModalVisible = ref(false)
+const editFormRef = ref()
+const editDescriptionEditorRef = ref<InstanceType<typeof MarkdownEditor> | null>(null)
+const editFormData = reactive<CreateBugRequest & { id?: number; attachment_ids?: number[]; work_date?: Dayjs | undefined }>({
+  title: '',
+  description: '',
+  status: 'active',
+  priority: 'medium',
+  severity: 'medium',
+  project_id: 0,
+  requirement_id: undefined,
+  module_id: undefined,
+  assignee_ids: [],
+  estimated_hours: undefined,
+  actual_hours: undefined,
+  work_date: undefined,
+  attachment_ids: [] as number[]
+})
+const editFormRules = {
+  title: [{ required: true, message: '请输入Bug标题', trigger: 'blur' }],
+  project_id: [{ required: true, message: '请选择项目', trigger: 'change' }]
+}
+const bugAttachments = ref<Attachment[]>([])
+
 // 编辑
-const handleEdit = () => {
-  router.push(`/bug?edit=${bug.value?.id}`)
+const handleEdit = async () => {
+  if (!bug.value) return
+  
+  editFormData.id = bug.value.id
+  editFormData.title = bug.value.title
+  editFormData.description = bug.value.description || ''
+  editFormData.status = bug.value.status
+  editFormData.priority = bug.value.priority
+  editFormData.severity = bug.value.severity
+  editFormData.project_id = bug.value.project_id
+  editFormData.requirement_id = bug.value.requirement_id
+  editFormData.module_id = bug.value.module_id
+  editFormData.assignee_ids = bug.value.assignees?.map(a => a.id) || []
+  editFormData.estimated_hours = bug.value.estimated_hours
+  editFormData.actual_hours = bug.value.actual_hours
+  editFormData.work_date = undefined
+  
+  // 加载Bug附件
+  try {
+    bugAttachments.value = await getAttachments({ bug_id: bug.value.id })
+    editFormData.attachment_ids = bugAttachments.value.map(a => a.id)
+  } catch (error: any) {
+    console.error('加载附件失败:', error)
+    bugAttachments.value = []
+    editFormData.attachment_ids = []
+  }
+  
+  editModalVisible.value = true
+  if (editFormData.project_id) {
+    loadRequirementsForProject()
+  }
+}
+
+// 编辑提交
+const handleEditSubmit = async () => {
+  if (!bug.value) return
+  
+  try {
+    await editFormRef.value.validate()
+    
+    // 获取最新的描述内容
+    let description = editFormData.description || ''
+    
+    // 如果有项目ID，尝试上传本地图片（如果有的话）
+    if (editDescriptionEditorRef.value && editFormData.project_id) {
+      try {
+        const uploadedDescription = await editDescriptionEditorRef.value.uploadLocalImages(async (file: File, projectId: number) => {
+          const attachment = await uploadFile(file, projectId)
+          return attachment
+        })
+        description = uploadedDescription
+      } catch (error: any) {
+        console.error('上传图片失败:', error)
+        message.warning('部分图片上传失败，请检查')
+        description = editFormData.description || ''
+      }
+    }
+    
+    const data: CreateBugRequest = {
+      title: editFormData.title,
+      description: description || '',
+      status: editFormData.status,
+      priority: editFormData.priority,
+      severity: editFormData.severity,
+      project_id: editFormData.project_id,
+      requirement_id: editFormData.requirement_id,
+      module_id: editFormData.module_id,
+      assignee_ids: editFormData.assignee_ids,
+      estimated_hours: editFormData.estimated_hours,
+      actual_hours: editFormData.actual_hours,
+      work_date: editFormData.work_date && typeof editFormData.work_date !== 'string' && 'isValid' in editFormData.work_date && (editFormData.work_date as Dayjs).isValid() ? (editFormData.work_date as Dayjs).format('YYYY-MM-DD') : (typeof editFormData.work_date === 'string' ? editFormData.work_date : undefined)
+    }
+    
+    await updateBug(bug.value.id, data)
+    
+    // 处理附件关联
+    if (editFormData.attachment_ids && editFormData.attachment_ids.length > 0 && editFormData.project_id) {
+      try {
+        for (const attachmentId of editFormData.attachment_ids) {
+          await attachToEntity(attachmentId, { bug_id: bug.value.id })
+        }
+      } catch (error: any) {
+        console.error('关联附件到Bug失败:', error)
+      }
+    }
+    
+    message.success('更新成功')
+    editModalVisible.value = false
+    await loadBug(bug.value.id) // 重新加载Bug详情（会自动加载历史记录）
+  } catch (error: any) {
+    if (error.errorFields) {
+      return
+    }
+    message.error(error.message || '更新失败')
+  }
+}
+
+// 编辑取消
+const handleEditCancel = () => {
+  editFormRef.value?.resetFields()
+  requirements.value = []
+}
+
+// 加载项目列表
+const loadProjects = async () => {
+  try {
+    const response = await getProjects({ size: 1000 })
+    projects.value = response.list || []
+  } catch (error: any) {
+    console.error('加载项目列表失败:', error)
+  }
+}
+
+// 加载需求列表（根据项目）
+const loadRequirementsForProject = async () => {
+  if (!editFormData.project_id) {
+    requirements.value = []
+    return
+  }
+  requirementLoading.value = true
+  try {
+    const response = await getRequirements({ project_id: editFormData.project_id })
+    requirements.value = response.list || []
+  } catch (error: any) {
+    console.error('加载需求列表失败:', error)
+  } finally {
+    requirementLoading.value = false
+  }
+}
+
+// 加载模块列表
+const loadModulesForProject = async () => {
+  moduleLoading.value = true
+  try {
+    modules.value = await getModules()
+  } catch (error: any) {
+    console.error('加载模块列表失败:', error)
+  } finally {
+    moduleLoading.value = false
+  }
+}
+
+// 监听编辑表单项目变化
+watch(() => editFormData.project_id, () => {
+  editFormData.requirement_id = undefined
+  if (editFormData.project_id) {
+    loadRequirementsForProject()
+  } else {
+    requirements.value = []
+  }
+})
+
+// 项目筛选
+const filterProjectOption = (input: string, option: any) => {
+  return option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
+}
+
+// 需求筛选
+const filterRequirementOption = (input: string, option: any) => {
+  return option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
+}
+
+// 模块筛选
+const filterModuleOption = (input: string, option: any) => {
+  return option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
+}
+
+// 编辑表单项目选择改变
+const handleEditFormProjectChange = () => {
+  // watch会自动处理
 }
 
 // 指派
@@ -343,7 +835,7 @@ const handleAssignSubmit = async () => {
     await assignBug(bug.value.id, { assignee_ids: assignFormData.assignee_ids })
     message.success('指派成功')
     assignModalVisible.value = false
-    loadBug()
+    await loadBug(bug.value.id)
   } catch (error: any) {
     if (error.errorFields) {
       return
@@ -438,7 +930,7 @@ const handleStatusSubmit = async () => {
     await updateBugStatus(bug.value.id, data)
     message.success('解决成功')
     statusModalVisible.value = false
-    loadBug()
+    await loadBug(bug.value.id)
   } catch (error: any) {
     message.error(error.message || '解决失败')
   }
@@ -465,7 +957,7 @@ const handleConfirm = async () => {
   try {
     await confirmBug(bug.value.id)
     message.success('确认成功')
-    loadBug()
+    await loadBug(bug.value.id)
   } catch (error: any) {
     message.error(error.message || '确认失败')
   }
@@ -559,26 +1051,155 @@ const filterUserOption = (input: string, option: any) => {
   )
 }
 
+// 获取操作描述
+const getActionDescription = (action: Action): string => {
+  const actorName = action.actor
+    ? `${action.actor.username}${action.actor.nickname ? `(${action.actor.nickname})` : ''}`
+    : '系统'
+
+  switch (action.action) {
+    case 'created':
+      return `由 ${actorName} 创建。`
+    case 'assigned':
+      // 从histories中获取指派信息
+      const assignHistory = action.histories?.find(h => h.field === 'assignee_ids')
+      if (assignHistory) {
+        return `由 ${actorName} 指派给 ${assignHistory.new_value || assignHistory.new || '-'}。`
+      }
+      return `由 ${actorName} 指派。`
+    case 'resolved':
+      // 从extra中获取解决方案（如果有）
+      let solution = ''
+      if (action.extra) {
+        try {
+          const extra = JSON.parse(action.extra)
+          if (extra.solution) {
+            solution = extra.solution
+          }
+        } catch (e) {
+          // 解析失败，忽略
+        }
+      }
+      return `由 ${actorName} 解决${solution ? `, 方案为 ${solution}。` : '。'}`
+    case 'closed':
+      return `由 ${actorName} 关闭。`
+    case 'confirmed':
+      return `由 ${actorName} 确认。`
+    case 'edited':
+      return `由 ${actorName} 编辑。`
+    case 'commented':
+      return `由 ${actorName} 添加了备注：${action.comment || ''}`
+    default:
+      return `由 ${actorName} 执行了 ${action.action} 操作。`
+  }
+}
+
+// 获取字段显示名称
+const getFieldDisplayName = (fieldName: string): string => {
+  const fieldNames: Record<string, string> = {
+    title: 'Bug标题',
+    description: 'Bug描述',
+    status: 'Bug状态',
+    priority: '优先级',
+    severity: '严重程度',
+    confirmed: '是否确认',
+    project_id: '项目',
+    requirement_id: '关联需求',
+    module_id: '功能模块',
+    assignee_ids: '指派给',
+    estimated_hours: '预估工时',
+    actual_hours: '实际工时',
+    solution: '解决方案',
+    solution_note: '解决方案备注',
+    resolved_version_id: '解决版本'
+  }
+  return fieldNames[fieldName] || fieldName
+}
+
+// 判断历史记录是否有详情（字段变更或备注）
+const hasHistoryDetails = (action: Action): boolean => {
+  return !!(action.histories && action.histories.length > 0) || !!action.comment
+}
+
+// 切换历史记录详情展开/收起
+const toggleHistoryDetail = (actionId: number) => {
+  const newSet = new Set(expandedHistoryIds.value)
+  if (newSet.has(actionId)) {
+    newSet.delete(actionId)
+  } else {
+    newSet.add(actionId)
+  }
+  expandedHistoryIds.value = newSet
+}
+
+// 添加备注
+const handleAddNote = () => {
+  if (!bug.value) {
+    message.warning('Bug信息未加载完成，请稍候再试')
+    return
+  }
+  noteFormData.comment = ''
+  noteModalVisible.value = true
+}
+
+// 提交备注
+const handleNoteSubmit = async () => {
+  if (!bug.value) return
+  try {
+    await noteFormRef.value.validate()
+    await addBugHistoryNote(bug.value.id, { comment: noteFormData.comment })
+    message.success('添加备注成功')
+    noteModalVisible.value = false
+    await loadBugHistory(bug.value.id)
+  } catch (error: any) {
+    if (error.errorFields) {
+      return
+    }
+    message.error(error.message || '添加备注失败')
+  }
+}
+
+// 取消添加备注
+const handleNoteCancel = () => {
+  noteFormRef.value?.resetFields()
+}
+
 onMounted(() => {
   loadBug()
   loadUsers()
+  loadProjects()
+  loadModulesForProject()
 })
 </script>
 
 <style scoped>
 .bug-detail {
-  min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.bug-detail :deep(.ant-layout) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .content {
+  flex: 1;
   padding: 24px;
   background: #f0f2f5;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .content-inner {
   max-width: 100%;
   width: 100%;
   margin: 0 auto;
+  min-height: fit-content;
 }
 
 .markdown-content {

@@ -365,6 +365,9 @@ func main() {
 	{
 		bugGroup.GET("/statistics", middleware.RequirePermission(db, "bug:read"), bugHandler.GetBugStatistics)
 		bugGroup.GET("", middleware.RequirePermission(db, "bug:read"), bugHandler.GetBugs)
+		// 历史记录路由（必须在 /:id 之前）
+		bugGroup.GET("/:id/history", middleware.RequirePermission(db, "bug:read"), bugHandler.GetBugHistory)
+		bugGroup.POST("/:id/history/note", middleware.RequirePermission(db, "bug:update"), bugHandler.AddBugHistoryNote)
 		bugGroup.GET("/:id", middleware.RequirePermission(db, "bug:read"), bugHandler.GetBug)
 		bugGroup.POST("", middleware.RequirePermission(db, "bug:create"), bugHandler.CreateBug)
 		bugGroup.PUT("/:id", middleware.RequirePermission(db, "bug:update"), bugHandler.UpdateBug)

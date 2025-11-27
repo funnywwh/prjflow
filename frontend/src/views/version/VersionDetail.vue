@@ -282,13 +282,19 @@ const availableBugs = ref<Bug[]>([])
 const editModalVisible = ref(false)
 const editFormRef = ref()
 const editReleaseNotesEditorRef = ref<InstanceType<typeof MarkdownEditor> | null>(null)
-const editFormData = reactive<Omit<UpdateVersionRequest, 'release_date'> & { release_date?: Dayjs | undefined; requirement_ids?: number[]; bug_ids?: number[] }>({
+const editFormData = reactive<Omit<UpdateVersionRequest, 'release_date'> & { 
+  release_date?: Dayjs | undefined
+  requirement_ids?: number[]
+  bug_ids?: number[]
+  project_id?: number  // 用于显示，不会提交
+}>({
   version_number: '',
   release_notes: '',
   status: 'draft',
   release_date: undefined,
   requirement_ids: [],
-  bug_ids: []
+  bug_ids: [],
+  project_id: undefined
 })
 const editFormRules = {
   version_number: [{ required: true, message: '请输入版本号', trigger: 'blur' }]
@@ -329,6 +335,7 @@ const handleEdit = async () => {
     terminate: 'archived'
   }
   editFormData.status = statusMap[version.value.status] || 'draft'
+  editFormData.project_id = version.value.project_id
   editFormData.release_date = version.value.release_date ? dayjs(version.value.release_date) : undefined
   editFormData.requirement_ids = version.value.requirements?.map((r: any) => r.id) || []
   editFormData.bug_ids = version.value.bugs?.map((b: any) => b.id) || []

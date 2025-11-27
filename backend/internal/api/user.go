@@ -117,8 +117,13 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		DepartmentID: req.DepartmentID,
 	}
 
-	// 如果提供了密码，则加密存储
+	// 如果提供了密码，则验证密码强度并加密存储
 	if req.Password != "" {
+		// 验证密码强度：必须包含大小写字母和数字
+		if err := utils.ValidatePasswordStrength(req.Password); err != nil {
+			utils.Error(c, 400, err.Error())
+			return
+		}
 		hashedPassword, err := utils.HashPassword(req.Password)
 		if err != nil {
 			utils.Error(c, utils.CodeError, "加密密码失败")
@@ -212,8 +217,13 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		user.DepartmentID = req.DepartmentID
 	}
 
-	// 如果提供了新密码，则加密更新
+	// 如果提供了新密码，则验证密码强度并加密更新
 	if req.Password != "" {
+		// 验证密码强度：必须包含大小写字母和数字
+		if err := utils.ValidatePasswordStrength(req.Password); err != nil {
+			utils.Error(c, 400, err.Error())
+			return
+		}
 		hashedPassword, err := utils.HashPassword(req.Password)
 		if err != nil {
 			utils.Error(c, utils.CodeError, "加密密码失败")

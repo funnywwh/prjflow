@@ -55,11 +55,18 @@ onMounted(async () => {
     message.success('登录成功！')
     messageText.value = '登录成功，正在跳转...'
     
-    // 跳转到工作台或之前要访问的页面
-    const redirect = route.query.redirect as string || '/dashboard'
-    setTimeout(() => {
-      router.push(redirect)
-    }, 1000)
+    // 如果是首次登录，跳转到修改密码页面
+    if (response.is_first_login) {
+      setTimeout(() => {
+        router.push('/auth/change-password')
+      }, 1000)
+    } else {
+      // 否则跳转到工作台或之前要访问的页面
+      const redirect = route.query.redirect as string || '/dashboard'
+      setTimeout(() => {
+        router.push(redirect)
+      }, 1000)
+    }
   } catch (error: any) {
     message.error(error.message || '登录失败')
     messageText.value = '登录失败：' + (error.message || '未知错误')

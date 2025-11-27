@@ -135,12 +135,17 @@
         <a-form-item 
           label="密码" 
           name="password"
-          :rules="formData.id ? [] : [{ required: false, message: '请输入密码', trigger: 'blur' }]"
+          :rules="formData.id ? passwordRules : passwordRules"
         >
           <a-input-password 
             v-model:value="formData.password" 
-            :placeholder="formData.id ? '留空则不修改密码' : '请输入密码（可选）'" 
+            :placeholder="formData.id ? '留空则不修改密码，否则需包含大小写字母和数字' : '请输入密码（可选，需包含大小写字母和数字）'" 
           />
+          <template v-if="formData.password && formData.password.length > 0" #help>
+            <div style="font-size: 12px; color: #999;">
+              密码要求：至少6位，必须包含大写字母、小写字母和数字
+            </div>
+          </template>
         </a-form-item>
         <a-form-item label="邮箱" name="email">
           <a-input v-model:value="formData.email" placeholder="请输入邮箱" />
@@ -352,10 +357,43 @@ const formData = reactive<CreateUserRequest & { id?: number; password?: string }
   status: 1
 })
 
+// 验证密码强度：必须包含大小写字母和数字
+const validatePasswordStrength = (_rule: any, value: string) => {
+  // 如果密码为空，且是编辑模式，则允许（留空不修改）
+  if (!value || value.trim() === '') {
+    return Promise.resolve()
+  }
+  if (value.length < 6) {
+    return Promise.reject('密码长度至少6位')
+  }
+  const hasUpper = /[A-Z]/.test(value)
+  const hasLower = /[a-z]/.test(value)
+  const hasDigit = /[0-9]/.test(value)
+  
+  if (!hasUpper) {
+    return Promise.reject('密码必须包含至少一个大写字母')
+  }
+  if (!hasLower) {
+    return Promise.reject('密码必须包含至少一个小写字母')
+  }
+  if (!hasDigit) {
+    return Promise.reject('密码必须包含至少一个数字')
+  }
+  return Promise.resolve()
+}
+
+const passwordRules = [
+  {
+    validator: validatePasswordStrength,
+    trigger: 'blur'
+  }
+]
+
 const formRules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   nickname: [{ required: true, message: '请输入昵称', trigger: 'blur' }],
-  email: [{ type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }]
+  email: [{ type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }],
+  password: passwordRules
 }
 
 const roleModalVisible = ref(false)

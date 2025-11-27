@@ -188,6 +188,20 @@ func (h *LoginCallbackHandler) Process(ctx *WeChatCallbackContext) (interface{},
 		roleNames = append(roleNames, role.Code)
 	}
 
+	// 更新登录次数
+	if err := ctx.DB.Model(&user).Update("login_count", gorm.Expr("login_count + 1")).Error; err != nil {
+		return nil, &CallbackError{Message: "更新登录次数失败", Err: err}
+	}
+
+	// 重新查询用户获取更新后的登录次数
+	if err := ctx.DB.First(&user, user.ID).Error; err != nil {
+		return nil, &CallbackError{Message: "查询用户失败", Err: err}
+	}
+
+	// 微信登录不需要密码，首次登录也不需要强制修改密码
+	// 只有用户名密码登录的首次登录才需要修改密码
+	isFirstLogin := false
+
 	// 生成JWT Token
 	token, err := auth.GenerateToken(user.ID, user.Username, roleNames)
 	if err != nil {
@@ -206,6 +220,7 @@ func (h *LoginCallbackHandler) Process(ctx *WeChatCallbackContext) (interface{},
 				"avatar":   user.Avatar,
 				"roles":    roleNames,
 			},
+			"is_first_login": isFirstLogin,
 		}, "登录成功")
 	}
 
@@ -218,6 +233,7 @@ func (h *LoginCallbackHandler) Process(ctx *WeChatCallbackContext) (interface{},
 			"avatar":   user.Avatar,
 			"roles":    roleNames,
 		},
+		"is_first_login": isFirstLogin,
 	}, nil
 }
 
@@ -363,6 +379,30 @@ func (h *AuthHandler) WeChatLogin(c *gin.Context) {
 		roleNames = append(roleNames, role.Code)
 	}
 
+	// 更新登录次数
+	if err := h.db.Model(&user).Update("login_count", gorm.Expr("login_count + 1")).Error; err != nil {
+		// 如果存在ticket，通知错误
+		if ticket != "" {
+			websocket.GetHub().SendMessage(ticket, "error", nil, "更新登录次数失败")
+		}
+		utils.Error(c, utils.CodeError, "更新登录次数失败")
+		return
+	}
+
+	// 重新查询用户获取更新后的登录次数
+	if err := h.db.First(&user, user.ID).Error; err != nil {
+		// 如果存在ticket，通知错误
+		if ticket != "" {
+			websocket.GetHub().SendMessage(ticket, "error", nil, "查询用户失败")
+		}
+		utils.Error(c, utils.CodeError, "查询用户失败")
+		return
+	}
+
+	// 微信登录不需要密码，首次登录也不需要强制修改密码
+	// 只有用户名密码登录的首次登录才需要修改密码
+	isFirstLogin := false
+
 	// 生成JWT Token
 	token, err := auth.GenerateToken(user.ID, user.Username, roleNames)
 	if err != nil {
@@ -386,6 +426,7 @@ func (h *AuthHandler) WeChatLogin(c *gin.Context) {
 				"avatar":   user.Avatar,
 				"roles":    roleNames,
 			},
+			"is_first_login": isFirstLogin,
 		}, "登录成功")
 	}
 
@@ -398,6 +439,7 @@ func (h *AuthHandler) WeChatLogin(c *gin.Context) {
 			"avatar":   user.Avatar,
 			"roles":    roleNames,
 		},
+		"is_first_login": isFirstLogin,
 	})
 }
 
@@ -421,15 +463,15 @@ func (h *AuthHandler) GetUserInfo(c *gin.Context) {
 	}
 
 	utils.Success(c, gin.H{
-		"id":            user.ID,
-		"username":      user.Username,
-		"nickname":      user.Nickname,
-		"email":         user.Email,
-		"avatar":        user.Avatar,
-		"phone":         user.Phone,
+		"id":             user.ID,
+		"username":       user.Username,
+		"nickname":       user.Nickname,
+		"email":          user.Email,
+		"avatar":         user.Avatar,
+		"phone":          user.Phone,
 		"wechat_open_id": user.WeChatOpenID,
-		"department":    user.Department,
-		"roles":         roleNames,
+		"department":     user.Department,
+		"roles":          roleNames,
 	})
 }
 
@@ -477,6 +519,21 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		roleNames = append(roleNames, role.Code)
 	}
 
+	// 更新登录次数
+	if err := h.db.Model(&user).Update("login_count", gorm.Expr("login_count + 1")).Error; err != nil {
+		utils.Error(c, utils.CodeError, "更新登录次数失败")
+		return
+	}
+
+	// 重新查询用户获取更新后的登录次数
+	if err := h.db.First(&user, user.ID).Error; err != nil {
+		utils.Error(c, utils.CodeError, "查询用户失败")
+		return
+	}
+
+	// 判断是否是首次登录（更新后LoginCount == 1）
+	isFirstLogin := user.LoginCount == 1
+
 	// 生成JWT Token
 	token, err := auth.GenerateToken(user.ID, user.Username, roleNames)
 	if err != nil {
@@ -493,6 +550,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			"avatar":   user.Avatar,
 			"roles":    roleNames,
 		},
+		"is_first_login": isFirstLogin,
 	})
 }
 
@@ -535,6 +593,12 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 			utils.Error(c, 400, "旧密码错误")
 			return
 		}
+	}
+
+	// 验证新密码强度：必须包含大小写字母和数字
+	if err := utils.ValidatePasswordStrength(req.NewPassword); err != nil {
+		utils.Error(c, 400, err.Error())
+		return
 	}
 
 	// 加密新密码
@@ -713,8 +777,6 @@ func (h *BindCallbackHandler) Validate(ctx *WeChatCallbackContext) error {
 		return &CallbackError{Message: "您已绑定微信，请先解绑后再绑定新的微信"}
 	}
 
-	// 将user_id存储到上下文中，供Process使用
-	ctx.DB = ctx.DB // 确保DB可用
 	return nil
 }
 
@@ -771,8 +833,8 @@ func (h *BindCallbackHandler) Process(ctx *WeChatCallbackContext) (interface{}, 
 	return gin.H{
 		"message": "绑定成功",
 		"user": gin.H{
-			"id":            user.ID,
-			"username":      user.Username,
+			"id":             user.ID,
+			"username":       user.Username,
 			"wechat_open_id": user.WeChatOpenID,
 		},
 	}, nil

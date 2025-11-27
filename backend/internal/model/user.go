@@ -21,6 +21,7 @@ type User struct {
 	Avatar       string `gorm:"size:255" json:"avatar"`                     // 头像URL
 	Phone        string `gorm:"size:20" json:"phone"`                       // 手机号
 	Status       int    `gorm:"default:1" json:"status"`                      // 状态：1-正常，0-禁用
+	LoginCount   int    `gorm:"default:0" json:"login_count"`                 // 登录次数
 
 	DepartmentID *uint      `gorm:"index" json:"department_id"` // 部门ID
 	Department   *Department `gorm:"foreignKey:DepartmentID" json:"department,omitempty"`

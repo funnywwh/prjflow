@@ -98,10 +98,17 @@ const handleLoginSuccess = async (data: any) => {
     
     message.success('登录成功！')
     
-    // 跳转到工作台
-    setTimeout(() => {
-      router.push('/dashboard')
-    }, 1000)
+    // 如果是首次登录，跳转到修改密码页面
+    if (data.is_first_login) {
+      setTimeout(() => {
+        router.push('/auth/change-password')
+      }, 1000)
+    } else {
+      // 否则跳转到工作台
+      setTimeout(() => {
+        router.push('/dashboard')
+      }, 1000)
+    }
   }
 }
 </script>

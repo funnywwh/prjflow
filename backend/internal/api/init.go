@@ -375,7 +375,12 @@ func (h *InitHandler) InitSystemWithPassword(c *gin.Context) {
 		}
 	}
 
-	// 2. 加密密码
+	// 2. 验证密码强度并加密密码
+	if err := utils.ValidatePasswordStrength(req.Password); err != nil {
+		tx.Rollback()
+		utils.Error(c, 400, err.Error())
+		return
+	}
 	hashedPassword, err := utils.HashPassword(req.Password)
 	if err != nil {
 		tx.Rollback()

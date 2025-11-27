@@ -82,7 +82,12 @@
                 <a-input v-model:value="initForm.username" placeholder="请输入用户名" size="large" />
               </a-form-item>
               <a-form-item name="password" label="密码">
-                <a-input-password v-model:value="initForm.password" placeholder="请输入密码" size="large" />
+                <a-input-password v-model:value="initForm.password" placeholder="请输入密码（至少6位，包含大小写字母和数字）" size="large" />
+                <template #help>
+                  <div style="font-size: 12px; color: #999;">
+                    密码要求：至少6位，必须包含大写字母、小写字母和数字
+                  </div>
+                </template>
               </a-form-item>
               <a-form-item name="nickname" label="昵称">
                 <a-input v-model:value="initForm.nickname" placeholder="请输入昵称" size="large" />
@@ -201,9 +206,33 @@ const initForm = ref({
   nickname: ''
 })
 
+// 验证密码强度：必须包含大小写字母和数字
+const validatePasswordStrength = (_rule: any, value: string) => {
+  if (!value) {
+    return Promise.reject('请输入密码')
+  }
+  if (value.length < 6) {
+    return Promise.reject('密码长度至少6位')
+  }
+  const hasUpper = /[A-Z]/.test(value)
+  const hasLower = /[a-z]/.test(value)
+  const hasDigit = /[0-9]/.test(value)
+  
+  if (!hasUpper) {
+    return Promise.reject('密码必须包含至少一个大写字母')
+  }
+  if (!hasLower) {
+    return Promise.reject('密码必须包含至少一个小写字母')
+  }
+  if (!hasDigit) {
+    return Promise.reject('密码必须包含至少一个数字')
+  }
+  return Promise.resolve()
+}
+
 const initRules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+  password: [{ required: true, validator: validatePasswordStrength, trigger: 'blur' }],
   nickname: [{ required: true, message: '请输入昵称', trigger: 'blur' }]
 }
 

@@ -9,6 +9,7 @@ export interface LoginRequest {
 export interface LoginResponse {
   token: string
   user: User
+  is_first_login?: boolean
 }
 
 export interface QRCodeResponse {

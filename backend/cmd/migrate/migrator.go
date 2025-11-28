@@ -488,6 +488,13 @@ func (m *Migrator) MigrateUsers() error {
 			m.userIDMap[zu.ID] = existing.ID
 			log.Printf("用户已存在: %s (ID: %d -> %d)", user.Username, zu.ID, existing.ID)
 
+			// 更新已存在用户的密码为默认密码"123"（确保迁移后的用户可以使用统一密码登录）
+			if err := m.goProjectDB.Model(&existing).Update("password", defaultPassword).Error; err != nil {
+				log.Printf("更新用户密码失败: %s, 错误: %v", user.Username, err)
+			} else {
+				log.Printf("已更新用户密码: %s", user.Username)
+			}
+
 			// 如果用户已存在，检查admin账号是否有管理员角色
 			if strings.ToLower(zu.Account) == "admin" {
 				var existingRoles []model.Role

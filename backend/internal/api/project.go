@@ -50,6 +50,11 @@ func (h *ProjectHandler) GetProjects(c *gin.Context) {
 		query = query.Where("status = ?", status)
 	}
 
+	// 项目ID筛选（精确匹配）
+	if projectID := c.Query("project_id"); projectID != "" {
+		query = query.Where("id = ?", projectID)
+	}
+
 	// 分页
 	page := utils.GetPage(c)
 	pageSize := utils.GetPageSize(c)
@@ -74,6 +79,9 @@ func (h *ProjectHandler) GetProjects(c *gin.Context) {
 	}
 	if status := c.Query("status"); status != "" {
 		countQuery = countQuery.Where("status = ?", status)
+	}
+	if projectID := c.Query("project_id"); projectID != "" {
+		countQuery = countQuery.Where("id = ?", projectID)
 	}
 	countQuery.Count(&total)
 

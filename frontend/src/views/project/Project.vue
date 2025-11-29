@@ -17,6 +17,25 @@
 
               <a-card :bordered="false" style="margin-bottom: 16px">
                 <a-form layout="inline" :model="projectSearchForm">
+                  <a-form-item label="项目">
+                    <a-select
+                      v-model:value="projectSearchForm.project_id"
+                      placeholder="选择项目"
+                      allow-clear
+                      show-search
+                      :filter-option="filterProjectOption"
+                      style="width: 200px"
+                      @change="handleSearchProjectIdChange"
+                    >
+                      <a-select-option
+                        v-for="project in allProjectsForSelect"
+                        :key="project.id"
+                        :value="project.id"
+                      >
+                        {{ project.name }}{{ project.code ? `(${project.code})` : '' }}
+                      </a-select-option>
+                    </a-select>
+                  </a-form-item>
                   <a-form-item label="关键词">
                     <a-input
                       v-model:value="projectSearchForm.keyword"
@@ -363,11 +382,13 @@ const memberLoading = ref(false)
 const projectSubmitting = ref(false)
 
 const projects = ref<Project[]>([])
+const allProjectsForSelect = ref<Project[]>([]) // 用于下拉框的所有项目列表
 const users = ref<User[]>([])
 const projectMembers = ref<ProjectMember[]>([])
 const currentProjectId = ref<number>()
 
 const projectSearchForm = reactive({
+  project_id: undefined as number | undefined, // 项目ID筛选
   keyword: '',
   tags: [] as number[] // 改为标签ID数组
 })
@@ -446,6 +467,16 @@ const tagFormData = reactive({
 })
 const tagSearchKeyword = ref('')
 
+// 加载所有项目（用于下拉框选择）
+const loadAllProjectsForSelect = async () => {
+  try {
+    const response = await getProjects({ size: 1000 }) // 加载足够多的项目
+    allProjectsForSelect.value = response.list || []
+  } catch (error: any) {
+    console.error('加载项目列表失败:', error)
+  }
+}
+
 // 加载项目列表
 const loadProjects = async () => {
   projectLoading.value = true
@@ -453,6 +484,9 @@ const loadProjects = async () => {
     const params: any = {
       page: projectPagination.current,
       size: projectPagination.pageSize
+    }
+    if (projectSearchForm.project_id) {
+      params.project_id = projectSearchForm.project_id
     }
     if (projectSearchForm.keyword) {
       params.keyword = projectSearchForm.keyword
@@ -484,6 +518,11 @@ const loadUsers = async () => {
 const handleSearchKeywordChange = (e: Event) => {
   const value = (e.target as HTMLInputElement).value
   saveLastSelected('last_selected_project_keyword_search', value)
+}
+
+// 搜索表单项目ID选择改变
+const handleSearchProjectIdChange = (value: number | undefined) => {
+  saveLastSelected('last_selected_project_id_search', value)
 }
 
 // 搜索表单标签选择改变
@@ -528,9 +567,11 @@ const handleSearchProject = () => {
 
 // 项目重置
 const handleResetProject = () => {
+  projectSearchForm.project_id = undefined
   projectSearchForm.keyword = ''
   projectSearchForm.tags = [] as number[]
   // 清除保存的搜索条件
+  saveLastSelected('last_selected_project_id_search', undefined)
   saveLastSelected('last_selected_project_keyword_search', '')
   saveLastSelected('last_selected_project_tags_search', [])
   handleSearchProject()
@@ -937,6 +978,17 @@ const loadAndEditProject = async (projectId: number) => {
   }
 }
 
+// 项目筛选（用于下拉框）
+const filterProjectOption = (input: string, option: any) => {
+  const project = allProjectsForSelect.value.find(p => p.id === option.value)
+  if (!project) return false
+  const searchText = input.toLowerCase()
+  return (
+    project.name.toLowerCase().includes(searchText) ||
+    (project.code && project.code.toLowerCase().includes(searchText))
+  )
+}
+
 // 打开成员管理对话框
 const openMemberModal = async (projectId: number) => {
   currentProjectId.value = projectId
@@ -971,6 +1023,10 @@ watch(() => route.query.manageMembers, async (manageMembersId) => {
 
 onMounted(() => {
   // 从 localStorage 恢复最后选择的搜索条件
+  const lastSearchProjectId = getLastSelected<number>('last_selected_project_id_search')
+  if (lastSearchProjectId) {
+    projectSearchForm.project_id = lastSearchProjectId
+  }
   const lastSearchKeyword = getLastSelected<string>('last_selected_project_keyword_search')
   if (lastSearchKeyword) {
     projectSearchForm.keyword = lastSearchKeyword
@@ -979,6 +1035,7 @@ onMounted(() => {
   if (lastSearchTagIds && lastSearchTagIds.length > 0) {
     projectSearchForm.tags = lastSearchTagIds
   }
+  loadAllProjectsForSelect() // 加载所有项目供下拉框选择
   loadProjects()
   loadUsers()
   loadTags()

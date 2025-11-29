@@ -132,74 +132,119 @@
             <!-- 列表标签页 -->
             <a-tab-pane key="list" tab="列表">
               <a-card :bordered="false" style="margin-bottom: 16px">
-                <a-form layout="inline" :model="searchForm">
-                  <a-form-item label="关键词">
-                    <a-input
-                      v-model:value="searchForm.keyword"
-                      placeholder="Bug标题/描述"
-                      allow-clear
-                      style="width: 200px"
-                    />
-                  </a-form-item>
-                  <a-form-item label="项目">
-                    <a-select
-                      v-model:value="searchForm.project_id"
-                      placeholder="选择项目"
-                      allow-clear
-                      style="width: 150px"
-                      @change="handleSearchProjectChange"
-                    >
-                      <a-select-option
-                        v-for="project in projects"
-                        :key="project.id"
-                        :value="project.id"
-                      >
-                        {{ project.name }}
-                      </a-select-option>
-                    </a-select>
-                  </a-form-item>
-                  <a-form-item label="状态">
-                    <a-select
-                      v-model:value="searchForm.status"
-                      placeholder="选择状态"
-                      allow-clear
-                      style="width: 120px"
-                    >
-                      <a-select-option value="active">激活</a-select-option>
-                      <a-select-option value="resolved">已解决</a-select-option>
-                      <a-select-option value="closed">已关闭</a-select-option>
-                    </a-select>
-                  </a-form-item>
-                  <a-form-item label="优先级">
-                    <a-select
-                      v-model:value="searchForm.priority"
-                      placeholder="选择优先级"
-                      allow-clear
-                      style="width: 120px"
-                    >
-                      <a-select-option value="low">低</a-select-option>
-                      <a-select-option value="medium">中</a-select-option>
-                      <a-select-option value="high">高</a-select-option>
-                      <a-select-option value="urgent">紧急</a-select-option>
-                    </a-select>
-                  </a-form-item>
-                  <a-form-item label="严重程度">
-                    <a-select
-                      v-model:value="searchForm.severity"
-                      placeholder="选择严重程度"
-                      allow-clear
-                      style="width: 120px"
-                    >
-                      <a-select-option value="low">低</a-select-option>
-                      <a-select-option value="medium">中</a-select-option>
-                      <a-select-option value="high">高</a-select-option>
-                      <a-select-option value="critical">严重</a-select-option>
-                    </a-select>
-                  </a-form-item>
-                  <a-form-item>
-                    <a-button type="primary" @click="handleSearch">查询</a-button>
-                    <a-button style="margin-left: 8px" @click="handleReset">重置</a-button>
-                  </a-form-item>
+                <a-form :model="searchForm" layout="vertical">
+                  <a-row :gutter="16">
+                    <a-col :span="6">
+                      <a-form-item label="关键词">
+                        <a-input
+                          v-model:value="searchForm.keyword"
+                          placeholder="Bug标题/描述"
+                          allow-clear
+                        />
+                      </a-form-item>
+                    </a-col>
+                    <a-col :span="6">
+                      <a-form-item label="项目">
+                        <a-select
+                          v-model:value="searchForm.project_id"
+                          placeholder="选择项目"
+                          allow-clear
+                          @change="handleSearchProjectChange"
+                        >
+                          <a-select-option
+                            v-for="project in projects"
+                            :key="project.id"
+                            :value="project.id"
+                          >
+                            {{ project.name }}
+                          </a-select-option>
+                        </a-select>
+                      </a-form-item>
+                    </a-col>
+                    <a-col :span="6">
+                      <a-form-item label="状态">
+                        <a-select
+                          v-model:value="searchForm.status"
+                          placeholder="选择状态"
+                          allow-clear
+                        >
+                          <a-select-option value="active">激活</a-select-option>
+                          <a-select-option value="resolved">已解决</a-select-option>
+                          <a-select-option value="closed">已关闭</a-select-option>
+                        </a-select>
+                      </a-form-item>
+                    </a-col>
+                    <a-col :span="6">
+                      <a-form-item label="优先级">
+                        <a-select
+                          v-model:value="searchForm.priority"
+                          placeholder="选择优先级"
+                          allow-clear
+                        >
+                          <a-select-option value="low">低</a-select-option>
+                          <a-select-option value="medium">中</a-select-option>
+                          <a-select-option value="high">高</a-select-option>
+                          <a-select-option value="urgent">紧急</a-select-option>
+                        </a-select>
+                      </a-form-item>
+                    </a-col>
+                  </a-row>
+                  <a-row :gutter="16">
+                    <a-col :span="6">
+                      <a-form-item label="严重程度">
+                        <a-select
+                          v-model:value="searchForm.severity"
+                          placeholder="选择严重程度"
+                          allow-clear
+                        >
+                          <a-select-option value="low">低</a-select-option>
+                          <a-select-option value="medium">中</a-select-option>
+                          <a-select-option value="high">高</a-select-option>
+                          <a-select-option value="critical">严重</a-select-option>
+                        </a-select>
+                      </a-form-item>
+                    </a-col>
+                    <a-col :span="12">
+                      <a-form-item label="指派给">
+                        <a-space direction="vertical" style="width: 100%">
+                          <a-select
+                            v-model:value="searchForm.assignee_id"
+                            placeholder="选择指派给"
+                            allow-clear
+                            show-search
+                            :filter-option="filterSearchMemberOption"
+                            :loading="searchProjectMembersLoading"
+                            @change="handleAssigneeChange"
+                          >
+                            <a-select-option
+                              v-for="member in searchProjectMembers"
+                              :key="member.user_id"
+                              :value="member.user_id"
+                            >
+                              {{ member.user?.username || '' }}{{ member.user?.nickname ? `(${member.user.nickname})` : '' }}
+                              <span v-if="member.role" style="color: #999; margin-left: 4px">
+                                ({{ member.role === 'owner' ? '负责人' : member.role === 'member' ? '成员' : '查看者' }})
+                              </span>
+                            </a-select-option>
+                          </a-select>
+                          <a-checkbox v-model:checked="searchForm.assignToMe" @change="handleAssignToMeChange">
+                            指派给我
+                          </a-checkbox>
+                          <div v-if="!searchForm.project_id && !searchForm.assignToMe" style="color: #999; margin-top: 4px; font-size: 12px">
+                            请先选择项目
+                          </div>
+                        </a-space>
+                      </a-form-item>
+                    </a-col>
+                    <a-col :span="6">
+                      <a-form-item label=" " style="margin-bottom: 0">
+                        <a-space>
+                          <a-button type="primary" @click="handleSearch">查询</a-button>
+                          <a-button @click="handleReset">重置</a-button>
+                        </a-space>
+                      </a-form-item>
+                    </a-col>
+                  </a-row>
                 </a-form>
               </a-card>
 
@@ -488,16 +533,23 @@
             mode="multiple"
             placeholder="选择指派给"
             show-search
-            :filter-option="filterUserOption"
+            :filter-option="filterProjectMemberOption"
+            :loading="projectMembersLoading"
           >
             <a-select-option
-              v-for="user in users"
-              :key="user.id"
-              :value="user.id"
+              v-for="member in projectMembers"
+              :key="member.user_id"
+              :value="member.user_id"
             >
-              {{ user.username }}{{ user.nickname ? `(${user.nickname})` : '' }}
+              {{ member.user?.username || '' }}{{ member.user?.nickname ? `(${member.user.nickname})` : '' }}
+              <span v-if="member.role" style="color: #999; margin-left: 4px">
+                ({{ member.role === 'owner' ? '负责人' : member.role === 'member' ? '成员' : '查看者' }})
+              </span>
             </a-select-option>
           </a-select>
+          <div v-if="!assignFormData.project_id" style="color: #999; margin-top: 4px">
+            请先选择项目
+          </div>
         </a-form-item>
       </a-form>
     </a-modal>
@@ -637,6 +689,7 @@ import {
 } from '@/api/bug'
 import { getProjects, type Project } from '@/api/project'
 import { getUsers, type User } from '@/api/user'
+import { getProjectMembers, type ProjectMember } from '@/api/project'
 import { getRequirements, type Requirement } from '@/api/requirement'
 import { getModules, type Module } from '@/api/module'
 import { getVersions, type Version } from '@/api/version'
@@ -649,6 +702,10 @@ const loading = ref(false)
 const bugs = ref<Bug[]>([])
 const projects = ref<Project[]>([])
 const users = ref<User[]>([])
+const projectMembers = ref<ProjectMember[]>([]) // 用于指派窗口的项目成员列表
+const projectMembersLoading = ref(false) // 项目成员加载状态
+const searchProjectMembers = ref<ProjectMember[]>([]) // 用于搜索条件的项目成员列表
+const searchProjectMembersLoading = ref(false) // 搜索项目成员加载状态
 const requirements = ref<Requirement[]>([])
 const requirementLoading = ref(false)
 const modules = ref<Module[]>([])
@@ -664,7 +721,8 @@ const searchForm = reactive({
   status: undefined as string | undefined,
   priority: undefined as string | undefined,
   severity: undefined as string | undefined,
-  assignee_id: undefined as number | undefined
+  assignee_id: undefined as number | undefined,
+  assignToMe: false // 指派给我
 })
 
 const pagination = reactive({
@@ -718,6 +776,7 @@ const assignModalVisible = ref(false)
 const assignFormRef = ref()
 const assignFormData = reactive({
   bug_id: 0,
+  project_id: 0, // 保存当前Bug的项目ID
   assignee_ids: [] as number[]
 })
 
@@ -874,9 +933,89 @@ const handleSearch = () => {
   loadBugs()
 }
 
+// 加载搜索用的项目成员列表
+const loadSearchProjectMembers = async (projectId: number | undefined) => {
+  if (!projectId) {
+    searchProjectMembers.value = []
+    searchProjectMembersLoading.value = false
+    // 只有在没有选中"指派给我"时才清空指派给的选择
+    if (!searchForm.assignToMe) {
+      searchForm.assignee_id = undefined
+    }
+    return
+  }
+  searchProjectMembersLoading.value = true
+  try {
+    searchProjectMembers.value = await getProjectMembers(projectId)
+  } catch (error: any) {
+    console.error('加载项目成员失败:', error)
+    searchProjectMembers.value = []
+  } finally {
+    searchProjectMembersLoading.value = false
+  }
+}
+
+// 指派给我复选框改变
+const handleAssignToMeChange = async (e: any) => {
+  const checked = e.target.checked
+  if (checked && authStore.user) {
+    const currentUserId = Number(authStore.user.id)
+    
+    // 选中时，如果已选择项目，需要先加载项目成员列表
+    if (searchForm.project_id) {
+      await loadSearchProjectMembers(searchForm.project_id)
+      
+      // 等待项目成员列表加载完成后，检查当前用户是否在成员列表中
+      // 使用 nextTick 确保列表已更新
+      await nextTick()
+      
+      const isMember = searchProjectMembers.value.some(m => Number(m.user_id) === currentUserId)
+      if (isMember) {
+        // 设置 assignee_id 为当前用户ID（相当于在下拉框中选中自己）
+        searchForm.assignee_id = currentUserId
+      } else {
+        // 如果当前用户不在项目成员列表中，提示用户
+        message.warning('当前用户不是该项目的成员')
+        searchForm.assignToMe = false
+        searchForm.assignee_id = undefined
+      }
+    } else {
+      // 如果没有选择项目，提示用户先选择项目
+      message.warning('请先选择项目')
+      searchForm.assignToMe = false
+      searchForm.assignee_id = undefined
+    }
+  } else {
+    // 取消选中时，清空 assignee_id
+    searchForm.assignee_id = undefined
+  }
+}
+
+// 指派给下拉框改变
+const handleAssigneeChange = (value: number | undefined) => {
+  // 如果清空了选择，同时取消"指派给我"
+  if (!value && searchForm.assignToMe) {
+    searchForm.assignToMe = false
+  }
+  // 如果选择了其他用户，取消"指派给我"
+  if (value && authStore.user && value !== authStore.user.id && searchForm.assignToMe) {
+    searchForm.assignToMe = false
+  }
+  // 如果选择了自己，选中"指派给我"
+  if (value && authStore.user && value === authStore.user.id && !searchForm.assignToMe) {
+    searchForm.assignToMe = true
+  }
+}
+
 // 搜索表单项目选择改变
-const handleSearchProjectChange = (value: number | undefined) => {
+const handleSearchProjectChange = async (value: number | undefined) => {
   saveLastSelected('last_selected_bug_project_search', value)
+  // 当项目改变时，重新加载项目成员列表
+  await loadSearchProjectMembers(value)
+  // 只有在没有选中"指派给我"时才清空指派给的选择
+  if (!searchForm.assignToMe) {
+    searchForm.assignee_id = undefined
+  }
 }
 
 // 编辑表单项目选择改变
@@ -892,6 +1031,8 @@ const handleReset = () => {
   searchForm.priority = undefined
   searchForm.severity = undefined
   searchForm.assignee_id = undefined
+  searchForm.assignToMe = false // 重置"指派给我"
+  searchProjectMembers.value = [] // 清空项目成员列表
   pagination.current = 1
   // 清除保存的搜索项目选择
   saveLastSelected('last_selected_bug_project_search', undefined)
@@ -1194,10 +1335,31 @@ const filterVersionOption = (input: string, option: any) => {
   return version.version_number.toLowerCase().includes(searchText)
 }
 
+// 加载项目成员（用于指派窗口）
+const loadProjectMembersForAssign = async (projectId: number) => {
+  if (!projectId) {
+    projectMembers.value = []
+    projectMembersLoading.value = false
+    return
+  }
+  projectMembersLoading.value = true
+  try {
+    projectMembers.value = await getProjectMembers(projectId)
+  } catch (error: any) {
+    console.error('加载项目成员失败:', error)
+    projectMembers.value = []
+  } finally {
+    projectMembersLoading.value = false
+  }
+}
+
 // 指派
-const handleAssign = (record: Bug) => {
+const handleAssign = async (record: Bug) => {
   assignFormData.bug_id = record.id
+  assignFormData.project_id = record.project_id
   assignFormData.assignee_ids = record.assignees?.map(a => a.id) || []
+  // 加载项目成员列表
+  await loadProjectMembersForAssign(record.project_id)
   assignModalVisible.value = true
 }
 
@@ -1336,6 +1498,28 @@ const filterUserOption = (input: string, option: any) => {
   )
 }
 
+// 项目成员筛选（用于指派窗口）
+const filterProjectMemberOption = (input: string, option: any) => {
+  const member = projectMembers.value.find(m => m.user_id === option.value)
+  if (!member || !member.user) return false
+  const searchText = input.toLowerCase()
+  return (
+    member.user.username.toLowerCase().includes(searchText) ||
+    (member.user.nickname && member.user.nickname.toLowerCase().includes(searchText))
+  )
+}
+
+// 搜索项目成员筛选（用于搜索条件）
+const filterSearchMemberOption = (input: string, option: any) => {
+  const member = searchProjectMembers.value.find(m => m.user_id === option.value)
+  if (!member || !member.user) return false
+  const searchText = input.toLowerCase()
+  return (
+    member.user.username.toLowerCase().includes(searchText) ||
+    (member.user.nickname && member.user.nickname.toLowerCase().includes(searchText))
+  )
+}
+
 // 监听 tab 切换，切换到统计 tab 时加载统计信息
 watch(activeTab, (newTab) => {
   if (newTab === 'statistics') {
@@ -1364,11 +1548,16 @@ onMounted(async () => {
     searchForm.status = route.query.status as string
   }
   if (route.query.assignee === 'me' && authStore.user) {
+    searchForm.assignToMe = true
     searchForm.assignee_id = authStore.user.id
   }
   
   // 使用 nextTick 确保项目列表已渲染后再加载Bug
-  nextTick(() => {
+  nextTick(async () => {
+    // 如果有保存的项目ID，加载对应的项目成员列表
+    if (searchForm.project_id) {
+      await loadSearchProjectMembers(searchForm.project_id)
+    }
     loadBugs()
   })
 })

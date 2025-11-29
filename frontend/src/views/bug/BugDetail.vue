@@ -193,10 +193,6 @@
             :show-role="true"
           />
         </a-form-item>
-          <div v-if="!bug?.project_id" style="color: #999; margin-top: 4px">
-            请先选择项目
-          </div>
-        </a-form-item>
       </a-form>
     </a-modal>
 

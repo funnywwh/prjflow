@@ -2,10 +2,10 @@
 
 基于Go + Gin + GORM和Vue3 + TypeScript + Ant Design Vue的全栈项目管理软件。
 
-**当前版本**: v0.4.5  
+**当前版本**: v0.4.6  
 **最后更新**: 2025年1月XX日
 
-> 📦 [v0.4.5 发布说明](./docs/v0.4.5发布说明.md) | [开发计划](./docs/开发计划.md) | [API文档](./docs/API设计文档.md)
+> 📦 [v0.4.6 发布说明](./docs/v0.4.6发布说明.md) | [开发计划](./docs/开发计划.md) | [API文档](./docs/API设计文档.md)
 
 ## 技术栈
 

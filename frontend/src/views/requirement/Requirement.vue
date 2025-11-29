@@ -825,13 +825,16 @@ onMounted(async () => {
 }
 
 .content-inner {
+  background: white;
+  padding: 24px;
+  border-radius: 4px;
   max-width: 100%;
   margin: 0 auto;
   width: 100%;
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-y: auto;
   height: 0;
 }
 

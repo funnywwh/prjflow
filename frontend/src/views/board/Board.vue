@@ -441,6 +441,10 @@ onMounted(() => {
 .content-inner {
   max-width: 100%;
   margin: 0 auto;
+  background: white;
+  padding: 24px;
+  border-radius: 4px;
+  overflow-y: auto;
 }
 
 .board-container {

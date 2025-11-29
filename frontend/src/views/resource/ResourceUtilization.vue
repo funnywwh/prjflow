@@ -260,6 +260,7 @@ onMounted(() => {
   background: #fff;
   padding: 24px;
   border-radius: 8px;
+  overflow-y: auto;
 }
 </style>
 

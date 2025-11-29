@@ -545,6 +545,10 @@ onBeforeUnmount(() => {
   max-width: 100%;
   margin: 0 auto;
   width: 100%;
+  background: white;
+  padding: 24px;
+  border-radius: 4px;
+  overflow-y: auto;
 }
 </style>
 

@@ -581,6 +581,7 @@ onUnmounted(() => {
   background: white;
   border-radius: 4px;
   padding: 16px;
+  overflow-y: auto;
 }
 
 .gantt-container {

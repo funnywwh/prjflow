@@ -40,6 +40,8 @@
                   v-model:value="searchForm.project_id"
                   placeholder="选择项目"
                   allow-clear
+                  show-search
+                  :filter-option="filterProjectOption"
                   style="width: 150px"
                   @change="handleSearchProjectChange"
                 >

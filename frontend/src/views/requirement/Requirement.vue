@@ -120,6 +120,8 @@
                       v-model:value="searchForm.project_id"
                       placeholder="选择项目"
                       allow-clear
+                      show-search
+                      :filter-option="filterProjectOption"
                       style="width: 150px"
                       @change="handleSearchProjectChange"
                     >
@@ -275,6 +277,8 @@
           <a-select
             v-model:value="formData.project_id"
             placeholder="请选择项目"
+            show-search
+            :filter-option="filterProjectOption"
             @change="handleFormProjectChange"
           >
             <a-select-option
@@ -777,6 +781,17 @@ const filterUserOption = (input: string, option: any) => {
   return (
     user.username.toLowerCase().includes(searchText) ||
     (user.nickname && user.nickname.toLowerCase().includes(searchText))
+  )
+}
+
+// 项目筛选
+const filterProjectOption = (input: string, option: any) => {
+  const project = projects.value.find(p => p.id === option.value)
+  if (!project) return false
+  const searchText = input.toLowerCase()
+  return (
+    project.name.toLowerCase().includes(searchText) ||
+    (project.code && project.code.toLowerCase().includes(searchText))
   )
 }
 

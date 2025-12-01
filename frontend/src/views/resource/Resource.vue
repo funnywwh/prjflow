@@ -55,6 +55,8 @@
                   v-model:value="searchForm.project_id"
                   placeholder="选择项目"
                   allow-clear
+                  show-search
+                  :filter-option="filterProjectOption"
                   style="width: 150px"
                   @change="handleSearchProjectChange"
                 >
@@ -160,6 +162,8 @@
           <a-select
             v-model:value="formData.project_id"
             placeholder="选择项目"
+            show-search
+            :filter-option="filterProjectOption"
             @change="handleFormProjectChange"
           >
             <a-select-option
@@ -323,6 +327,8 @@
             v-model:value="allocationFormData.project_id"
             placeholder="选择项目（可选）"
             allow-clear
+            show-search
+            :filter-option="filterProjectOption"
           >
             <a-select-option
               v-for="project in projects"
@@ -502,6 +508,17 @@ const filterBugOption = (input: string, option: any) => {
   const bug = bugs.value.find(b => b.id === option.value)
   if (!bug) return false
   return bug.title?.toLowerCase().includes(input.toLowerCase()) || false
+}
+
+// 项目筛选
+const filterProjectOption = (input: string, option: any) => {
+  const project = projects.value.find(p => p.id === option.value)
+  if (!project) return false
+  const searchText = input.toLowerCase()
+  return (
+    project.name.toLowerCase().includes(searchText) ||
+    (project.code && project.code.toLowerCase().includes(searchText))
+  )
 }
 
 const disabledDate = (current: Dayjs) => {

@@ -35,23 +35,25 @@
                   style="width: 200px"
                 />
               </a-form-item>
-              <a-form-item label="项目">
-                <a-select
-                  v-model:value="searchForm.project_id"
-                  placeholder="选择项目"
-                  allow-clear
-                  style="width: 150px"
-                  @change="handleSearchProjectChange"
-                >
-                  <a-select-option
-                    v-for="project in projects"
-                    :key="project.id"
-                    :value="project.id"
-                  >
-                    {{ project.name }}
-                  </a-select-option>
-                </a-select>
-              </a-form-item>
+                  <a-form-item label="项目">
+                    <a-select
+                      v-model:value="searchForm.project_id"
+                      placeholder="选择项目"
+                      allow-clear
+                      show-search
+                      :filter-option="filterProjectOption"
+                      style="width: 150px"
+                      @change="handleSearchProjectChange"
+                    >
+                      <a-select-option
+                        v-for="project in projects"
+                        :key="project.id"
+                        :value="project.id"
+                      >
+                        {{ project.name }}
+                      </a-select-option>
+                    </a-select>
+                  </a-form-item>
               <a-form-item label="状态">
                 <a-select
                   v-model:value="searchForm.status"

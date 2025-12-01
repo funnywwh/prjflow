@@ -53,6 +53,8 @@
                   v-model:value="searchForm.project_id"
                   placeholder="选择项目"
                   allow-clear
+                  show-search
+                  :filter-option="filterProjectOption"
                   style="width: 150px"
                   @change="handleSearchProjectChange"
                 >
@@ -328,6 +330,17 @@ const filterUserOption = (input: string, option: any) => {
   const username = user.username || ''
   return nickname.toLowerCase().includes(input.toLowerCase()) ||
     username.toLowerCase().includes(input.toLowerCase())
+}
+
+// 项目筛选
+const filterProjectOption = (input: string, option: any) => {
+  const project = projects.value.find(p => p.id === option.value)
+  if (!project) return false
+  const searchText = input.toLowerCase()
+  return (
+    project.name.toLowerCase().includes(searchText) ||
+    (project.code && project.code.toLowerCase().includes(searchText))
+  )
 }
 
 const loadUsers = async () => {

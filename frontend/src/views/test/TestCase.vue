@@ -364,10 +364,10 @@
         </a-form-item>
         <a-form-item label="状态" name="status">
           <a-select v-model:value="formData.status">
-            <a-select-option value="wait">待评审</a-select-option>
-            <a-select-option value="normal">正常</a-select-option>
-            <a-select-option value="blocked">被阻塞</a-select-option>
-            <a-select-option value="investigate">研究中</a-select-option>
+            <a-select-option value="pending">待测试</a-select-option>
+            <a-select-option value="running">测试中</a-select-option>
+            <a-select-option value="passed">通过</a-select-option>
+            <a-select-option value="failed">失败</a-select-option>
           </a-select>
         </a-form-item>
         <a-form-item label="关联Bug" name="bug_ids">

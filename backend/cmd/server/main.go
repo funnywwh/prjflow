@@ -34,9 +34,9 @@ var frontendFS embed.FS
 
 // 版本信息（可以通过构建时注入）
 var (
-	Version   = "v0.4.9"           // 版本号
-	BuildTime = "unknown"          // 构建时间
-	GitCommit = "unknown"          // Git提交哈希
+	Version   = "v0.4.9"  // 版本号
+	BuildTime = "unknown" // 构建时间
+	GitCommit = "unknown" // Git提交哈希
 )
 
 // getContentType 根据文件扩展名返回正确的 Content-Type

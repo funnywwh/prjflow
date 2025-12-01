@@ -5,6 +5,17 @@
         <h2>修改密码</h2>
       </template>
       <div class="change-password-content">
+        <!-- 显示用户信息 -->
+        <div v-if="authStore.user" class="user-info-section">
+          <a-descriptions :column="1" bordered size="small">
+            <a-descriptions-item label="用户名">
+              {{ authStore.user.username }}
+            </a-descriptions-item>
+            <a-descriptions-item v-if="authStore.user.nickname" label="昵称">
+              {{ authStore.user.nickname }}
+            </a-descriptions-item>
+          </a-descriptions>
+        </div>
         <a-alert
           v-if="!hasPassword"
           message="首次登录"
@@ -66,7 +77,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { changePassword, getUserInfo } from '@/api/auth'
+import { changePassword } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
@@ -138,7 +149,10 @@ const changePasswordRules = {
 // 检查用户是否已有密码
 const checkUserPassword = async () => {
   try {
-    await getUserInfo() // 验证用户已登录
+    // 如果 authStore 中没有用户信息，则加载
+    if (!authStore.user) {
+      await authStore.loadUserInfo()
+    }
     // 如果用户有密码，后端会在GetUserInfo中返回相关信息
     // 这里我们通过尝试修改密码时的错误来判断
     // 但为了简化，我们可以假设首次登录的用户没有密码
@@ -216,6 +230,15 @@ onMounted(() => {
 
 .change-password-content {
   padding: 20px 0;
+}
+
+.user-info-section {
+  margin-bottom: 24px;
+}
+
+:deep(.ant-descriptions-item-label) {
+  font-weight: 500;
+  width: 80px;
 }
 </style>
 

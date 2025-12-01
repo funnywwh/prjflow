@@ -43,7 +43,9 @@ onMounted(async () => {
     
     // 保存token和用户信息
     authStore.setToken(response.token)
-    authStore.setUser(response.user)
+    // 将 is_first_login 添加到 user 对象中，以便 setUser 可以正确设置状态
+    const userData = { ...response.user, is_first_login: response.is_first_login }
+    authStore.setUser(userData)
     
     // 加载用户权限
     try {

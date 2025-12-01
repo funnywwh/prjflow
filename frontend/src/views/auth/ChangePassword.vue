@@ -67,8 +67,10 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { changePassword, getUserInfo } from '@/api/auth'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const hasPassword = ref(false)
@@ -173,6 +175,8 @@ const handleChangePasswordSubmit = async () => {
       old_password: changePasswordForm.value.old_password || '', // 如果没有密码，传空字符串
       new_password: changePasswordForm.value.new_password
     })
+    // 清除首次登录状态
+    authStore.clearFirstLogin()
     message.success('密码设置成功')
     // 跳转到工作台
     setTimeout(() => {

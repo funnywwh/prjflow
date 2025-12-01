@@ -8,6 +8,7 @@ export const useAuthStore = defineStore('auth', () => {
   const token = ref<string | null>(localStorage.getItem('token'))
   const user = ref<User | null>(null)
   const isAuthenticated = ref<boolean>(!!token.value)
+  const isFirstLogin = ref<boolean>(false)
 
   const setToken = (newToken: string) => {
     token.value = newToken
@@ -17,6 +18,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   const setUser = (userData: User) => {
     user.value = userData
+    // 设置首次登录状态
+    isFirstLogin.value = userData.is_first_login ?? false
     // 设置用户角色
     const permissionStore = usePermissionStore()
     console.log('设置用户角色，roles:', userData.roles)
@@ -41,6 +44,7 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = null
       localStorage.removeItem('token')
       isAuthenticated.value = false
+      isFirstLogin.value = false
     }
   }
 
@@ -62,14 +66,20 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  const clearFirstLogin = () => {
+    isFirstLogin.value = false
+  }
+
   return {
     token,
     user,
     isAuthenticated,
+    isFirstLogin,
     setToken,
     setUser,
     logout,
-    loadUserInfo
+    loadUserInfo,
+    clearFirstLogin
   }
 })
 

@@ -254,6 +254,24 @@ router.beforeEach(async (to, _from, next) => {
     return
   }
   
+  // 如果用户已登录但用户信息未加载，先加载用户信息（刷新页面时的情况）
+  if (authStore.isAuthenticated && !authStore.user && to.meta.requiresAuth) {
+    try {
+      await authStore.loadUserInfo()
+    } catch (error) {
+      // 如果加载失败，可能是token过期，跳转到登录页
+      console.error('加载用户信息失败:', error)
+      next({ name: 'Login', query: { redirect: to.fullPath } })
+      return
+    }
+  }
+  
+  // 如果用户已登录且需要修改密码，且访问的不是修改密码页面，强制跳转到修改密码页面
+  if (authStore.isAuthenticated && authStore.isFirstLogin && to.name !== 'ChangePassword') {
+    next({ name: 'ChangePassword' })
+    return
+  }
+  
   next()
 })
 

@@ -352,6 +352,8 @@ const handleChangePasswordSubmit = async () => {
       old_password: changePasswordForm.value.old_password || '', // 如果没有密码，传空字符串
       new_password: changePasswordForm.value.new_password
     })
+    // 清除首次登录状态
+    authStore.clearFirstLogin()
     message.success('密码设置成功')
     changePasswordVisible.value = false
   } catch (error: any) {

@@ -6,5 +6,6 @@ export interface User {
   avatar?: string
   roles?: string[]
   wechat_open_id?: string
+  is_first_login?: boolean
 }
 

@@ -537,6 +537,10 @@ func (h *AuthHandler) GetUserInfo(c *gin.Context) {
 		roleNames = append(roleNames, role.Code)
 	}
 
+	// 判断是否是首次登录：LoginCount == 1 且 用户有密码（只有用户名密码登录的首次登录才需要修改密码）
+	// 微信用户首次登录时LoginCount==1，但没有密码，不应该强制修改密码
+	isFirstLogin := user.LoginCount == 1 && user.Password != ""
+
 	utils.Success(c, gin.H{
 		"id":             user.ID,
 		"username":       user.Username,
@@ -547,6 +551,7 @@ func (h *AuthHandler) GetUserInfo(c *gin.Context) {
 		"wechat_open_id": user.WeChatOpenID,
 		"department":     user.Department,
 		"roles":          roleNames,
+		"is_first_login": isFirstLogin,
 	})
 }
 
@@ -685,6 +690,11 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 
 	// 更新密码
 	user.Password = hashedPassword
+	// 如果用户是首次登录（LoginCount == 1），修改密码后将LoginCount更新为2
+	// 这样下次调用GetUserInfo时就不会返回is_first_login=true了
+	if user.LoginCount == 1 {
+		user.LoginCount = 2
+	}
 	if err := h.db.Save(&user).Error; err != nil {
 		utils.Error(c, utils.CodeError, "更新密码失败")
 		return

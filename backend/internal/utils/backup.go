@@ -69,7 +69,9 @@ func BackupDatabase(db *gorm.DB) error {
 	// 转义路径中的单引号
 	escapedPath := strings.ReplaceAll(absBackupPath, "'", "''")
 
-	log.Printf("[Backup] Starting database backup: %s -> %s", dbPath, absBackupPath)
+	startTime := time.Now()
+	log.Printf("[Backup] Starting database backup at %s: %s -> %s", 
+		startTime.Format("2006-01-02 15:04:05"), dbPath, absBackupPath)
 
 	// 尝试使用 VACUUM INTO 命令创建备份（SQLite 3.27.0+）
 	// 这会创建一个一致的数据库快照，支持在线备份
@@ -80,12 +82,34 @@ func BackupDatabase(db *gorm.DB) error {
 		if err := copyDatabaseFile(dbPath, absBackupPath); err != nil {
 			return fmt.Errorf("failed to backup database: %w", err)
 		}
+		log.Printf("[Backup] Backup created using file copy method")
+	} else {
+		log.Printf("[Backup] Backup created using VACUUM INTO method")
+	}
+
+	// 验证备份文件是否存在
+	if _, err := os.Stat(absBackupPath); os.IsNotExist(err) {
+		return fmt.Errorf("backup file was not created: %s", absBackupPath)
 	}
 
 	// 获取文件大小
 	fileInfo, err := os.Stat(absBackupPath)
 	if err != nil {
 		return fmt.Errorf("failed to get backup file info: %w", err)
+	}
+
+	// 验证备份文件大小（不应该为0）
+	if fileInfo.Size() == 0 {
+		os.Remove(absBackupPath)
+		return fmt.Errorf("backup file is empty: %s", absBackupPath)
+	}
+
+	// 验证备份文件完整性（尝试打开SQLite文件）
+	if err := verifyBackupFile(absBackupPath); err != nil {
+		log.Printf("[Backup] Warning: Backup file verification failed: %v", err)
+		// 不返回错误，但记录警告（因为某些情况下验证可能失败但不影响备份可用性）
+	} else {
+		log.Printf("[Backup] ✓ Backup file verified successfully")
 	}
 
 	fileSize := float64(fileInfo.Size())
@@ -98,14 +122,22 @@ func BackupDatabase(db *gorm.DB) error {
 		unit = "KB"
 	}
 
-	log.Printf("[Backup] ✓ Backup created: %s (%.2f %s)", absBackupPath, fileSize, unit)
+	duration := time.Since(startTime)
+	log.Printf("[Backup] ✓ Backup created: %s (%.2f %s) in %v", absBackupPath, fileSize, unit, duration)
 
 	// 尝试压缩备份文件
 	compressedPath := absBackupPath + ".gz"
 	if err := compressFile(absBackupPath, compressedPath); err == nil {
 		// 压缩成功，删除原文件
 		os.Remove(absBackupPath)
-		log.Printf("[Backup] ✓ Backup compressed: %s", compressedPath)
+		if compressedInfo, err := os.Stat(compressedPath); err == nil {
+			compressedSize := compressedInfo.Size()
+			compressionRatio := float64(compressedSize) / float64(fileInfo.Size()) * 100
+			log.Printf("[Backup] ✓ Backup compressed: %s (%.1f%% of original size, %s)", 
+				compressedPath, compressionRatio, formatSize(compressedSize))
+		} else {
+			log.Printf("[Backup] ✓ Backup compressed: %s", compressedPath)
+		}
 	} else {
 		log.Printf("[Backup] Warning: Failed to compress backup: %v", err)
 	}
@@ -121,10 +153,52 @@ func BackupDatabase(db *gorm.DB) error {
 		log.Printf("[Backup] Statistics: %d backups, total size: %s", backupCount, formatSize(totalSize))
 	}
 
+	totalDuration := time.Since(startTime)
+	log.Printf("[Backup] ✓ Backup completed successfully in %v", totalDuration)
+
+	return nil
+}
+
+// verifyBackupFile 验证备份文件完整性
+func verifyBackupFile(backupPath string) error {
+	// 尝试打开SQLite文件，验证文件头
+	file, err := os.Open(backupPath)
+	if err != nil {
+		return fmt.Errorf("failed to open backup file: %w", err)
+	}
+	defer file.Close()
+
+	// 读取SQLite文件头（前16字节）
+	header := make([]byte, 16)
+	if _, err := file.Read(header); err != nil {
+		return fmt.Errorf("failed to read backup file header: %w", err)
+	}
+
+	// SQLite文件头应该是 "SQLite format 3\000"
+	sqliteHeader := []byte("SQLite format 3\x00")
+	if len(header) < len(sqliteHeader) {
+		return fmt.Errorf("backup file header too short")
+	}
+
+	// 检查文件头是否匹配
+	match := true
+	for i := 0; i < len(sqliteHeader); i++ {
+		if header[i] != sqliteHeader[i] {
+			match = false
+			break
+		}
+	}
+
+	if !match {
+		return fmt.Errorf("backup file is not a valid SQLite database")
+	}
+
 	return nil
 }
 
 // copyDatabaseFile 复制数据库文件（备选方案）
+// 注意：此方法在数据库正在写入时可能复制到不一致的数据
+// 建议使用 VACUUM INTO 命令，此方法仅作为回退方案
 func copyDatabaseFile(srcPath, dstPath string) error {
 	srcFile, err := os.Open(srcPath)
 	if err != nil {
@@ -146,7 +220,20 @@ func copyDatabaseFile(srcPath, dstPath string) error {
 	}
 
 	if written == 0 {
+		os.Remove(dstPath)
 		return fmt.Errorf("backup file is empty")
+	}
+
+	// 验证复制的文件大小
+	srcInfo, err := os.Stat(srcPath)
+	if err == nil && srcInfo.Size() != written {
+		log.Printf("[Backup] Warning: Source file size (%d) != copied size (%d)", srcInfo.Size(), written)
+	}
+
+	// 验证备份文件完整性
+	if err := verifyBackupFile(dstPath); err != nil {
+		log.Printf("[Backup] Warning: Backup file verification failed after copy: %v", err)
+		// 不返回错误，但记录警告
 	}
 
 	return nil

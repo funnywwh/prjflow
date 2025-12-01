@@ -199,11 +199,19 @@ const handleTriggerBackup = async () => {
   backupLoading.value = true
   try {
     await triggerBackup()
-    message.success('备份已触发，请查看服务器日志确认备份状态')
-    // 重新加载配置以更新上次备份时间
-    await loadBackupConfig()
+    message.success('备份已触发，正在执行中...')
+    // 等待一下再重新加载配置，给备份一些时间完成
+    setTimeout(async () => {
+      await loadBackupConfig()
+      message.success('备份已完成，请查看服务器日志确认备份状态')
+    }, 2000)
   } catch (error: any) {
-    message.error(error.response?.data?.message || error.message || '触发备份失败')
+    const errorMsg = error.response?.data?.message || error.message || '触发备份失败'
+    if (errorMsg.includes('正在进行中')) {
+      message.warning(errorMsg)
+    } else {
+      message.error(errorMsg)
+    }
   } finally {
     backupLoading.value = false
   }

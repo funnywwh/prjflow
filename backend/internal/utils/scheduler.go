@@ -72,17 +72,32 @@ func (s *BackupScheduler) Stop() {
 	if s.timer != nil {
 		s.timer.Stop()
 		s.timer = nil
+		log.Printf("[Scheduler] Backup scheduler stopped")
 	}
-	close(s.stopChan)
+	// 注意：不关闭 stopChan，因为 Reload() 可能需要重新使用
 }
 
 // Reload 重新加载配置并重启定时任务
 func (s *BackupScheduler) Reload() {
 	log.Printf("[Scheduler] Reloading backup scheduler configuration")
-	s.Stop()
-	// 重新创建 stopChan
 	s.mu.Lock()
-	s.stopChan = make(chan struct{})
+	// 停止现有定时器
+	if s.timer != nil {
+		s.timer.Stop()
+		s.timer = nil
+	}
+	// 重新创建 stopChan（如果已关闭）
+	if s.stopChan != nil {
+		select {
+		case <-s.stopChan:
+			// channel already closed, create new one
+			s.stopChan = make(chan struct{})
+		default:
+			// channel still open, keep it
+		}
+	} else {
+		s.stopChan = make(chan struct{})
+	}
 	s.mu.Unlock()
 	s.Start()
 }
@@ -171,13 +186,18 @@ func (s *BackupScheduler) executeBackup() {
 		return
 	}
 
-	log.Printf("[Scheduler] Starting scheduled backup...")
+	backupStartTime := time.Now()
+	log.Printf("[Scheduler] Starting scheduled backup at %s...", backupStartTime.Format("2006-01-02 15:04:05"))
 	
 	// 执行备份
 	if err := BackupDatabase(s.db); err != nil {
-		log.Printf("[Scheduler] Scheduled backup failed: %v", err)
+		backupDuration := time.Since(backupStartTime)
+		log.Printf("[Scheduler] Scheduled backup failed after %v: %v", backupDuration, err)
 		return
 	}
+	
+	backupDuration := time.Since(backupStartTime)
+	log.Printf("[Scheduler] Scheduled backup completed in %v", backupDuration)
 
 	// 更新上次备份日期
 	today := time.Now().Format("2006-01-02")

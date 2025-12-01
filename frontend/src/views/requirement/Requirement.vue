@@ -547,7 +547,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed, watch, nextTick } from 'vue'
 import { saveLastSelected, getLastSelected } from '@/utils/storage'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
 import { PlusOutlined, DownOutlined, UpOutlined } from '@ant-design/icons-vue'
 import { formatDateTime } from '@/utils/date'
@@ -577,7 +577,6 @@ import { createBug, type CreateBugRequest } from '@/api/bug'
 import { getAttachments, attachToEntity, uploadFile, type Attachment } from '@/api/attachment'
 
 const route = useRoute()
-const router = useRouter()
 const authStore = useAuthStore()
 const loading = ref(false)
 const requirements = ref<Requirement[]>([])

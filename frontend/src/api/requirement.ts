@@ -118,7 +118,7 @@ export interface Action {
     username: string
     nickname?: string
   }
-  action: 'created' | 'edited' | 'assigned' | 'resolved' | 'closed' | 'confirmed' | 'commented'
+  action: 'created' | 'edited' | 'assigned' | 'resolved' | 'closed' | 'confirmed' | 'commented' | 'status_changed'
   date: string
   comment?: string
   extra?: string

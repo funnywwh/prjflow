@@ -623,7 +623,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch, nextTick, computed } from 'vue'
 import { saveLastSelected, getLastSelected } from '@/utils/storage'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { PlusOutlined, DownOutlined, UpOutlined } from '@ant-design/icons-vue'
 import dayjs, { type Dayjs } from 'dayjs'
@@ -653,7 +653,6 @@ import { useAuthStore } from '@/stores/auth'
 import { getAttachments, attachToEntity, uploadFile, type Attachment } from '@/api/attachment'
 
 const route = useRoute()
-const router = useRouter()
 const authStore = useAuthStore()
 const loading = ref(false)
 const tasks = ref<Task[]>([])

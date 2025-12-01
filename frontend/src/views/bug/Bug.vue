@@ -4,15 +4,6 @@
       <AppHeader />
       <a-layout-content class="content">
         <div class="content-inner">
-          <a-page-header title="Bug管理">
-            <template #extra>
-              <a-button type="primary" @click="handleCreate">
-                <template #icon><PlusOutlined /></template>
-                新增Bug
-              </a-button>
-            </template>
-          </a-page-header>
-
           <a-tabs v-model:activeKey="activeTab">
             <!-- 统计标签页 -->
             <a-tab-pane key="statistics" tab="统计">
@@ -131,16 +122,22 @@
 
             <!-- 列表标签页 -->
             <a-tab-pane key="list" tab="列表">
-              <a-card :bordered="false" style="margin-bottom: 16px">
+              <a-card :bordered="false" style="margin-bottom: 0">
                 <template #title>
-                  <a-space>
-                    <span>搜索条件</span>
-                    <a-button type="text" size="small" @click="toggleSearchForm">
-                      <template #icon>
-                        <UpOutlined v-if="searchFormVisible" />
-                        <DownOutlined v-else />
-                      </template>
-                      {{ searchFormVisible ? '收起' : '展开' }}
+                  <a-space style="width: 100%; justify-content: space-between">
+                    <a-space>
+                      <span>搜索条件</span>
+                      <a-button type="text" size="small" @click="toggleSearchForm">
+                        <template #icon>
+                          <UpOutlined v-if="searchFormVisible" />
+                          <DownOutlined v-else />
+                        </template>
+                        {{ searchFormVisible ? '收起' : '展开' }}
+                      </a-button>
+                    </a-space>
+                    <a-button type="primary" @click="handleCreate">
+                      <template #icon><PlusOutlined /></template>
+                      新增Bug
                     </a-button>
                   </a-space>
                 </template>
@@ -252,7 +249,7 @@
                   :data-source="bugs"
                   :loading="loading"
                   :pagination="pagination"
-                  :scroll="{ x: 'max-content', y: tableScrollHeight }"
+                  :scroll="{ x: 'max-content' }"
                   row-key="id"
                   @change="handleTableChange"
                 >
@@ -293,11 +290,12 @@
                   {{ record.requirement?.title || '-' }}
                 </template>
                 <template v-else-if="column.key === 'hours'">
-                  <div>
-                    <div v-if="record.estimated_hours">预估: {{ record.estimated_hours.toFixed(2) }}h</div>
-                    <div v-if="record.actual_hours">实际: {{ record.actual_hours.toFixed(2) }}h</div>
-                    <span v-if="!record.estimated_hours && !record.actual_hours">-</span>
-                  </div>
+                  <span v-if="record.estimated_hours || record.actual_hours">
+                    <span v-if="record.estimated_hours">预估: {{ record.estimated_hours.toFixed(2) }}h</span>
+                    <span v-if="record.estimated_hours && record.actual_hours"> / </span>
+                    <span v-if="record.actual_hours">实际: {{ record.actual_hours.toFixed(2) }}h</span>
+                  </span>
+                  <span v-else>-</span>
                 </template>
                 <template v-else-if="column.key === 'created_at'">
                   {{ formatDateTime(record.created_at) }}
@@ -637,7 +635,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch, computed, nextTick } from 'vue'
+import { ref, reactive, onMounted, watch, nextTick } from 'vue'
 import { saveLastSelected, getLastSelected } from '@/utils/storage'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
@@ -698,11 +696,12 @@ const searchForm = reactive({
 
 const pagination = reactive({
   current: 1,
-  pageSize: 10,
+  pageSize: 20,
   total: 0,
   showTotal: (total: number) => `共 ${total} 条`,
   showSizeChanger: true,
-  showQuickJumper: true
+  showQuickJumper: true,
+  position: ['topRight'] as const
 })
 
 const columns = [
@@ -770,11 +769,6 @@ const assignFormRules = {
   assignee_ids: [{ required: true, message: '请选择指派给', trigger: 'change' }]
 }
 
-// 计算表格滚动高度（视口高度减去头部、搜索表单、统计卡片等的高度）
-const tableScrollHeight = computed(() => {
-  // 视口高度 - header(64px) - padding(48px) - page-header(约64px) - 搜索表单(约80px) - 统计卡片(约200px) - 分页器(约64px) - 边距(约32px)
-  return 'calc(100vh - 552px)'
-})
 
 // 加载Bug列表
 const loadBugs = async () => {
@@ -1503,8 +1497,17 @@ onMounted(async () => {
   height: 0;
 }
 
+/* 减小搜索栏卡片底部内边距 */
+.content-inner :deep(.ant-tabs-tabpane) > .ant-card:first-child {
+  margin-bottom: 0;
+}
+
+.content-inner :deep(.ant-tabs-tabpane) > .ant-card:first-child .ant-card-body {
+  padding-bottom: 0;
+}
+
 .table-card {
-  margin-top: 16px;
+  margin-top: 0;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -1517,7 +1520,7 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 16px;
+  padding: 8px 16px 16px 16px;
 }
 
 .table-card :deep(.ant-table-wrapper) {
@@ -1580,6 +1583,25 @@ onMounted(async () => {
 .content-inner :deep(.ant-tabs-tabpane) .ant-card {
   max-width: 100%;
   box-sizing: border-box;
+}
+
+/* 限制表格行高为单行文本 */
+.table-card :deep(.ant-table-tbody > tr > td) {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  height: auto;
+  max-height: 32px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 16px;
+}
+
+.table-card :deep(.ant-table-tbody > tr > td > div) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
 }
 </style>
 

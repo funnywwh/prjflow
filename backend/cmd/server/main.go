@@ -35,7 +35,7 @@ var frontendFS embed.FS
 
 // 版本信息（可以通过构建时注入）
 var (
-	Version   = "v0.4.10"  // 版本号
+	Version   = "v0.4.12"  // 版本号
 	BuildTime = "unknown" // 构建时间
 	GitCommit = "unknown" // Git提交哈希
 )
@@ -595,7 +595,17 @@ func main() {
 
 	// 处理命令行参数
 	if *backup {
-		if err := backupDatabase(); err != nil {
+		// 加载配置
+		if err := config.LoadConfig(""); err != nil {
+			log.Fatalf("Failed to load config: %v", err)
+		}
+		// 初始化数据库
+		db, err := utils.InitDB()
+		if err != nil {
+			log.Fatalf("Failed to initialize database: %v", err)
+		}
+		// 执行备份
+		if err := utils.BackupDatabase(db); err != nil {
 			log.Fatalf("Backup failed: %v", err)
 		}
 		log.Println("Backup completed successfully")
@@ -1015,11 +1025,16 @@ func main() {
 
 	// 系统设置路由（微信配置等）
 	wechatHandler := api.NewWeChatHandler(db)
+	systemHandler := api.NewSystemHandler(db)
 	// 使用可选认证中间件：系统未初始化时允许访问，已初始化时需要认证
 	systemGroup := r.Group("/api/system", middleware.AuthOptional(db))
 	{
 		systemGroup.GET("/wechat-config", wechatHandler.GetWeChatConfig)
 		systemGroup.POST("/wechat-config", middleware.RequirePermissionOptional(db, "wechat:settings"), wechatHandler.SaveWeChatConfig)
+		// 备份配置路由
+		systemGroup.GET("/backup-config", middleware.RequirePermissionOptional(db, "system:settings"), systemHandler.GetBackupConfig)
+		systemGroup.POST("/backup-config", middleware.RequirePermissionOptional(db, "system:settings"), systemHandler.SaveBackupConfig)
+		systemGroup.POST("/backup/trigger", middleware.RequirePermissionOptional(db, "system:settings"), systemHandler.TriggerBackup)
 	}
 
 	// 静态文件服务（前端构建后的文件，使用 embed 嵌入）
@@ -1119,6 +1134,11 @@ func main() {
 		ReadTimeout:  time.Duration(config.AppConfig.Server.ReadTimeout) * time.Second,
 		WriteTimeout: time.Duration(config.AppConfig.Server.WriteTimeout) * time.Second,
 	}
+
+	// 启动备份定时任务
+	scheduler := utils.GetBackupScheduler(db)
+	scheduler.Start()
+	log.Println("Backup scheduler started")
 
 	// 启动服务器（异步）
 	go func() {

@@ -182,6 +182,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: false } // 初始化阶段也需要访问
   },
   {
+    path: '/system/backup-settings',
+    name: 'BackupSettings',
+    component: () => import('../views/system/BackupSettings.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/reports/daily/create',
     name: 'CreateDailyReport',
     component: () => import('../views/report/Report.vue'),

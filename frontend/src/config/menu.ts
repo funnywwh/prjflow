@@ -111,6 +111,12 @@ export const menuConfig: MenuItem[] = [
         title: '微信设置',
         path: '/system/wechat-settings',
         permission: 'permission:manage' // 只有管理员可以配置微信
+      },
+      {
+        key: 'backup-settings',
+        title: '备份设置',
+        path: '/system/backup-settings',
+        permission: 'system:settings'
       }
     ]
   }

@@ -16,7 +16,19 @@
               </a-page-header>
 
               <a-card :bordered="false" style="margin-bottom: 16px">
-                <a-form layout="inline" :model="projectSearchForm">
+                <template #title>
+                  <a-space>
+                    <span>搜索条件</span>
+                    <a-button type="text" size="small" @click="toggleSearchForm">
+                      <template #icon>
+                        <UpOutlined v-if="searchFormVisible" />
+                        <DownOutlined v-else />
+                      </template>
+                      {{ searchFormVisible ? '收起' : '展开' }}
+                    </a-button>
+                  </a-space>
+                </template>
+                <a-form v-show="searchFormVisible" layout="inline" :model="projectSearchForm">
                   <a-form-item label="项目">
                     <a-select
                       v-model:value="projectSearchForm.project_id"
@@ -239,13 +251,21 @@
               mode="multiple"
               placeholder="选择用户"
               style="width: 300px"
+              show-search
+              :filter-option="(input: string, option: any) => {
+                const user = users.find(u => u.id === option.value)
+                if (!user) return false
+                const searchText = input.toLowerCase()
+                return user.username.toLowerCase().includes(searchText) ||
+                  (user.nickname && user.nickname.toLowerCase().includes(searchText))
+              }"
             >
               <a-select-option
                 v-for="user in users"
                 :key="user.id"
                 :value="user.id"
               >
-                {{ user.username }}
+                {{ user.username }}{{ user.nickname ? `(${user.nickname})` : '' }}
               </a-select-option>
             </a-select>
             <a-select
@@ -349,7 +369,7 @@ import { ref, reactive, onMounted, computed, nextTick, watch } from 'vue'
 import { saveLastSelected, getLastSelected } from '@/utils/storage'
 import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { PlusOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, DownOutlined, UpOutlined } from '@ant-design/icons-vue'
 import AppHeader from '@/components/AppHeader.vue'
 import dayjs from 'dayjs'
 import type { Dayjs } from 'dayjs'
@@ -380,6 +400,7 @@ const route = useRoute()
 const projectLoading = ref(false)
 const memberLoading = ref(false)
 const projectSubmitting = ref(false)
+const searchFormVisible = ref(false) // 搜索栏显示/隐藏状态，默认折叠
 
 const projects = ref<Project[]>([])
 const allProjectsForSelect = ref<Project[]>([]) // 用于下拉框的所有项目列表
@@ -507,7 +528,7 @@ const loadProjects = async () => {
 // 加载用户列表
 const loadUsers = async () => {
   try {
-    const response = await getUsers()
+    const response = await getUsers({ size: 1000 })
     users.value = response.list || []
   } catch (error: any) {
     console.error('加载用户列表失败:', error)
@@ -555,6 +576,11 @@ const loadProjectMembers = async (projectId: number) => {
   } finally {
     memberLoading.value = false
   }
+}
+
+// 切换搜索栏显示/隐藏
+const toggleSearchForm = () => {
+  searchFormVisible.value = !searchFormVisible.value
 }
 
 // 项目搜索

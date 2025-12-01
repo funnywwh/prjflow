@@ -14,7 +14,19 @@
           </a-page-header>
 
           <a-card :bordered="false" style="margin-bottom: 16px">
-            <a-form layout="inline" :model="searchForm">
+            <template #title>
+              <a-space>
+                <span>搜索条件</span>
+                <a-button type="text" size="small" @click="toggleSearchForm">
+                  <template #icon>
+                    <UpOutlined v-if="searchFormVisible" />
+                    <DownOutlined v-else />
+                  </template>
+                  {{ searchFormVisible ? '收起' : '展开' }}
+                </a-button>
+              </a-space>
+            </template>
+            <a-form v-show="searchFormVisible" layout="inline" :model="searchForm">
               <a-form-item label="关键词">
                 <a-input
                   v-model:value="searchForm.keyword"
@@ -196,7 +208,7 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { saveLastSelected, getLastSelected } from '@/utils/storage'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { PlusOutlined, DownOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, DownOutlined, UpOutlined } from '@ant-design/icons-vue'
 import dayjs, { type Dayjs } from 'dayjs'
 import { formatDateTime } from '@/utils/date'
 import AppHeader from '@/components/AppHeader.vue'
@@ -213,6 +225,7 @@ import { getProjects, type Project } from '@/api/project'
 
 const router = useRouter()
 const loading = ref(false)
+const searchFormVisible = ref(false) // 搜索栏显示/隐藏状态，默认折叠
 const builds = ref<Build[]>([])
 const projects = ref<Project[]>([])
 
@@ -296,6 +309,11 @@ const loadProjects = async () => {
   } catch (error: any) {
     message.error(error.response?.data?.message || '加载项目失败')
   }
+}
+
+// 切换搜索栏显示/隐藏
+const toggleSearchForm = () => {
+  searchFormVisible.value = !searchFormVisible.value
 }
 
 // 搜索

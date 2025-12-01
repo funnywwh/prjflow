@@ -132,7 +132,19 @@
             <!-- 列表标签页 -->
             <a-tab-pane key="list" tab="列表">
               <a-card :bordered="false" style="margin-bottom: 16px">
-                <a-form :model="searchForm" layout="vertical">
+                <template #title>
+                  <a-space>
+                    <span>搜索条件</span>
+                    <a-button type="text" size="small" @click="toggleSearchForm">
+                      <template #icon>
+                        <UpOutlined v-if="searchFormVisible" />
+                        <DownOutlined v-else />
+                      </template>
+                      {{ searchFormVisible ? '收起' : '展开' }}
+                    </a-button>
+                  </a-space>
+                </template>
+                <a-form v-show="searchFormVisible" :model="searchForm" layout="vertical">
                   <a-row :gutter="16">
                     <a-col :span="6">
                       <a-form-item label="关键词">
@@ -631,7 +643,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { type Dayjs } from 'dayjs'
 import { formatDateTime } from '@/utils/date'
-import { PlusOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, UpOutlined, DownOutlined } from '@ant-design/icons-vue'
 import AppHeader from '@/components/AppHeader.vue'
 import MarkdownEditor from '@/components/MarkdownEditor.vue'
 import AttachmentUpload from '@/components/AttachmentUpload.vue'
@@ -672,6 +684,7 @@ const versions = ref<Version[]>([])
 const versionLoading = ref(false)
 const statistics = ref<BugStatistics | null>(null)
 const activeTab = ref<string>('list')
+const searchFormVisible = ref(false) // 搜索栏显示/隐藏状态，默认折叠
 
 const searchForm = reactive({
   keyword: '',
@@ -885,6 +898,11 @@ watch(() => formData.project_id, () => {
     formData.assignee_ids = []
   }
 })
+
+// 切换搜索栏显示/隐藏
+const toggleSearchForm = () => {
+  searchFormVisible.value = !searchFormVisible.value
+}
 
 // 搜索
 const handleSearch = () => {

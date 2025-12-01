@@ -312,6 +312,14 @@
               mode="multiple"
               placeholder="选择用户"
               style="width: 300px"
+              show-search
+              :filter-option="(input: string, option: any) => {
+                const user = users.find(u => u.id === option.value)
+                if (!user) return false
+                const searchText = input.toLowerCase()
+                return user.username.toLowerCase().includes(searchText) ||
+                  (user.nickname && user.nickname.toLowerCase().includes(searchText))
+              }"
             >
               <a-select-option
                 v-for="user in users"
@@ -792,7 +800,7 @@ const handleNoteCancel = () => {
 // 加载用户列表
 const loadUsers = async () => {
   try {
-    const response = await getUsers()
+    const response = await getUsers({ size: 1000 })
     users.value = response.list || []
   } catch (error: any) {
     console.error('加载用户列表失败:', error)

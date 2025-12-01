@@ -94,7 +94,19 @@
             <!-- 列表标签页 -->
             <a-tab-pane key="list" tab="列表">
               <a-card :bordered="false" style="margin-bottom: 16px">
-                <a-form layout="inline" :model="searchForm">
+                <template #title>
+                  <a-space>
+                    <span>搜索条件</span>
+                    <a-button type="text" size="small" @click="toggleSearchForm">
+                      <template #icon>
+                        <UpOutlined v-if="searchFormVisible" />
+                        <DownOutlined v-else />
+                      </template>
+                      {{ searchFormVisible ? '收起' : '展开' }}
+                    </a-button>
+                  </a-space>
+                </template>
+                <a-form v-show="searchFormVisible" layout="inline" :model="searchForm">
                   <a-form-item label="关键词">
                     <a-input
                       v-model:value="searchForm.keyword"
@@ -355,7 +367,7 @@ import { ref, reactive, onMounted, computed, watch, nextTick } from 'vue'
 import { saveLastSelected, getLastSelected } from '@/utils/storage'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { PlusOutlined, DownOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, DownOutlined, UpOutlined } from '@ant-design/icons-vue'
 import { formatDateTime } from '@/utils/date'
 import { type Dayjs } from 'dayjs'
 import AppHeader from '@/components/AppHeader.vue'
@@ -386,6 +398,7 @@ const projects = ref<Project[]>([])
 const users = ref<User[]>([])
 const statistics = ref<RequirementStatistics | null>(null)
 const activeTab = ref<string>('list')
+const searchFormVisible = ref(false) // 搜索栏显示/隐藏状态，默认折叠
 
 const searchForm = reactive({
   keyword: '',
@@ -514,6 +527,11 @@ const loadUsers = async () => {
   } catch (error: any) {
     console.error('加载用户列表失败:', error)
   }
+}
+
+// 切换搜索栏显示/隐藏
+const toggleSearchForm = () => {
+  searchFormVisible.value = !searchFormVisible.value
 }
 
 // 搜索

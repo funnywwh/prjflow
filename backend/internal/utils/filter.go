@@ -193,10 +193,10 @@ func CheckProjectAccess(db *gorm.DB, c *gin.Context, projectID uint) bool {
 		return false
 	}
 
-	// 检查用户是否是项目成员
+	// 检查用户是否是项目成员（GORM会自动处理软删除，但为了明确性，显式检查deleted_at）
 	var count int64
 	db.Model(&model.ProjectMember{}).
-		Where("project_id = ? AND user_id = ?", projectID, userID).
+		Where("project_id = ? AND user_id = ? AND deleted_at IS NULL", projectID, userID).
 		Count(&count)
 
 	return count > 0
@@ -289,6 +289,7 @@ func CheckBugAccess(db *gorm.DB, c *gin.Context, bugID uint) bool {
 	// 检查是否是项目成员
 	return CheckProjectAccess(db, c, bug.ProjectID)
 }
+
 
 
 

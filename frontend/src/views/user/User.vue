@@ -21,7 +21,19 @@
 
           <!-- 搜索栏 -->
           <a-card :bordered="false" style="margin-bottom: 16px">
-            <a-form layout="inline" :model="searchForm">
+            <template #title>
+              <a-space>
+                <span>搜索条件</span>
+                <a-button type="text" size="small" @click="toggleSearchForm">
+                  <template #icon>
+                    <UpOutlined v-if="searchFormVisible" />
+                    <DownOutlined v-else />
+                  </template>
+                  {{ searchFormVisible ? '收起' : '展开' }}
+                </a-button>
+              </a-space>
+            </template>
+            <a-form v-show="searchFormVisible" layout="inline" :model="searchForm">
               <a-form-item label="关键词">
                 <a-input
                   v-model:value="searchForm.keyword"
@@ -246,7 +258,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 // import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { PlusOutlined, QrcodeOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, QrcodeOutlined, DownOutlined, UpOutlined } from '@ant-design/icons-vue'
 import AppHeader from '@/components/AppHeader.vue'
 import WeChatQRCode from '@/components/WeChatQRCode.vue'
 import {
@@ -265,6 +277,7 @@ import request from '@/utils/request'
 // const router = useRouter()
 
 const loading = ref(false)
+const searchFormVisible = ref(false) // 搜索栏显示/隐藏状态，默认折叠
 const submitting = ref(false)
 const roleSubmitting = ref(false)
 const users = ref<User[]>([])
@@ -455,6 +468,11 @@ const loadRoles = async () => {
   } catch (error: any) {
     console.error('加载角色列表失败:', error)
   }
+}
+
+// 切换搜索栏显示/隐藏
+const toggleSearchForm = () => {
+  searchFormVisible.value = !searchFormVisible.value
 }
 
 // 搜索

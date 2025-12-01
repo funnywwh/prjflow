@@ -14,7 +14,19 @@
           </a-page-header>
 
           <a-card :bordered="false" style="margin-bottom: 16px">
-            <a-form layout="inline" :model="searchForm">
+            <template #title>
+              <a-space>
+                <span>搜索条件</span>
+                <a-button type="text" size="small" @click="toggleSearchForm">
+                  <template #icon>
+                    <UpOutlined v-if="searchFormVisible" />
+                    <DownOutlined v-else />
+                  </template>
+                  {{ searchFormVisible ? '收起' : '展开' }}
+                </a-button>
+              </a-space>
+            </template>
+            <a-form v-show="searchFormVisible" layout="inline" :model="searchForm">
               <a-form-item label="关键词">
                 <a-input
                   v-model:value="searchForm.keyword"
@@ -196,7 +208,7 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 // import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { PlusOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, DownOutlined, UpOutlined } from '@ant-design/icons-vue'
 import { formatDateTime } from '@/utils/date'
 import AppHeader from '@/components/AppHeader.vue'
 import MarkdownEditor from '@/components/MarkdownEditor.vue'
@@ -214,6 +226,7 @@ import { getTestCases, type TestCase } from '@/api/testCase'
 
 // const router = useRouter()
 const loading = ref(false)
+const searchFormVisible = ref(false) // 搜索栏显示/隐藏状态，默认折叠
 const testReports = ref<TestReport[]>([])
 const availableTestCases = ref<TestCase[]>([])
 const statistics = ref<TestReportStatistics | null>(null)
@@ -302,6 +315,11 @@ const loadAvailableTestCases = async () => {
   } catch (error: any) {
     message.error(error.response?.data?.message || '加载测试单失败')
   }
+}
+
+// 切换搜索栏显示/隐藏
+const toggleSearchForm = () => {
+  searchFormVisible.value = !searchFormVisible.value
 }
 
 // 搜索

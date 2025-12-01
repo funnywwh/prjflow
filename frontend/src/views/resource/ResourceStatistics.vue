@@ -17,7 +17,19 @@
           </a-page-header>
 
           <a-card :bordered="false" style="margin-bottom: 16px">
-            <a-form layout="inline" :model="searchForm">
+            <template #title>
+              <a-space>
+                <span>搜索条件</span>
+                <a-button type="text" size="small" @click="toggleSearchForm">
+                  <template #icon>
+                    <UpOutlined v-if="searchFormVisible" />
+                    <DownOutlined v-else />
+                  </template>
+                  {{ searchFormVisible ? '收起' : '展开' }}
+                </a-button>
+              </a-space>
+            </template>
+            <a-form v-show="searchFormVisible" layout="inline" :model="searchForm">
               <a-form-item label="用户">
                 <a-select
                   v-model:value="searchForm.user_id"
@@ -244,6 +256,7 @@ import type { Dayjs } from 'dayjs'
 // import dayjs from 'dayjs'
 // import { DatePicker } from 'ant-design-vue'
 import AppHeader from '@/components/AppHeader.vue'
+import { DownOutlined, UpOutlined } from '@ant-design/icons-vue'
 
 // const { RangePicker } = DatePicker
 import { getResourceStatistics, getResourceUtilization, checkResourceConflict, type ResourceStatistics, type ResourceUtilization, type ResourceConflict } from '@/api/resource'
@@ -254,6 +267,7 @@ import type { Project } from '@/api/project'
 
 const route = useRoute()
 const loading = ref(false)
+const searchFormVisible = ref(false) // 搜索栏显示/隐藏状态，默认折叠
 const users = ref<User[]>([])
 const projects = ref<Project[]>([])
 const statistics = ref<ResourceStatistics>({
@@ -357,6 +371,11 @@ const loadStatistics = async () => {
 // 搜索表单项目选择改变
 const handleSearchProjectChange = (value: number | undefined) => {
   saveLastSelected('last_selected_resource_statistics_project_search', value)
+}
+
+// 切换搜索栏显示/隐藏
+const toggleSearchForm = () => {
+  searchFormVisible.value = !searchFormVisible.value
 }
 
 const handleSearch = () => {

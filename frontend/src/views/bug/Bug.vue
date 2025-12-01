@@ -252,6 +252,10 @@
                   :scroll="{ x: 'max-content' }"
                   row-key="id"
                   @change="handleTableChange"
+                  :custom-row="(record: Bug) => ({
+                    onClick: () => handleView(record),
+                    class: 'table-row-clickable'
+                  })"
                 >
               <template #bodyCell="{ column, record }">
                 <template v-if="column.key === 'status'">
@@ -276,6 +280,9 @@
                 <template v-else-if="column.key === 'project'">
                   {{ record.project?.name || '-' }}
                 </template>
+                <template v-else-if="column.key === 'creator'">
+                  {{ record.creator ? `${record.creator.username}${record.creator.nickname ? `(${record.creator.nickname})` : ''}` : '-' }}
+                </template>
                 <template v-else-if="column.key === 'assignees'">
                   <a-tag
                     v-for="assignee in record.assignees || []"
@@ -286,36 +293,25 @@
                   </a-tag>
                   <span v-if="!record.assignees || record.assignees.length === 0">-</span>
                 </template>
-                <template v-else-if="column.key === 'requirement'">
-                  {{ record.requirement?.title || '-' }}
-                </template>
-                <template v-else-if="column.key === 'hours'">
-                  <span v-if="record.estimated_hours || record.actual_hours">
-                    <span v-if="record.estimated_hours">预估: {{ record.estimated_hours.toFixed(2) }}h</span>
-                    <span v-if="record.estimated_hours && record.actual_hours"> / </span>
-                    <span v-if="record.actual_hours">实际: {{ record.actual_hours.toFixed(2) }}h</span>
-                  </span>
-                  <span v-else>-</span>
+                <template v-else-if="column.key === 'updated_at'">
+                  {{ formatDateTime(record.updated_at) }}
                 </template>
                 <template v-else-if="column.key === 'created_at'">
                   {{ formatDateTime(record.created_at) }}
                 </template>
                 <template v-else-if="column.key === 'action'">
-                  <a-space>
-                    <a-button type="link" size="small" @click="handleView(record)">
-                      详情
-                    </a-button>
-                    <a-button type="link" size="small" @click="handleEdit(record)">
+                  <a-space @click.stop>
+                    <a-button type="link" size="small" @click.stop="handleEdit(record)">
                       编辑
                     </a-button>
-                    <a-button type="link" size="small" @click="handleAssign(record)">
+                    <a-button type="link" size="small" @click.stop="handleAssign(record)">
                       指派
                     </a-button>
                     <a-button
                       v-if="record.status === 'active' && !record.confirmed"
                       type="link"
                       size="small"
-                      @click="handleConfirm(record)"
+                      @click.stop="handleConfirm(record)"
                     >
                       确认
                     </a-button>
@@ -323,7 +319,7 @@
                       v-if="record.status === 'active'"
                       type="link"
                       size="small"
-                      @click="handleResolve(record)"
+                      @click.stop="handleResolve(record)"
                     >
                       解决
                     </a-button>
@@ -331,7 +327,7 @@
                       title="确定要删除这个Bug吗？"
                       @confirm="handleDelete(record.id)"
                     >
-                      <a-button type="link" size="small" danger>删除</a-button>
+                      <a-button type="link" size="small" danger @click.stop>删除</a-button>
                     </a-popconfirm>
                   </a-space>
                 </template>
@@ -705,14 +701,14 @@ const pagination = reactive({
 })
 
 const columns = [
-  { title: 'Bug标题', dataIndex: 'title', key: 'title', ellipsis: true },
+  { title: 'Bug标题', dataIndex: 'title', key: 'title', width: 300, ellipsis: true },
   { title: '项目', key: 'project', width: 120 },
   { title: '状态', key: 'status', width: 100 },
   { title: '优先级', key: 'priority', width: 100 },
   { title: '严重程度', key: 'severity', width: 100 },
-  { title: '指派给', key: 'assignees', width: 200 },
-  { title: '工时', key: 'hours', width: 150 },
-  { title: '关联需求', key: 'requirement', width: 150, ellipsis: true },
+  { title: '创建人', key: 'creator', width: 150 },
+  { title: '指派给', key: 'assignees', width: 160 },
+  { title: '更新时间', dataIndex: 'updated_at', key: 'updated_at', width: 180 },
   { title: '创建时间', dataIndex: 'created_at', key: 'created_at', width: 180 },
   { title: '操作', key: 'action', width: 300, fixed: 'right' as const }
 ]
@@ -1602,6 +1598,23 @@ onMounted(async () => {
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 100%;
+}
+
+/* 表格行可点击样式 */
+.table-card :deep(.ant-table-tbody > tr.table-row-clickable) {
+  cursor: pointer;
+}
+
+.table-card :deep(.ant-table-tbody > tr.table-row-clickable:hover) {
+  background-color: #f5f5f5;
+}
+
+/* Bug标题列宽度固定为300px */
+.table-card :deep(.ant-table-thead > tr > th:first-child),
+.table-card :deep(.ant-table-tbody > tr > td:first-child) {
+  width: 300px !important;
+  min-width: 300px !important;
+  max-width: 300px !important;
 }
 </style>
 

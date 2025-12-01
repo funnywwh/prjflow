@@ -122,9 +122,6 @@
                 </template>
                 <template v-else-if="column.key === 'action'">
                   <a-space @click.stop>
-                    <a-button type="link" size="small" @click.stop="handleView(record)">
-                      详情
-                    </a-button>
                     <a-button type="link" size="small" @click.stop="handleEdit(record)">
                       编辑
                     </a-button>

@@ -1132,7 +1132,9 @@ watch(() => route.query.manageMembers, async (manageMembersId) => {
 const loadProjectDetail = async (projectId: number) => {
   detailLoading.value = true
   try {
-    detailProject.value = await getProject(projectId)
+    const response = await getProject(projectId)
+    // getProject 返回 ProjectDetailResponse，包含 project 和 statistics
+    detailProject.value = response.project
   } catch (error: any) {
     message.error(error.message || '加载项目详情失败')
     detailModalVisible.value = false
@@ -1159,14 +1161,14 @@ const handleDetailEdit = async () => {
 const handleDetailManageMembers = () => {
   if (!detailProject.value) return
   detailModalVisible.value = false
-  handleManageMembers(detailProject.value)
+  _handleManageMembers(detailProject.value)
 }
 
 // 详情页模块管理
 const handleDetailManageModules = () => {
   if (!detailProject.value) return
   detailModalVisible.value = false
-  handleManageModules(detailProject.value)
+  _handleManageModules(detailProject.value)
 }
 
 // 详情页删除

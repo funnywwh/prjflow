@@ -1402,16 +1402,6 @@ watch(modalVisible, (visible, prevVisible) => {
   }
 })
 
-// 判断是否逾期
-const isOverdue = (dueDate: string | undefined, status: string | undefined): boolean => {
-  if (!dueDate || status === 'done' || status === 'closed' || status === 'cancel') {
-    return false
-  }
-  const due = dayjs(dueDate)
-  const now = dayjs()
-  return due.isBefore(now, 'day')
-}
-
 // 项目筛选
 const filterProjectOption = (input: string, option: any) => {
   const project = projects.value.find(p => p.id === option.value)

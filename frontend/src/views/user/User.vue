@@ -110,6 +110,9 @@
                     <a-button type="link" size="small" @click="handleAssignRoles(record)">
                       分配角色
                     </a-button>
+                    <a-button type="link" size="small" @click="handleBindWeChat(record)">
+                      绑定微信
+                    </a-button>
                     <a-popconfirm
                       title="确定要删除这个用户吗？"
                       @confirm="handleDelete(record.id)"
@@ -293,6 +296,27 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <!-- 绑定微信对话框 -->
+    <a-modal
+      v-model:open="bindWeChatModalVisible"
+      :title="`绑定微信 - ${bindWeChatUser?.username || ''}`"
+      :footer="null"
+      width="500px"
+      :mask-closable="true"
+      @cancel="handleCloseBindWeChatModal"
+    >
+      <WeChatQRCode
+        ref="bindWeChatQRCodeRef"
+        :fetchQRCode="getBindWeChatQRCode"
+        initial-status-text="请使用微信扫码"
+        hint="扫码后会在微信内打开授权页面，确认后将绑定该用户的微信"
+        :auto-fetch="true"
+        :show-auth-url="false"
+        @success="handleBindWeChatSuccess"
+        @error="handleBindWeChatError"
+      />
+    </a-modal>
   </div>
 </template>
 
@@ -308,6 +332,7 @@ import {
   createUser,
   updateUser,
   deleteUser,
+  getUserWeChatBindQRCode,
   type User,
   type CreateUserRequest
 } from '@/api/user'
@@ -480,6 +505,10 @@ const changePasswordFormData = reactive({
   password: '',
   confirmPassword: ''
 })
+
+const bindWeChatModalVisible = ref(false)
+const bindWeChatQRCodeRef = ref<InstanceType<typeof WeChatQRCode>>()
+const bindWeChatUser = ref<User | null>(null)
 
 // 验证确认密码
 const validateConfirmPassword = (_rule: any, value: string) => {
@@ -793,6 +822,51 @@ const handleChangePasswordSubmit = async () => {
 const handleChangePasswordCancel = () => {
   changePasswordModalVisible.value = false
   changePasswordFormRef.value?.resetFields()
+}
+
+// 绑定微信
+const handleBindWeChat = (record: User) => {
+  // 检查用户是否已绑定微信
+  if (record.wechat_open_id) {
+    message.warning('该用户已绑定微信，如需重新绑定请先解绑')
+    return
+  }
+  bindWeChatUser.value = record
+  bindWeChatModalVisible.value = true
+}
+
+// 获取绑定微信的二维码
+const getBindWeChatQRCode = async () => {
+  if (!bindWeChatUser.value) {
+    throw new Error('用户信息不存在')
+  }
+  const data = await getUserWeChatBindQRCode(bindWeChatUser.value.id)
+  return {
+    ticket: data.ticket || '',
+    qrCodeUrl: data.qr_code_url || data.auth_url || '',
+    authUrl: data.auth_url || data.qr_code_url || '',
+    expireSeconds: data.expire_seconds || 600
+  }
+}
+
+// 处理绑定微信成功
+const handleBindWeChatSuccess = async (data: any) => {
+  message.success('微信绑定成功')
+  bindWeChatModalVisible.value = false
+  bindWeChatUser.value = null
+  // 刷新用户列表
+  loadUsers()
+}
+
+// 处理绑定微信错误
+const handleBindWeChatError = (error: string) => {
+  message.error(error)
+}
+
+// 关闭绑定微信对话框
+const handleCloseBindWeChatModal = () => {
+  bindWeChatModalVisible.value = false
+  bindWeChatUser.value = null
 }
 
 onMounted(() => {

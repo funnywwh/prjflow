@@ -132,3 +132,21 @@ export const addUserByWeChat = async (data: AddUserByWeChatRequest): Promise<Add
   return request.post('/users/wechat/add', data)
 }
 
+// 获取用户绑定微信二维码（管理员操作）
+export interface UserWeChatBindQRCodeResponse {
+  ticket: string
+  qr_code_url: string
+  auth_url?: string
+  expire_seconds: number
+}
+
+export const getUserWeChatBindQRCode = async (userId: number): Promise<UserWeChatBindQRCodeResponse> => {
+  const data: any = await request.get(`/users/${userId}/wechat/bind/qrcode`)
+  return {
+    ticket: data.ticket || '',
+    qr_code_url: data.qr_code_url || data.auth_url || '',
+    auth_url: data.auth_url || data.qr_code_url || '',
+    expire_seconds: data.expire_seconds || 600
+  }
+}
+

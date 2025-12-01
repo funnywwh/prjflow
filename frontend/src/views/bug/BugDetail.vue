@@ -24,6 +24,18 @@
                 >
                   解决
                 </a-button>
+                <a-button
+                  @click="handleClose"
+                  :disabled="bug?.status !== 'resolved'"
+                >
+                  关闭
+                </a-button>
+                <a-button
+                  v-if="bug?.status === 'active'"
+                  @click="handleConvertToRequirement"
+                >
+                  Bug转需求
+                </a-button>
                 <a-popconfirm
                   title="确定要删除这个Bug吗？"
                   @confirm="handleDelete"
@@ -480,7 +492,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
 import { formatDateTime } from '@/utils/date'
 import AppHeader from '@/components/AppHeader.vue'
 import MarkdownEditor from '@/components/MarkdownEditor.vue'
@@ -502,7 +514,7 @@ import {
 import { getUsers, type User } from '@/api/user'
 import { getVersions, type Version } from '@/api/version'
 import { getProjects, type Project } from '@/api/project'
-import { getRequirements, type Requirement } from '@/api/requirement'
+import { getRequirements, createRequirement, type Requirement, type CreateRequirementRequest } from '@/api/requirement'
 import { getModules, type Module } from '@/api/module'
 import { getAttachments, attachToEntity, uploadFile, type Attachment } from '@/api/attachment'
 import type { Dayjs } from 'dayjs'
@@ -944,6 +956,90 @@ const handleConfirm = async () => {
     await loadBug(bug.value.id)
   } catch (error: any) {
     message.error(error.message || '确认失败')
+  }
+}
+
+// 关闭Bug
+const handleClose = async () => {
+  if (!bug.value) return
+  
+  // 只有resolved状态才能关闭
+  if (bug.value.status !== 'resolved') {
+    message.warning('只有已解决的Bug才能关闭')
+    return
+  }
+  
+  try {
+    await updateBugStatus(bug.value.id, { status: 'closed' })
+    message.success('关闭成功')
+    await loadBug(bug.value.id)
+  } catch (error: any) {
+    message.error(error.message || '关闭失败')
+  }
+}
+
+// Bug转需求
+const handleConvertToRequirement = async () => {
+  if (!bug.value) return
+  
+  // 确认对话框
+  const confirmed = await new Promise<boolean>((resolve) => {
+    const modal = Modal.confirm({
+      title: '确认转换',
+      content: '确定要将此Bug转为需求吗？转换后将创建新需求，并将Bug状态更新为"已解决"。',
+      okText: '确定',
+      cancelText: '取消',
+      onOk: () => {
+        resolve(true)
+        modal.destroy()
+      },
+      onCancel: () => {
+        resolve(false)
+        modal.destroy()
+      }
+    })
+  })
+  
+  if (!confirmed) return
+  
+  try {
+    // 创建新需求，基于bug的信息
+    const requirementData: CreateRequirementRequest = {
+      title: `[Bug转需求] ${bug.value.title}`,
+      description: bug.value.description 
+        ? `${bug.value.description}\n\n---\n\n*由Bug #${bug.value.id}转换而来*`
+        : `*由Bug #${bug.value.id}转换而来*`,
+      project_id: bug.value.project_id,
+      priority: bug.value.priority,
+      status: 'draft', // 默认草稿状态
+      // 如果bug有指派人员，使用第一个作为需求的负责人
+      assignee_id: bug.value.assignees && bug.value.assignees.length > 0 
+        ? bug.value.assignees[0].id 
+        : undefined,
+      estimated_hours: bug.value.estimated_hours
+    }
+    
+    // 创建需求
+    const requirement = await createRequirement(requirementData)
+    
+    // 更新bug状态为resolved，解决方案为"转为研发需求"
+    await updateBugStatus(bug.value.id, {
+      status: 'resolved',
+      solution: '转为研发需求',
+      solution_note: `已转为需求 #${requirement.id}`
+    })
+    
+    // 关联新创建的需求到bug
+    await updateBug(bug.value.id, {
+      requirement_id: requirement.id
+    })
+    
+    message.success(`转换成功，已创建需求 #${requirement.id}`)
+    
+    // 刷新bug详情
+    await loadBug(bug.value.id)
+  } catch (error: any) {
+    message.error(error.message || '转换失败')
   }
 }
 

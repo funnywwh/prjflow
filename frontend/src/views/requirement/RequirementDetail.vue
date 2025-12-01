@@ -24,6 +24,9 @@
                     </a-menu>
                   </template>
                 </a-dropdown>
+                <a-button @click="handleConvertToBug">
+                  需求转Bug
+                </a-button>
                 <a-popconfirm
                   title="确定要删除这个需求吗？"
                   @confirm="handleDelete"
@@ -253,7 +256,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
 import { DownOutlined } from '@ant-design/icons-vue'
 import { formatDateTime } from '@/utils/date'
 import AppHeader from '@/components/AppHeader.vue'
@@ -270,6 +273,7 @@ import {
   type Action
 } from '@/api/requirement'
 import { getUsers, type User } from '@/api/user'
+import { createBug, type CreateBugRequest } from '@/api/bug'
 
 const route = useRoute()
 const router = useRouter()
@@ -521,6 +525,64 @@ const handleStatusChange = async (status: string) => {
     loadRequirement()
   } catch (error: any) {
     message.error(error.message || '状态更新失败')
+  }
+}
+
+// 需求转Bug
+const handleConvertToBug = async () => {
+  if (!requirement.value) return
+  
+  // 确认对话框
+  const confirmed = await new Promise<boolean>((resolve) => {
+    const modal = Modal.confirm({
+      title: '确认转换',
+      content: '确定要将此需求转为Bug吗？转换后将创建新Bug，并关联到此需求。',
+      okText: '确定',
+      cancelText: '取消',
+      onOk: () => {
+        resolve(true)
+        modal.destroy()
+      },
+      onCancel: () => {
+        resolve(false)
+        modal.destroy()
+      }
+    })
+  })
+  
+  if (!confirmed) return
+  
+  try {
+    // 创建新Bug，基于需求的信息
+    const bugData: CreateBugRequest = {
+      title: `[需求转Bug] ${requirement.value.title}`,
+      description: requirement.value.description 
+        ? `${requirement.value.description}\n\n---\n\n*由需求 #${requirement.value.id}转换而来*`
+        : `*由需求 #${requirement.value.id}转换而来*`,
+      project_id: requirement.value.project_id,
+      priority: requirement.value.priority,
+      severity: 'medium', // Bug默认严重程度
+      status: 'active', // Bug默认激活状态
+      requirement_id: requirement.value.id, // 关联原需求
+      // 如果需求有负责人，作为Bug的指派人员
+      assignee_ids: requirement.value.assignee_id 
+        ? [requirement.value.assignee_id] 
+        : undefined,
+      estimated_hours: requirement.value.estimated_hours
+    }
+    
+    // 创建Bug
+    const bug = await createBug(bugData)
+    
+    message.success(`转换成功，已创建Bug #${bug.id}`)
+    
+    // 刷新需求详情
+    await loadRequirement()
+    
+    // 可选：跳转到新创建的Bug详情页
+    // router.push(`/bug/${bug.id}`)
+  } catch (error: any) {
+    message.error(error.message || '转换失败')
   }
 }
 

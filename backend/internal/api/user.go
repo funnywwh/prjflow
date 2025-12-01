@@ -1,21 +1,25 @@
 package api
 
 import (
-	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
+	"strings"
+
+	"project-management/internal/config"
 	"project-management/internal/model"
 	"project-management/internal/utils"
 	"project-management/pkg/wechat"
+
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type UserHandler struct {
-	db          *gorm.DB
+	db           *gorm.DB
 	wechatClient *wechat.WeChatClient
 }
 
 func NewUserHandler(db *gorm.DB) *UserHandler {
 	return &UserHandler{
-		db:          db,
+		db:           db,
 		wechatClient: wechat.NewWeChatClient(),
 	}
 }
@@ -86,7 +90,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	var req struct {
 		Username     string `json:"username" binding:"required"`
 		Nickname     string `json:"nickname" binding:"required"` // 昵称（必填）
-		Password     string `json:"password"` // 可选，如果提供则加密存储
+		Password     string `json:"password"`                    // 可选，如果提供则加密存储
 		Email        string `json:"email"`
 		Phone        string `json:"phone"`
 		Avatar       string `json:"avatar"`
@@ -170,7 +174,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	var req struct {
 		Username     string `json:"username"`
 		Nickname     string `json:"nickname" binding:"required"` // 昵称（必填，不能为空）
-		Password     string `json:"password"` // 可选，如果提供则更新密码
+		Password     string `json:"password"`                    // 可选，如果提供则更新密码
 		Email        string `json:"email"`
 		Phone        string `json:"phone"`
 		Avatar       string `json:"avatar"`
@@ -288,7 +292,7 @@ func (h *UserHandler) AddUserByWeChat(c *gin.Context) {
 	// 使用通用处理函数
 	handler := &AddUserCallbackHandler{db: h.db}
 	_, result, err := ProcessWeChatCallback(h.db, h.wechatClient, req.Code, req.State, handler)
-	
+
 	if err != nil {
 		utils.Error(c, utils.CodeError, err.Error())
 		return
@@ -298,3 +302,131 @@ func (h *UserHandler) AddUserByWeChat(c *gin.Context) {
 	utils.Success(c, result)
 }
 
+// GetUserWeChatBindQRCode 获取指定用户的微信绑定二维码（管理员操作）
+func (h *UserHandler) GetUserWeChatBindQRCode(c *gin.Context) {
+	// 检查用户是否已登录（管理员）
+	_, exists := c.Get("user_id")
+	if !exists {
+		utils.Error(c, 401, "未授权，请先登录")
+		return
+	}
+
+	// 获取要绑定的用户ID
+	userID := c.Param("id")
+	if userID == "" {
+		utils.Error(c, 400, "用户ID不能为空")
+		return
+	}
+
+	// 查找目标用户
+	var user model.User
+	if err := h.db.First(&user, userID).Error; err != nil {
+		utils.Error(c, 404, "用户不存在")
+		return
+	}
+
+	// 检查用户是否已绑定微信
+	if user.WeChatOpenID != nil && *user.WeChatOpenID != "" {
+		utils.Error(c, 400, "该用户已绑定微信，请先解绑后再绑定新的微信")
+		return
+	}
+
+	// 从数据库读取微信配置
+	var wechatAppIDConfig model.SystemConfig
+	if err := h.db.Where("key = ?", "wechat_app_id").First(&wechatAppIDConfig).Error; err != nil {
+		// 如果数据库中没有配置，尝试使用配置文件中的配置
+		if config.AppConfig.WeChat.AppID == "" || config.AppConfig.WeChat.AppSecret == "" {
+			utils.Error(c, 400, "请先配置微信AppID和AppSecret")
+			return
+		}
+		h.wechatClient.AppID = config.AppConfig.WeChat.AppID
+		h.wechatClient.AppSecret = config.AppConfig.WeChat.AppSecret
+	} else {
+		// 从数据库读取配置
+		var wechatAppSecretConfig model.SystemConfig
+		if err := h.db.Where("key = ?", "wechat_app_secret").First(&wechatAppSecretConfig).Error; err != nil {
+			// 如果数据库中没有AppSecret，尝试使用配置文件中的配置
+			if config.AppConfig.WeChat.AppSecret == "" {
+				utils.Error(c, 400, "请先配置微信AppSecret")
+				return
+			}
+			h.wechatClient.AppID = wechatAppIDConfig.Value
+			h.wechatClient.AppSecret = config.AppConfig.WeChat.AppSecret
+		} else {
+			// 从数据库读取配置，去除首尾空格
+			h.wechatClient.AppID = strings.TrimSpace(wechatAppIDConfig.Value)
+			h.wechatClient.AppSecret = strings.TrimSpace(wechatAppSecretConfig.Value)
+		}
+		// 验证配置是否为空
+		if h.wechatClient.AppID == "" || h.wechatClient.AppSecret == "" {
+			utils.Error(c, 400, "微信AppID或AppSecret配置为空，请检查配置")
+			return
+		}
+	}
+
+	// 设置AccountType和Scope（优先从数据库读取，其次从配置文件，最后使用默认值）
+	var accountTypeConfig model.SystemConfig
+	if err := h.db.Where("key = ?", "wechat_account_type").First(&accountTypeConfig).Error; err == nil {
+		h.wechatClient.AccountType = strings.TrimSpace(accountTypeConfig.Value)
+	} else {
+		h.wechatClient.AccountType = config.AppConfig.WeChat.AccountType
+	}
+	if h.wechatClient.AccountType == "" {
+		h.wechatClient.AccountType = "open_platform" // 默认使用开放平台
+	}
+
+	var scopeConfig model.SystemConfig
+	if err := h.db.Where("key = ?", "wechat_scope").First(&scopeConfig).Error; err == nil {
+		h.wechatClient.Scope = strings.TrimSpace(scopeConfig.Value)
+	} else {
+		h.wechatClient.Scope = config.AppConfig.WeChat.Scope
+	}
+	if h.wechatClient.Scope == "" {
+		h.wechatClient.Scope = "snsapi_userinfo" // 默认需要用户确认
+	}
+
+	// 获取回调地址（指向绑定回调接口）
+	var redirectURI string
+	if config.AppConfig.WeChat.CallbackDomain != "" {
+		domain := config.AppConfig.WeChat.CallbackDomain
+		if len(domain) > 0 && domain[len(domain)-1] != '/' {
+			domain += "/"
+		}
+		redirectURI = domain + "api/auth/wechat/bind/callback"
+	} else {
+		// 从 Referer 头获取
+		referer := c.GetHeader("Referer")
+		if referer != "" {
+			redirectURI = referer + "/api/auth/wechat/bind/callback"
+		} else {
+			redirectURI = "http://localhost:8080/api/auth/wechat/bind/callback"
+		}
+	}
+
+	// 生成二维码获取ticket
+	qrCode, err := h.wechatClient.GetQRCode(redirectURI)
+	if err != nil {
+		utils.Error(c, utils.CodeError, "获取二维码失败: "+err.Error())
+		return
+	}
+
+	// 生成唯一的ticket
+	ticket := qrCode.Ticket
+	// state格式：bind:{ticket}:{user_id}
+	stateWithTicket := "bind:" + ticket + ":" + userID
+
+	// 重新生成二维码，将ticket和user_id包含在state中
+	qrCode, err = h.wechatClient.GetQRCode(redirectURI, stateWithTicket)
+	if err != nil {
+		utils.Error(c, utils.CodeError, "获取二维码失败: "+err.Error())
+		return
+	}
+
+	// 返回授权URL，前端需要将其转换为二维码图片
+	utils.Success(c, gin.H{
+		"ticket":         ticket,
+		"qr_code_url":    qrCode.URL, // 这是授权URL，需要转换为二维码
+		"auth_url":       qrCode.URL, // 授权URL
+		"expire_seconds": qrCode.ExpireSeconds,
+	})
+}

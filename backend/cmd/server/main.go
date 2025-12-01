@@ -267,11 +267,13 @@ func main() {
 	userGroup := r.Group("/api/users", middleware.Auth())
 	{
 		userGroup.GET("", middleware.RequirePermission(db, "user:read"), userHandler.GetUsers)                      // 查看用户列表
-		userGroup.GET("/:id", middleware.RequirePermission(db, "user:read"), userHandler.GetUser)                   // 查看用户详情
 		userGroup.POST("", middleware.RequirePermission(db, "user:create"), userHandler.CreateUser)                 // 创建用户需要权限
+		userGroup.POST("/wechat/add", middleware.RequirePermission(db, "user:create"), userHandler.AddUserByWeChat) // 扫码添加用户需要权限
+		// 注意：绑定微信接口需要在 /:id 之前，避免路由冲突
+		userGroup.GET("/:id/wechat/bind/qrcode", middleware.RequirePermission(db, "user:update"), userHandler.GetUserWeChatBindQRCode) // 获取用户绑定微信二维码（管理员操作）
+		userGroup.GET("/:id", middleware.RequirePermission(db, "user:read"), userHandler.GetUser)                   // 查看用户详情
 		userGroup.PUT("/:id", middleware.RequirePermission(db, "user:update"), userHandler.UpdateUser)              // 更新用户需要权限
 		userGroup.DELETE("/:id", middleware.RequirePermission(db, "user:delete"), userHandler.DeleteUser)           // 删除用户需要权限
-		userGroup.POST("/wechat/add", middleware.RequirePermission(db, "user:create"), userHandler.AddUserByWeChat) // 扫码添加用户需要权限
 	}
 
 	// 部门管理路由

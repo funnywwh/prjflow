@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -30,6 +31,13 @@ import (
 
 //go:embed frontend-dist
 var frontendFS embed.FS
+
+// 版本信息（可以通过构建时注入）
+var (
+	Version   = "v0.4.9"           // 版本号
+	BuildTime = "unknown"          // 构建时间
+	GitCommit = "unknown"          // Git提交哈希
+)
 
 // getContentType 根据文件扩展名返回正确的 Content-Type
 func getContentType(filePath string, data []byte) string {
@@ -474,6 +482,24 @@ func stopServer(port int) error {
 	return fmt.Errorf("failed to stop process %d", pid)
 }
 
+// showVersion 显示版本信息
+func showVersion() {
+	fmt.Printf("Project Management System\n")
+	fmt.Printf("Version: %s\n", Version)
+	if BuildTime != "unknown" {
+		fmt.Printf("Build Time: %s\n", BuildTime)
+	}
+	if GitCommit != "unknown" {
+		fmt.Printf("Git Commit: %s\n", GitCommit)
+	}
+	fmt.Printf("Go Version: %s\n", getGoVersion())
+}
+
+// getGoVersion 获取Go版本信息
+func getGoVersion() string {
+	return runtime.Version()
+}
+
 // restartServer 重启服务器
 func restartServer() error {
 	// 加载配置以获取端口
@@ -533,6 +559,10 @@ func main() {
 			if err := restartServer(); err != nil {
 				log.Fatalf("Restart failed: %v", err)
 			}
+			os.Exit(0)
+		}
+		if arg == "--version" || arg == "-version" || arg == "version" || arg == "-v" || arg == "-V" {
+			showVersion()
 			os.Exit(0)
 		}
 	}

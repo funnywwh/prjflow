@@ -85,6 +85,10 @@
                   :pagination="projectPagination"
                   @change="handleProjectTableChange"
                   row-key="id"
+                  :custom-row="(record: Project) => ({
+                    onClick: () => handleViewDetail(record),
+                    class: 'table-row-clickable'
+                  })"
                 >
                   <template #bodyCell="{ column, record }">
                     <template v-if="column.key === 'status'">
@@ -107,8 +111,8 @@
                       {{ formatDate(record.end_date) }}
                     </template>
                     <template v-else-if="column.key === 'action'">
-                      <a-space>
-                        <a-button type="link" size="small" @click="handleViewDetail(record)">
+                      <a-space @click.stop>
+                        <a-button type="link" size="small" @click.stop="handleViewDetail(record)">
                           详情
                         </a-button>
                         <a-button type="link" size="small" @click="handleManageRequirements(record)">
@@ -361,6 +365,75 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <!-- 项目详情弹窗 -->
+    <a-modal
+      v-model:open="detailModalVisible"
+      :title="detailProject?.name || '项目详情'"
+      :width="1200"
+      :mask-closable="true"
+      :footer="null"
+      @cancel="handleDetailCancel"
+    >
+      <a-spin :spinning="detailLoading">
+        <div v-if="detailProject" style="max-height: 70vh; overflow-y: auto">
+          <!-- 操作按钮 -->
+          <div style="margin-bottom: 16px; text-align: right">
+            <a-space>
+              <a-button @click="handleDetailEdit">编辑</a-button>
+              <a-button @click="handleDetailManageMembers">成员管理</a-button>
+              <a-button @click="handleDetailManageModules">模块管理</a-button>
+              <a-popconfirm
+                title="确定要删除这个项目吗？"
+                @confirm="handleDetailDelete"
+              >
+                <a-button danger>删除</a-button>
+              </a-popconfirm>
+            </a-space>
+          </div>
+
+          <!-- 基本信息 -->
+          <a-card title="基本信息" :bordered="false" style="margin-bottom: 16px">
+            <a-descriptions :column="2" bordered>
+              <a-descriptions-item label="项目名称">{{ detailProject.name }}</a-descriptions-item>
+              <a-descriptions-item label="项目编码">{{ detailProject.code || '-' }}</a-descriptions-item>
+              <a-descriptions-item label="状态">
+                <a-tag :color="getProjectStatusColor(detailProject.status)">
+                  {{ getProjectStatusText(detailProject.status) }}
+                </a-tag>
+              </a-descriptions-item>
+              <a-descriptions-item label="开始日期">
+                {{ formatDate(detailProject.start_date) || '-' }}
+              </a-descriptions-item>
+              <a-descriptions-item label="结束日期">
+                {{ formatDate(detailProject.end_date) || '-' }}
+              </a-descriptions-item>
+              <a-descriptions-item label="标签" :span="2">
+                <a-space>
+                  <a-tag
+                    v-for="tag in detailProject.tags || []"
+                    :key="tag.id"
+                    :color="tag.color || 'blue'"
+                  >
+                    {{ tag.name }}
+                  </a-tag>
+                  <span v-if="!detailProject.tags || detailProject.tags.length === 0">-</span>
+                </a-space>
+              </a-descriptions-item>
+              <a-descriptions-item label="项目描述" :span="2">
+                <div v-if="detailProject.description" class="markdown-content">
+                  <MarkdownEditor
+                    :model-value="detailProject.description"
+                    :readonly="true"
+                  />
+                </div>
+                <span v-else>-</span>
+              </a-descriptions-item>
+            </a-descriptions>
+          </a-card>
+        </div>
+      </a-spin>
+    </a-modal>
   </div>
 </template>
 
@@ -371,6 +444,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { PlusOutlined, DownOutlined, UpOutlined } from '@ant-design/icons-vue'
 import AppHeader from '@/components/AppHeader.vue'
+import MarkdownEditor from '@/components/MarkdownEditor.vue'
 import dayjs from 'dayjs'
 import type { Dayjs } from 'dayjs'
 import { formatDate } from '@/utils/date'
@@ -480,6 +554,12 @@ const moduleManageModalVisible = ref(false)
 // 标签管理相关
 const tagManageModalVisible = ref(false)
 const tagSubmitting = ref(false)
+
+// 详情弹窗相关
+const detailModalVisible = ref(false)
+const detailLoading = ref(false)
+const detailProject = ref<Project | null>(null)
+const shouldKeepDetailOpen = ref(false)
 const tagFormRef = ref()
 const tagFormData = reactive({
   name: '',
@@ -647,8 +727,9 @@ const handleCreateProject = () => {
 }
 
 // 查看项目详情
-const handleViewDetail = (record: Project) => {
-  router.push(`/project/${record.id}`)
+const handleViewDetail = async (record: Project) => {
+  detailModalVisible.value = true
+  await loadProjectDetail(record.id)
 }
 
 // 编辑项目（保留，可能在其他地方使用，如通过URL参数edit）
@@ -1047,6 +1128,72 @@ watch(() => route.query.manageMembers, async (manageMembersId) => {
   }
 }, { immediate: true })
 
+// 加载项目详情
+const loadProjectDetail = async (projectId: number) => {
+  detailLoading.value = true
+  try {
+    detailProject.value = await getProject(projectId)
+  } catch (error: any) {
+    message.error(error.message || '加载项目详情失败')
+    detailModalVisible.value = false
+  } finally {
+    detailLoading.value = false
+  }
+}
+
+// 详情弹窗取消
+const handleDetailCancel = () => {
+  detailProject.value = null
+}
+
+// 详情页编辑
+const handleDetailEdit = async () => {
+  if (!detailProject.value) return
+  shouldKeepDetailOpen.value = true
+  detailModalVisible.value = false
+  await nextTick()
+  handleEditProject(detailProject.value)
+}
+
+// 详情页成员管理
+const handleDetailManageMembers = () => {
+  if (!detailProject.value) return
+  detailModalVisible.value = false
+  handleManageMembers(detailProject.value)
+}
+
+// 详情页模块管理
+const handleDetailManageModules = () => {
+  if (!detailProject.value) return
+  detailModalVisible.value = false
+  handleManageModules(detailProject.value)
+}
+
+// 详情页删除
+const handleDetailDelete = async () => {
+  if (!detailProject.value) return
+  try {
+    await deleteProject(detailProject.value.id)
+    message.success('删除成功')
+    detailModalVisible.value = false
+    loadProjects()
+  } catch (error: any) {
+    message.error(error.message || '删除失败')
+  }
+}
+
+// 监听编辑模态框关闭，重新打开详情弹窗
+watch(projectModalVisible, (visible, prevVisible) => {
+  if (prevVisible && !visible && shouldKeepDetailOpen.value && detailProject.value) {
+    shouldKeepDetailOpen.value = false
+    nextTick(() => {
+      detailModalVisible.value = true
+      loadProjectDetail(detailProject.value!.id)
+      loadProjects()
+    })
+  }
+})
+
 onMounted(() => {
   // 从 localStorage 恢复最后选择的搜索条件
   const lastSearchProjectId = getLastSelected<number>('last_selected_project_id_search')
@@ -1191,6 +1338,20 @@ onMounted(() => {
 
 .table-card {
   margin-top: 16px;
+}
+
+/* 详情弹窗样式 */
+.markdown-content {
+  min-height: 200px;
+}
+
+/* 表格行可点击样式 */
+.table-card :deep(.ant-table-tbody > tr.table-row-clickable) {
+  cursor: pointer;
+}
+
+.table-card :deep(.ant-table-tbody > tr.table-row-clickable:hover) {
+  background-color: #f5f5f5;
 }
 </style>
 

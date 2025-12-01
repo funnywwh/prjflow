@@ -82,6 +82,10 @@
               :pagination="pagination"
               row-key="id"
               @change="handleTableChange"
+              :custom-row="(record: Version) => ({
+                onClick: () => handleView(record),
+                class: 'table-row-clickable'
+              })"
             >
               <template #bodyCell="{ column, record }">
                 <template v-if="column.key === 'status'">
@@ -117,14 +121,14 @@
                   {{ formatDateTime(record.created_at) }}
                 </template>
                 <template v-else-if="column.key === 'action'">
-                  <a-space>
-                    <a-button type="link" size="small" @click="() => $router.push(`/version/${record.id}`)">
+                  <a-space @click.stop>
+                    <a-button type="link" size="small" @click.stop="handleView(record)">
                       详情
                     </a-button>
-                    <a-button type="link" size="small" @click="handleEdit(record)">
+                    <a-button type="link" size="small" @click.stop="handleEdit(record)">
                       编辑
                     </a-button>
-                    <a-button v-if="record.status === 'wait'" type="link" size="small" @click="handleRelease(record.id)">
+                    <a-button v-if="record.status === 'wait'" type="link" size="small" @click.stop="handleRelease(record.id)">
                       发布
                     </a-button>
                     <a-dropdown>
@@ -143,7 +147,7 @@
                       title="确定要删除这个版本吗？"
                       @confirm="handleDelete(record.id)"
                     >
-                      <a-button type="link" size="small" danger>删除</a-button>
+                      <a-button type="link" size="small" danger @click.stop>删除</a-button>
                     </a-popconfirm>
                   </a-space>
                 </template>
@@ -252,6 +256,153 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <!-- 版本详情弹窗 -->
+    <a-modal
+      v-model:open="detailModalVisible"
+      :title="detailVersion?.version_number || '版本详情'"
+      :width="1200"
+      :mask-closable="true"
+      :footer="null"
+      @cancel="handleDetailCancel"
+    >
+      <a-spin :spinning="detailLoading">
+        <div v-if="detailVersion" style="max-height: 70vh; overflow-y: auto">
+          <!-- 操作按钮 -->
+          <div style="margin-bottom: 16px; text-align: right">
+            <a-space>
+              <a-button @click="handleDetailEdit">编辑</a-button>
+              <a-button v-if="detailVersion.status === 'wait'" type="primary" @click="handleDetailRelease">
+                发布
+              </a-button>
+              <a-dropdown>
+                <a-button>
+                  状态 <DownOutlined />
+                </a-button>
+                <template #overlay>
+                  <a-menu @click="(e: any) => handleDetailStatusChange(e.key as string)">
+                    <a-menu-item key="draft">草稿</a-menu-item>
+                    <a-menu-item key="released">已发布</a-menu-item>
+                    <a-menu-item key="archived">已归档</a-menu-item>
+                  </a-menu>
+                </template>
+              </a-dropdown>
+              <a-popconfirm
+                title="确定要删除这个版本吗？"
+                @confirm="handleDetailDelete"
+              >
+                <a-button danger>删除</a-button>
+              </a-popconfirm>
+            </a-space>
+          </div>
+
+          <!-- 基本信息 -->
+          <a-card title="基本信息" :bordered="false" style="margin-bottom: 16px">
+            <a-descriptions :column="2" bordered>
+              <a-descriptions-item label="版本号">{{ detailVersion.version_number }}</a-descriptions-item>
+              <a-descriptions-item label="状态">
+                <a-tag :color="getStatusColor(detailVersion.status || '')">
+                  {{ getStatusText(detailVersion.status || '') }}
+                </a-tag>
+              </a-descriptions-item>
+              <a-descriptions-item label="项目">
+                <a v-if="detailVersion.project" @click="router.push(`/project/${detailVersion.project.id}`)" style="cursor: pointer">
+                  {{ detailVersion.project.name }}
+                </a>
+                <span v-else>-</span>
+              </a-descriptions-item>
+              <a-descriptions-item label="发布日期">
+                {{ formatDateTime(detailVersion.release_date) }}
+              </a-descriptions-item>
+              <a-descriptions-item label="创建时间">
+                {{ formatDateTime(detailVersion.created_at) }}
+              </a-descriptions-item>
+              <a-descriptions-item label="更新时间">
+                {{ formatDateTime(detailVersion.updated_at) }}
+              </a-descriptions-item>
+            </a-descriptions>
+          </a-card>
+
+          <!-- 发布说明 -->
+          <a-card title="发布说明" :bordered="false" style="margin-bottom: 16px">
+            <div v-if="detailVersion.release_notes" class="markdown-content">
+              <MarkdownEditor
+                :model-value="detailVersion.release_notes"
+                :readonly="true"
+              />
+            </div>
+            <a-empty v-else description="暂无发布说明" />
+          </a-card>
+
+          <!-- 关联需求 -->
+          <a-card title="关联需求" :bordered="false" style="margin-bottom: 16px">
+            <a-list
+              v-if="detailVersion.requirements && detailVersion.requirements.length > 0"
+              :data-source="detailVersion.requirements"
+              :pagination="false"
+            >
+              <template #renderItem="{ item }">
+                <a-list-item>
+                  <a-list-item-meta>
+                    <template #title>
+                      <a type="link" @click="router.push(`/requirement/${item.id}`)" style="cursor: pointer">
+                        {{ item.title }}
+                      </a>
+                    </template>
+                    <template #description>
+                      <a-space>
+                        <a-tag :color="getRequirementStatusColor(item.status)">
+                          {{ getRequirementStatusText(item.status) }}
+                        </a-tag>
+                        <a-tag :color="getPriorityColor(item.priority)">
+                          {{ getPriorityText(item.priority) }}
+                        </a-tag>
+                      </a-space>
+                    </template>
+                  </a-list-item-meta>
+                </a-list-item>
+              </template>
+            </a-list>
+            <a-empty v-else description="暂无关联需求" />
+          </a-card>
+
+          <!-- 关联Bug -->
+          <a-card title="关联Bug" :bordered="false">
+            <a-list
+              v-if="detailVersion.bugs && detailVersion.bugs.length > 0"
+              :data-source="detailVersion.bugs"
+              :pagination="false"
+            >
+              <template #renderItem="{ item }">
+                <a-list-item>
+                  <a-list-item-meta>
+                    <template #title>
+                      <a type="link" @click="router.push(`/bug/${item.id}`)" style="cursor: pointer">
+                        {{ item.title }}
+                      </a>
+                    </template>
+                    <template #description>
+                      <a-space>
+                        <a-tag :color="getBugStatusColor(item.status)">
+                          {{ getBugStatusText(item.status) }}
+                        </a-tag>
+                        <a-tag :color="getPriorityColor(item.priority)">
+                          {{ getPriorityText(item.priority) }}
+                        </a-tag>
+                        <a-tag :color="getSeverityColor(item.severity)">
+                          {{ getSeverityText(item.severity) }}
+                        </a-tag>
+                      </a-space>
+                    </template>
+                  </a-list-item-meta>
+                </a-list-item>
+              </template>
+            </a-list>
+            <a-empty v-else description="暂无关联Bug" />
+          </a-card>
+        </div>
+      </a-spin>
+    </a-modal>
   </div>
 </template>
 
@@ -266,6 +417,7 @@ import AppHeader from '@/components/AppHeader.vue'
 import MarkdownEditor from '@/components/MarkdownEditor.vue'
 import {
   getVersions,
+  getVersion,
   createVersion,
   updateVersion,
   deleteVersion,
@@ -278,7 +430,7 @@ import { getProjects, type Project } from '@/api/project'
 import { getRequirements, type Requirement } from '@/api/requirement'
 import { getBugs, type Bug } from '@/api/bug'
 
-// const router = useRouter()
+const router = useRouter()
 const loading = ref(false)
 const searchFormVisible = ref(false) // 搜索栏显示/隐藏状态，默认折叠
 const versions = ref<Version[]>([])
@@ -320,6 +472,12 @@ const columns = [
 const modalVisible = ref(false)
 const modalTitle = ref('新增版本')
 const formRef = ref()
+
+// 详情弹窗相关
+const detailModalVisible = ref(false)
+const detailLoading = ref(false)
+const detailVersion = ref<Version | null>(null)
+const shouldKeepDetailOpen = ref(false)
 const formData = reactive<Omit<CreateVersionRequest, 'release_date'> & { id?: number; release_date?: Dayjs | undefined }>({
   version_number: '',
   release_notes: '',
@@ -580,6 +738,171 @@ const filterBugOption = (input: string, option: any) => {
   return option.children[0].children.toLowerCase().indexOf(input.toLowerCase()) >= 0
 }
 
+// 加载版本详情
+const loadVersionDetail = async (versionId: number) => {
+  detailLoading.value = true
+  try {
+    detailVersion.value = await getVersion(versionId)
+  } catch (error: any) {
+    message.error(error.message || '加载版本详情失败')
+    detailModalVisible.value = false
+  } finally {
+    detailLoading.value = false
+  }
+}
+
+// 详情弹窗取消
+const handleDetailCancel = () => {
+  detailVersion.value = null
+}
+
+// 详情页编辑
+const handleDetailEdit = async () => {
+  if (!detailVersion.value) return
+  shouldKeepDetailOpen.value = true
+  detailModalVisible.value = false
+  await nextTick()
+  handleEdit(detailVersion.value)
+}
+
+// 详情页发布
+const handleDetailRelease = async () => {
+  if (!detailVersion.value) return
+  try {
+    await releaseVersion(detailVersion.value.id)
+    message.success('发布成功')
+    await loadVersionDetail(detailVersion.value.id)
+    loadVersions()
+  } catch (error: any) {
+    message.error(error.message || '发布失败')
+  }
+}
+
+// 详情页状态变更
+const handleDetailStatusChange = async (status: string) => {
+  if (!detailVersion.value) return
+  try {
+    await handleStatusChange(detailVersion.value, status)
+    await loadVersionDetail(detailVersion.value.id)
+    loadVersions()
+  } catch (error: any) {
+    message.error(error.message || '状态更新失败')
+  }
+}
+
+// 详情页删除
+const handleDetailDelete = async () => {
+  if (!detailVersion.value) return
+  try {
+    await deleteVersion(detailVersion.value.id)
+    message.success('删除成功')
+    detailModalVisible.value = false
+    loadVersions()
+  } catch (error: any) {
+    message.error(error.message || '删除失败')
+  }
+}
+
+// 需求状态颜色
+const getRequirementStatusColor = (status: string) => {
+  const colors: Record<string, string> = {
+    draft: 'default',
+    reviewing: 'blue',
+    active: 'green',
+    changing: 'orange',
+    closed: 'default'
+  }
+  return colors[status] || 'default'
+}
+
+// 需求状态文本
+const getRequirementStatusText = (status: string) => {
+  const texts: Record<string, string> = {
+    draft: '草稿',
+    reviewing: '评审中',
+    active: '激活',
+    changing: '变更中',
+    closed: '已关闭'
+  }
+  return texts[status] || status
+}
+
+// Bug状态颜色
+const getBugStatusColor = (status: string) => {
+  const colors: Record<string, string> = {
+    active: 'orange',
+    resolved: 'green',
+    closed: 'default'
+  }
+  return colors[status] || 'default'
+}
+
+// Bug状态文本
+const getBugStatusText = (status: string) => {
+  const texts: Record<string, string> = {
+    active: '激活',
+    resolved: '已解决',
+    closed: '已关闭'
+  }
+  return texts[status] || status
+}
+
+// 严重程度颜色
+const getSeverityColor = (severity: string) => {
+  const colors: Record<string, string> = {
+    low: 'default',
+    medium: 'blue',
+    high: 'orange',
+    critical: 'red'
+  }
+  return colors[severity] || 'default'
+}
+
+// 严重程度文本
+const getSeverityText = (severity: string) => {
+  const texts: Record<string, string> = {
+    low: '低',
+    medium: '中',
+    high: '高',
+    critical: '严重'
+  }
+  return texts[severity] || severity
+}
+
+// 优先级颜色
+const getPriorityColor = (priority: string) => {
+  const colors: Record<string, string> = {
+    low: 'default',
+    medium: 'blue',
+    high: 'orange',
+    urgent: 'red'
+  }
+  return colors[priority] || 'default'
+}
+
+// 优先级文本
+const getPriorityText = (priority: string) => {
+  const texts: Record<string, string> = {
+    low: '低',
+    medium: '中',
+    high: '高',
+    urgent: '紧急'
+  }
+  return texts[priority] || priority
+}
+
+// 监听编辑模态框关闭，重新打开详情弹窗
+watch(modalVisible, (visible, prevVisible) => {
+  if (prevVisible && !visible && shouldKeepDetailOpen.value && detailVersion.value) {
+    shouldKeepDetailOpen.value = false
+    nextTick(() => {
+      detailModalVisible.value = true
+      loadVersionDetail(detailVersion.value!.id)
+      loadVersions()
+    })
+  }
+})
+
 onMounted(() => {
   // 从 localStorage 恢复最后选择的搜索项目
   const lastSearchProjectId = getLastSelected<number>('last_selected_version_project_search')
@@ -691,6 +1014,20 @@ onMounted(() => {
 
 .table-card {
   margin-top: 16px;
+}
+
+/* 详情弹窗样式 */
+.markdown-content {
+  min-height: 200px;
+}
+
+/* 表格行可点击样式 */
+.table-card :deep(.ant-table-tbody > tr.table-row-clickable) {
+  cursor: pointer;
+}
+
+.table-card :deep(.ant-table-tbody > tr.table-row-clickable:hover) {
+  background-color: #f5f5f5;
 }
 </style>
 

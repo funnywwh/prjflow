@@ -4,6 +4,7 @@ import (
 	"compress/gzip"
 	"context"
 	"embed"
+	"flag"
 	"fmt"
 	"io"
 	"io/fs"
@@ -564,32 +565,67 @@ func restartServer() error {
 }
 
 func main() {
-	// 检查命令行参数
-	if len(os.Args) > 1 {
-		arg := os.Args[1]
-		if arg == "--backup" || arg == "-backup" || arg == "backup" {
-			if err := backupDatabase(); err != nil {
-				log.Fatalf("Backup failed: %v", err)
-			}
-			log.Println("Backup completed successfully")
-			os.Exit(0)
+	// 定义命令行参数
+	var (
+		backup   = flag.Bool("backup", false, "备份数据库")
+		stop     = flag.Bool("stop", false, "停止服务器")
+		restart  = flag.Bool("restart", false, "重启服务器")
+		version  = flag.Bool("version", false, "显示版本信息")
+		versionV = flag.Bool("v", false, "显示版本信息（简写）")
+		versionV2 = flag.Bool("V", false, "显示版本信息（简写）")
+	)
+
+	// 自定义 Usage
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "项目管理系统服务器\n\n")
+		fmt.Fprintf(os.Stderr, "使用方法:\n")
+		fmt.Fprintf(os.Stderr, "  %s [选项]\n\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "选项:\n")
+		flag.PrintDefaults()
+		fmt.Fprintf(os.Stderr, "\n示例:\n")
+		fmt.Fprintf(os.Stderr, "  %s --backup      # 备份数据库\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s --stop        # 停止服务器\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s --restart     # 重启服务器\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s --version     # 显示版本信息\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s               # 启动服务器\n", os.Args[0])
+	}
+
+	// 解析命令行参数
+	flag.Parse()
+
+	// 处理命令行参数
+	if *backup {
+		if err := backupDatabase(); err != nil {
+			log.Fatalf("Backup failed: %v", err)
 		}
-		if arg == "--stop" || arg == "-stop" || arg == "stop" {
-			if err := stopServerCommand(); err != nil {
-				log.Fatalf("Stop failed: %v", err)
-			}
-			os.Exit(0)
+		log.Println("Backup completed successfully")
+		os.Exit(0)
+	}
+
+	if *stop {
+		if err := stopServerCommand(); err != nil {
+			log.Fatalf("Stop failed: %v", err)
 		}
-		if arg == "--restart" || arg == "-restart" || arg == "restart" {
-			if err := restartServer(); err != nil {
-				log.Fatalf("Restart failed: %v", err)
-			}
-			os.Exit(0)
+		os.Exit(0)
+	}
+
+	if *restart {
+		if err := restartServer(); err != nil {
+			log.Fatalf("Restart failed: %v", err)
 		}
-		if arg == "--version" || arg == "-version" || arg == "version" || arg == "-v" || arg == "-V" {
-			showVersion()
-			os.Exit(0)
-		}
+		os.Exit(0)
+	}
+
+	if *version || *versionV || *versionV2 {
+		showVersion()
+		os.Exit(0)
+	}
+
+	// 如果还有其他未解析的参数，显示帮助信息
+	if flag.NArg() > 0 {
+		fmt.Fprintf(os.Stderr, "错误: 未知参数: %v\n\n", flag.Args())
+		flag.Usage()
+		os.Exit(1)
 	}
 
 	// 加载配置

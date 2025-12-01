@@ -278,10 +278,10 @@
                       </a-button>
                       <template #overlay>
                         <a-menu @click="(e: any) => handleStatusChange(record.id, e.key as string)">
-                          <a-menu-item key="pending">待测试</a-menu-item>
-                          <a-menu-item key="running">测试中</a-menu-item>
-                          <a-menu-item key="passed">通过</a-menu-item>
-                          <a-menu-item key="failed">失败</a-menu-item>
+                          <a-menu-item key="wait">待评审</a-menu-item>
+                          <a-menu-item key="normal">正常</a-menu-item>
+                          <a-menu-item key="blocked">被阻塞</a-menu-item>
+                          <a-menu-item key="investigate">研究中</a-menu-item>
                         </a-menu>
                       </template>
                     </a-dropdown>
@@ -364,10 +364,10 @@
         </a-form-item>
         <a-form-item label="状态" name="status">
           <a-select v-model:value="formData.status">
-            <a-select-option value="pending">待测试</a-select-option>
-            <a-select-option value="running">测试中</a-select-option>
-            <a-select-option value="passed">通过</a-select-option>
-            <a-select-option value="failed">失败</a-select-option>
+            <a-select-option value="wait">待评审</a-select-option>
+            <a-select-option value="normal">正常</a-select-option>
+            <a-select-option value="blocked">被阻塞</a-select-option>
+            <a-select-option value="investigate">研究中</a-select-option>
           </a-select>
         </a-form-item>
         <a-form-item label="关联Bug" name="bug_ids">
@@ -412,10 +412,10 @@
                 </a-button>
                 <template #overlay>
                   <a-menu @click="(e: any) => handleDetailStatusChange(e.key as string)">
-                    <a-menu-item key="pending">待测试</a-menu-item>
-                    <a-menu-item key="running">测试中</a-menu-item>
-                    <a-menu-item key="passed">通过</a-menu-item>
-                    <a-menu-item key="failed">失败</a-menu-item>
+                    <a-menu-item key="wait">待评审</a-menu-item>
+                    <a-menu-item key="normal">正常</a-menu-item>
+                    <a-menu-item key="blocked">被阻塞</a-menu-item>
+                    <a-menu-item key="investigate">研究中</a-menu-item>
                   </a-menu>
                 </template>
               </a-dropdown>
@@ -614,7 +614,7 @@ const formData = reactive<CreateTestCaseRequest & { id?: number }>({
   description: '',
   test_steps: '',
   types: [],
-  status: 'pending',
+  status: 'wait',
   project_id: 0,
   bug_ids: []
 })
@@ -727,7 +727,7 @@ const handleCreate = () => {
   formData.description = ''
   formData.test_steps = ''
   formData.types = []
-  formData.status = 'pending'
+  formData.status = 'wait'
   // 从 localStorage 恢复最后选择的项目
   const lastProjectId = getLastSelected<number>('last_selected_testcase_project_form')
   formData.project_id = lastProjectId || 0
@@ -744,14 +744,7 @@ const handleEdit = (record: TestCase) => {
   formData.description = record.description || ''
   formData.test_steps = record.test_steps || ''
   formData.types = record.types || []
-  // 转换状态值：wait -> pending, normal -> passed, blocked -> failed, investigate -> running
-  const statusMap: Record<string, 'pending' | 'running' | 'passed' | 'failed'> = {
-    wait: 'pending',
-    normal: 'passed',
-    blocked: 'failed',
-    investigate: 'running'
-  }
-  formData.status = statusMap[record.status] || 'pending'
+  formData.status = record.status || 'wait'
   formData.project_id = record.project_id
   formData.bug_ids = record.bugs?.map((b: any) => b.id) || []
   loadAvailableBugs()
@@ -938,32 +931,22 @@ watch(modalVisible, (visible, prevVisible) => {
 
 // 状态颜色
 const getStatusColor = (status: string) => {
-  // 支持旧状态值（wait, normal, blocked, investigate）和新状态值（pending, running, passed, failed）
   const colors: Record<string, string> = {
     wait: 'orange',
-    pending: 'orange',
     normal: 'green',
-    passed: 'green',
     blocked: 'red',
-    failed: 'red',
-    investigate: 'purple',
-    running: 'blue'
+    investigate: 'purple'
   }
   return colors[status] || 'default'
 }
 
 // 状态文本
 const getStatusText = (status: string) => {
-  // 支持旧状态值（wait, normal, blocked, investigate）和新状态值（pending, running, passed, failed）
   const texts: Record<string, string> = {
-    wait: '待测试',
-    pending: '待测试',
-    normal: '通过',
-    passed: '通过',
-    blocked: '失败',
-    failed: '失败',
-    investigate: '测试中',
-    running: '测试中'
+    wait: '待评审',
+    normal: '正常',
+    blocked: '被阻塞',
+    investigate: '研究中'
   }
   return texts[status] || status
 }

@@ -30,7 +30,7 @@ export interface CreateTestCaseRequest {
   description?: string
   test_steps?: string
   types?: string[] // 测试类型（多选）
-  status?: 'pending' | 'running' | 'passed' | 'failed'
+  status?: 'wait' | 'normal' | 'blocked' | 'investigate'
   result?: string  // 测试结果：passed, failed, blocked（合并自TestReport）
   summary?: string  // 测试摘要（合并自TestReport）
   project_id: number
@@ -42,7 +42,7 @@ export interface UpdateTestCaseRequest {
   description?: string
   test_steps?: string
   types?: string[] // 测试类型（多选）
-  status?: 'pending' | 'running' | 'passed' | 'failed'
+  status?: 'wait' | 'normal' | 'blocked' | 'investigate'
   result?: string  // 测试结果：passed, failed, blocked（合并自TestReport）
   summary?: string  // 测试摘要（合并自TestReport）
   bug_ids?: number[]

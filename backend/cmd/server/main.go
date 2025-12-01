@@ -1,9 +1,11 @@
 package main
 
 import (
+	"compress/gzip"
 	"context"
 	"embed"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"mime"
@@ -144,7 +146,233 @@ func setupExternalFrontend(r *gin.Engine) {
 	}
 }
 
+// backupDatabase 备份数据库
+func backupDatabase() error {
+	// 加载配置
+	if err := config.LoadConfig(""); err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	// 检查数据库类型，只支持 SQLite 备份
+	if config.AppConfig.Database.Type != "sqlite" {
+		return fmt.Errorf("backup only supports SQLite database, current type: %s", config.AppConfig.Database.Type)
+	}
+
+	// 获取数据库文件路径
+	dbPath := config.AppConfig.Database.DSN
+	if !filepath.IsAbs(dbPath) {
+		// 相对路径，从当前工作目录或可执行文件目录查找
+		if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+			// 尝试从可执行文件目录查找
+			exePath, err := os.Executable()
+			if err == nil {
+				exeDir := filepath.Dir(exePath)
+				absPath := filepath.Join(exeDir, dbPath)
+				if _, err := os.Stat(absPath); err == nil {
+					dbPath = absPath
+				}
+			}
+		}
+	}
+
+	// 检查数据库文件是否存在
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		return fmt.Errorf("database file not found: %s", dbPath)
+	}
+
+	// 创建备份目录（在数据库文件同目录下）
+	dbDir := filepath.Dir(dbPath)
+	backupDir := filepath.Join(dbDir, "backups")
+	if err := os.MkdirAll(backupDir, 0755); err != nil {
+		return fmt.Errorf("failed to create backup directory: %w", err)
+	}
+
+	// 生成备份文件名（带时间戳）
+	timestamp := time.Now().Format("20060102_150405")
+	backupFileName := fmt.Sprintf("data_%s.db", timestamp)
+	backupPath := filepath.Join(backupDir, backupFileName)
+
+	// 复制数据库文件
+	log.Printf("Backing up database: %s -> %s", dbPath, backupPath)
+	srcFile, err := os.Open(dbPath)
+	if err != nil {
+		return fmt.Errorf("failed to open source database: %w", err)
+	}
+	defer srcFile.Close()
+
+	dstFile, err := os.Create(backupPath)
+	if err != nil {
+		return fmt.Errorf("failed to create backup file: %w", err)
+	}
+	defer dstFile.Close()
+
+	written, err := io.Copy(dstFile, srcFile)
+	if err != nil {
+		dstFile.Close()
+		os.Remove(backupPath)
+		return fmt.Errorf("failed to copy database file: %w", err)
+	}
+
+	// 获取文件大小
+	fileSize := float64(written)
+	unit := "B"
+	if fileSize >= 1024*1024 {
+		fileSize /= 1024 * 1024
+		unit = "MB"
+	} else if fileSize >= 1024 {
+		fileSize /= 1024
+		unit = "KB"
+	}
+
+	log.Printf("✓ Backup created: %s (%.2f %s)", backupPath, fileSize, unit)
+
+	// 尝试压缩备份文件
+	compressedPath := backupPath + ".gz"
+	if err := compressFile(backupPath, compressedPath); err == nil {
+		// 压缩成功，删除原文件
+		os.Remove(backupPath)
+		log.Printf("✓ Backup compressed: %s", compressedPath)
+	} else {
+		log.Printf("Warning: Failed to compress backup: %v", err)
+	}
+
+	// 清理旧备份（保留最近7天）
+	if err := cleanupOldBackups(backupDir, 7); err != nil {
+		log.Printf("Warning: Failed to cleanup old backups: %v", err)
+	}
+
+	// 显示备份统计
+	backupCount, totalSize, err := getBackupStats(backupDir)
+	if err == nil {
+		log.Printf("Backup statistics: %d backups, total size: %s", backupCount, formatSize(totalSize))
+	}
+
+	return nil
+}
+
+// compressFile 压缩文件
+func compressFile(srcPath, dstPath string) error {
+	srcFile, err := os.Open(srcPath)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	dstFile, err := os.Create(dstPath)
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	gzWriter := gzip.NewWriter(dstFile)
+	defer gzWriter.Close()
+
+	_, err = io.Copy(gzWriter, srcFile)
+	return err
+}
+
+// cleanupOldBackups 清理旧备份
+func cleanupOldBackups(backupDir string, keepDays int) error {
+	entries, err := os.ReadDir(backupDir)
+	if err != nil {
+		return err
+	}
+
+	cutoffTime := time.Now().AddDate(0, 0, -keepDays)
+	removedCount := 0
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		// 只处理备份文件
+		if !strings.HasPrefix(entry.Name(), "data_") {
+			continue
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+
+		// 如果文件修改时间早于保留期限，删除
+		if info.ModTime().Before(cutoffTime) {
+			filePath := filepath.Join(backupDir, entry.Name())
+			if err := os.Remove(filePath); err == nil {
+				removedCount++
+			}
+		}
+	}
+
+	if removedCount > 0 {
+		log.Printf("Cleaned up %d old backup(s) (older than %d days)", removedCount, keepDays)
+	}
+
+	return nil
+}
+
+// getBackupStats 获取备份统计信息
+func getBackupStats(backupDir string) (int, int64, error) {
+	entries, err := os.ReadDir(backupDir)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	count := 0
+	totalSize := int64(0)
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		if !strings.HasPrefix(entry.Name(), "data_") {
+			continue
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+
+		count++
+		totalSize += info.Size()
+	}
+
+	return count, totalSize, nil
+}
+
+// formatSize 格式化文件大小
+func formatSize(size int64) string {
+	unit := "B"
+	fsize := float64(size)
+	if fsize >= 1024*1024*1024 {
+		fsize /= 1024 * 1024 * 1024
+		unit = "GB"
+	} else if fsize >= 1024*1024 {
+		fsize /= 1024 * 1024
+		unit = "MB"
+	} else if fsize >= 1024 {
+		fsize /= 1024
+		unit = "KB"
+	}
+	return fmt.Sprintf("%.2f %s", fsize, unit)
+}
+
 func main() {
+	// 检查命令行参数
+	if len(os.Args) > 1 {
+		arg := os.Args[1]
+		if arg == "--backup" || arg == "-backup" || arg == "backup" {
+			if err := backupDatabase(); err != nil {
+				log.Fatalf("Backup failed: %v", err)
+			}
+			log.Println("Backup completed successfully")
+			os.Exit(0)
+		}
+	}
+
 	// 加载配置
 	if err := config.LoadConfig(""); err != nil {
 		log.Fatalf("Failed to load config: %v", err)

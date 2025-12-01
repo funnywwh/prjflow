@@ -207,9 +207,6 @@
                 </template>
                 <template v-else-if="column.key === 'action'">
                   <a-space>
-                    <a-button type="link" size="small" @click="handleView(record)">
-                      详情
-                    </a-button>
                     <a-button type="link" size="small" @click="handleEdit(record)">
                       编辑
                     </a-button>

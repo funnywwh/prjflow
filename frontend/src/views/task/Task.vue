@@ -573,9 +573,13 @@
                         <div
                           v-for="history in action.histories"
                           :key="history.id"
-                          style="margin-bottom: 4px; color: #666"
+                          style="margin-bottom: 8px; color: #666"
                         >
-                          修改了{{ getDetailFieldDisplayName(history.field) }}, 旧值为"{{ history.old_value || history.old || '-' }}",新值为"{{ history.new_value || history.new || '-' }}"。
+                          <div>修改了{{ getDetailFieldDisplayName(history.field) }}</div>
+                          <div style="margin-left: 16px; margin-top: 4px;">
+                            <div>旧值："{{ history.old_value || history.old || '-' }}"</div>
+                            <div>新值："{{ history.new_value || history.new || '-' }}"</div>
+                          </div>
                         </div>
                       </div>
                       <!-- 备注内容 -->

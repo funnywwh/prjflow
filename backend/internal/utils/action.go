@@ -101,6 +101,28 @@ func ProcessHistory(db *gorm.DB, history *model.History) *model.History {
 		return history
 	}
 
+	// 关联对象字段转换（ID转显示名称）
+	if history.Field == "project_id" {
+		history.OldValue = getProjectDisplayName(db, history.Old)
+		history.NewValue = getProjectDisplayName(db, history.New)
+		return history
+	}
+	if history.Field == "requirement_id" {
+		history.OldValue = getRequirementDisplayName(db, history.Old)
+		history.NewValue = getRequirementDisplayName(db, history.New)
+		return history
+	}
+	if history.Field == "module_id" {
+		history.OldValue = getModuleDisplayName(db, history.Old)
+		history.NewValue = getModuleDisplayName(db, history.New)
+		return history
+	}
+	if history.Field == "resolved_version_id" {
+		history.OldValue = getVersionDisplayName(db, history.Old)
+		history.NewValue = getVersionDisplayName(db, history.New)
+		return history
+	}
+
 	// 枚举字段转换
 	switch history.Field {
 	case "status":
@@ -210,21 +232,30 @@ func CompareObjects(oldObj, newObj interface{}) []HistoryChange {
 // GetFieldDisplayName 获取字段的中文显示名称
 func GetFieldDisplayName(fieldName string) string {
 	fieldNames := map[string]string{
-		"title":            "Bug标题",
-		"description":      "Bug描述",
-		"status":           "Bug状态",
-		"priority":         "优先级",
-		"severity":         "严重程度",
-		"confirmed":        "是否确认",
-		"project_id":       "项目",
-		"requirement_id":   "关联需求",
-		"module_id":        "功能模块",
-		"assignee_ids":     "指派给",
+		// Bug字段
+		"title":              "Bug标题",
+		"description":       "Bug描述",
+		"status":            "Bug状态",
+		"priority":          "优先级",
+		"severity":          "严重程度",
+		"confirmed":         "是否确认",
+		"project_id":        "项目",
+		"requirement_id":    "关联需求",
+		"module_id":         "功能模块",
+		"assignee_ids":      "指派给",
 		"estimated_hours":   "预估工时",
-		"actual_hours":     "实际工时",
-		"solution":         "解决方案",
-		"solution_note":    "解决方案备注",
+		"actual_hours":      "实际工时",
+		"solution":          "解决方案",
+		"solution_note":     "解决方案备注",
 		"resolved_version_id": "解决版本",
+		// 需求字段
+		"assignee_id":       "负责人",
+		// 任务字段
+		"start_date":        "开始日期",
+		"end_date":          "结束日期",
+		"due_date":          "截止日期",
+		"progress":          "进度",
+		"dependency_ids":    "依赖任务",
 	}
 
 	if name, ok := fieldNames[fieldName]; ok {
@@ -364,7 +395,7 @@ func shouldSkipField(fieldName string) bool {
 	skipFields := []string{
 		"ID", "CreatedAt", "UpdatedAt", "DeletedAt",
 		"Project", "Creator", "Assignees", "Requirement", "Module", "ResolvedVersion",
-		"ProjectID", "CreatorID", "RequirementID", "ModuleID", "ResolvedVersionID",
+		"CreatorID", // CreatorID是用户字段，有特殊处理，但不需要记录ID变更
 	}
 	for _, f := range skipFields {
 		if fieldName == f {
@@ -426,5 +457,85 @@ func getFieldJSONName(field reflect.StructField) string {
 	// 处理 json tag 中的选项（如 omitempty）
 	parts := strings.Split(jsonTag, ",")
 	return parts[0]
+}
+
+// getProjectDisplayName 获取项目显示名称
+func getProjectDisplayName(db *gorm.DB, projectIDStr string) string {
+	if projectIDStr == "" || projectIDStr == "0" {
+		return ""
+	}
+
+	var projectID uint
+	fmt.Sscanf(projectIDStr, "%d", &projectID)
+	if projectID == 0 {
+		return ""
+	}
+
+	var project model.Project
+	if err := db.First(&project, projectID).Error; err != nil {
+		return projectIDStr
+	}
+
+	return project.Name
+}
+
+// getRequirementDisplayName 获取需求显示名称
+func getRequirementDisplayName(db *gorm.DB, requirementIDStr string) string {
+	if requirementIDStr == "" || requirementIDStr == "0" {
+		return ""
+	}
+
+	var requirementID uint
+	fmt.Sscanf(requirementIDStr, "%d", &requirementID)
+	if requirementID == 0 {
+		return ""
+	}
+
+	var requirement model.Requirement
+	if err := db.First(&requirement, requirementID).Error; err != nil {
+		return requirementIDStr
+	}
+
+	return requirement.Title
+}
+
+// getModuleDisplayName 获取模块显示名称
+func getModuleDisplayName(db *gorm.DB, moduleIDStr string) string {
+	if moduleIDStr == "" || moduleIDStr == "0" {
+		return ""
+	}
+
+	var moduleID uint
+	fmt.Sscanf(moduleIDStr, "%d", &moduleID)
+	if moduleID == 0 {
+		return ""
+	}
+
+	var module model.Module
+	if err := db.First(&module, moduleID).Error; err != nil {
+		return moduleIDStr
+	}
+
+	return module.Name
+}
+
+// getVersionDisplayName 获取版本显示名称
+func getVersionDisplayName(db *gorm.DB, versionIDStr string) string {
+	if versionIDStr == "" || versionIDStr == "0" {
+		return ""
+	}
+
+	var versionID uint
+	fmt.Sscanf(versionIDStr, "%d", &versionID)
+	if versionID == 0 {
+		return ""
+	}
+
+	var version model.Version
+	if err := db.First(&version, versionID).Error; err != nil {
+		return versionIDStr
+	}
+
+	return version.VersionNumber
 }
 

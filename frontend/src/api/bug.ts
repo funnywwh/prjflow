@@ -91,7 +91,26 @@ export const createBug = async (data: CreateBugRequest): Promise<Bug> => {
 }
 
 export const updateBug = async (id: number, data: Partial<CreateBugRequest>): Promise<Bug> => {
-  return request.put(`/bugs/${id}`, data)
+  // 确保 requirement_id 和 module_id 字段始终被包含，即使值为 0
+  // 使用 Object.assign 确保字段被显式设置
+  const requestData: any = Object.assign({}, data)
+  
+  // 始终包含 requirement_id 字段，如果未定义或为 null，设置为 0
+  // 注意：即使值为 0，也要确保字段存在
+  if (data.requirement_id === undefined || data.requirement_id === null) {
+    requestData.requirement_id = 0
+  } else {
+    requestData.requirement_id = data.requirement_id
+  }
+  
+  // 始终包含 module_id 字段，如果未定义或为 null，设置为 0
+  if (data.module_id === undefined || data.module_id === null) {
+    requestData.module_id = 0
+  } else {
+    requestData.module_id = data.module_id
+  }
+  
+  return request.put(`/bugs/${id}`, requestData)
 }
 
 export const deleteBug = async (id: number): Promise<void> => {

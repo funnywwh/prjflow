@@ -372,8 +372,20 @@ func (h *BugHandler) UpdateBug(c *gin.Context) {
 		return
 	}
 
-	// 保存旧对象用于比较
+	// 保存旧对象用于比较（深拷贝指针字段，避免修改bug时影响oldBug）
 	oldBug := bug
+	if bug.RequirementID != nil {
+		reqID := *bug.RequirementID
+		oldBug.RequirementID = &reqID
+	} else {
+		oldBug.RequirementID = nil
+	}
+	if bug.ModuleID != nil {
+		modID := *bug.ModuleID
+		oldBug.ModuleID = &modID
+	} else {
+		oldBug.ModuleID = nil
+	}
 
 	var req struct {
 		Title          *string  `json:"title"`
@@ -395,23 +407,13 @@ func (h *BugHandler) UpdateBug(c *gin.Context) {
 		return
 	}
 
-	// 调试：打印接收到的请求数据
-	fmt.Printf("UpdateBug: 接收到请求 - Title: %v, Description: %v\n", req.Title, req.Description)
-	if req.Description != nil {
-		fmt.Printf("UpdateBug: Description 值 = %q\n", *req.Description)
-	}
-
 	// 更新字段
 	if req.Title != nil {
 		bug.Title = *req.Title
 	}
 	// 注意：即使 description 是空字符串，也要更新（使用指针判断，空字符串指针不为 nil）
 	if req.Description != nil {
-		fmt.Printf("UpdateBug: 更新前 bug.Description = %q\n", bug.Description)
 		bug.Description = *req.Description
-		fmt.Printf("UpdateBug: 更新后 bug.Description = %q\n", bug.Description)
-	} else {
-		fmt.Printf("UpdateBug: req.Description 为 nil，不更新\n")
 	}
 	if req.Status != nil {
 		// 验证状态
@@ -546,11 +548,22 @@ func (h *BugHandler) UpdateBug(c *gin.Context) {
 		if req.Severity != nil {
 			bug.Severity = *req.Severity
 		}
+		if req.ProjectID != nil {
+			bug.ProjectID = *req.ProjectID
+		}
 		if req.RequirementID != nil {
-			bug.RequirementID = req.RequirementID
+			if *req.RequirementID == 0 {
+				bug.RequirementID = nil
+			} else {
+				bug.RequirementID = req.RequirementID
+			}
 		}
 		if req.ModuleID != nil {
-			bug.ModuleID = req.ModuleID
+			if *req.ModuleID == 0 {
+				bug.ModuleID = nil
+			} else {
+				bug.ModuleID = req.ModuleID
+			}
 		}
 		if req.EstimatedHours != nil {
 			bug.EstimatedHours = req.EstimatedHours
@@ -587,12 +600,10 @@ func (h *BugHandler) UpdateBug(c *gin.Context) {
 		}
 	}
 
-	fmt.Printf("UpdateBug: 保存前 bug.Description = %q\n", bug.Description)
 	if err := h.db.Save(&bug).Error; err != nil {
 		utils.Error(c, utils.CodeError, "更新失败")
 		return
 	}
-	fmt.Printf("UpdateBug: 保存后，重新查询前\n")
 
 	// 更新分配人
 	if req.AssigneeIDs != nil {
@@ -613,7 +624,6 @@ func (h *BugHandler) UpdateBug(c *gin.Context) {
 
 	// 重新加载关联数据
 	h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").Preload("Module").Preload("ResolvedVersion").First(&bug, bug.ID)
-	fmt.Printf("UpdateBug: 重新加载后 bug.Description = %q\n", bug.Description)
 
 	// 记录编辑操作和字段变更
 	userID, exists := c.Get("user_id")

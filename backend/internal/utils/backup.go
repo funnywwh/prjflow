@@ -4,7 +4,6 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -70,21 +69,29 @@ func BackupDatabase(db *gorm.DB) error {
 	escapedPath := strings.ReplaceAll(absBackupPath, "'", "''")
 
 	startTime := time.Now()
-	log.Printf("[Backup] Starting database backup at %s: %s -> %s", 
-		startTime.Format("2006-01-02 15:04:05"), dbPath, absBackupPath)
+	if Logger != nil {
+		Logger.Infof("[Backup] Starting database backup at %s: %s -> %s", 
+			startTime.Format("2006-01-02 15:04:05"), dbPath, absBackupPath)
+	}
 
 	// 尝试使用 VACUUM INTO 命令创建备份（SQLite 3.27.0+）
 	// 这会创建一个一致的数据库快照，支持在线备份
 	sql := fmt.Sprintf("VACUUM INTO '%s'", escapedPath)
 	if err := db.Exec(sql).Error; err != nil {
 		// 如果 VACUUM INTO 失败，回退到文件复制方式（带警告）
-		log.Printf("[Backup] Warning: VACUUM INTO failed: %v, falling back to file copy", err)
+		if Logger != nil {
+			Logger.Warnf("[Backup] Warning: VACUUM INTO failed: %v, falling back to file copy", err)
+		}
 		if err := copyDatabaseFile(dbPath, absBackupPath); err != nil {
 			return fmt.Errorf("failed to backup database: %w", err)
 		}
-		log.Printf("[Backup] Backup created using file copy method")
+		if Logger != nil {
+			Logger.Info("[Backup] Backup created using file copy method")
+		}
 	} else {
-		log.Printf("[Backup] Backup created using VACUUM INTO method")
+		if Logger != nil {
+			Logger.Info("[Backup] Backup created using VACUUM INTO method")
+		}
 	}
 
 	// 验证备份文件是否存在
@@ -106,10 +113,14 @@ func BackupDatabase(db *gorm.DB) error {
 
 	// 验证备份文件完整性（尝试打开SQLite文件）
 	if err := verifyBackupFile(absBackupPath); err != nil {
-		log.Printf("[Backup] Warning: Backup file verification failed: %v", err)
+		if Logger != nil {
+			Logger.Warnf("[Backup] Warning: Backup file verification failed: %v", err)
+		}
 		// 不返回错误，但记录警告（因为某些情况下验证可能失败但不影响备份可用性）
 	} else {
-		log.Printf("[Backup] ✓ Backup file verified successfully")
+		if Logger != nil {
+			Logger.Info("[Backup] ✓ Backup file verified successfully")
+		}
 	}
 
 	fileSize := float64(fileInfo.Size())
@@ -123,7 +134,9 @@ func BackupDatabase(db *gorm.DB) error {
 	}
 
 	duration := time.Since(startTime)
-	log.Printf("[Backup] ✓ Backup created: %s (%.2f %s) in %v", absBackupPath, fileSize, unit, duration)
+	if Logger != nil {
+		Logger.Infof("[Backup] ✓ Backup created: %s (%.2f %s) in %v", absBackupPath, fileSize, unit, duration)
+	}
 
 	// 尝试压缩备份文件
 	compressedPath := absBackupPath + ".gz"
@@ -133,28 +146,40 @@ func BackupDatabase(db *gorm.DB) error {
 		if compressedInfo, err := os.Stat(compressedPath); err == nil {
 			compressedSize := compressedInfo.Size()
 			compressionRatio := float64(compressedSize) / float64(fileInfo.Size()) * 100
-			log.Printf("[Backup] ✓ Backup compressed: %s (%.1f%% of original size, %s)", 
-				compressedPath, compressionRatio, formatSize(compressedSize))
+			if Logger != nil {
+				Logger.Infof("[Backup] ✓ Backup compressed: %s (%.1f%% of original size, %s)", 
+					compressedPath, compressionRatio, formatSize(compressedSize))
+			}
 		} else {
-			log.Printf("[Backup] ✓ Backup compressed: %s", compressedPath)
+			if Logger != nil {
+				Logger.Infof("[Backup] ✓ Backup compressed: %s", compressedPath)
+			}
 		}
 	} else {
-		log.Printf("[Backup] Warning: Failed to compress backup: %v", err)
+		if Logger != nil {
+			Logger.Warnf("[Backup] Warning: Failed to compress backup: %v", err)
+		}
 	}
 
 	// 清理旧备份（保留最近7天）
 	if err := cleanupOldBackups(backupDir, 7); err != nil {
-		log.Printf("[Backup] Warning: Failed to cleanup old backups: %v", err)
+		if Logger != nil {
+			Logger.Warnf("[Backup] Warning: Failed to cleanup old backups: %v", err)
+		}
 	}
 
 	// 显示备份统计
 	backupCount, totalSize, err := getBackupStats(backupDir)
 	if err == nil {
-		log.Printf("[Backup] Statistics: %d backups, total size: %s", backupCount, formatSize(totalSize))
+		if Logger != nil {
+			Logger.Infof("[Backup] Statistics: %d backups, total size: %s", backupCount, formatSize(totalSize))
+		}
 	}
 
 	totalDuration := time.Since(startTime)
-	log.Printf("[Backup] ✓ Backup completed successfully in %v", totalDuration)
+	if Logger != nil {
+		Logger.Infof("[Backup] ✓ Backup completed successfully in %v", totalDuration)
+	}
 
 	return nil
 }
@@ -227,12 +252,16 @@ func copyDatabaseFile(srcPath, dstPath string) error {
 	// 验证复制的文件大小
 	srcInfo, err := os.Stat(srcPath)
 	if err == nil && srcInfo.Size() != written {
-		log.Printf("[Backup] Warning: Source file size (%d) != copied size (%d)", srcInfo.Size(), written)
+		if Logger != nil {
+			Logger.Warnf("[Backup] Warning: Source file size (%d) != copied size (%d)", srcInfo.Size(), written)
+		}
 	}
 
 	// 验证备份文件完整性
 	if err := verifyBackupFile(dstPath); err != nil {
-		log.Printf("[Backup] Warning: Backup file verification failed after copy: %v", err)
+		if Logger != nil {
+			Logger.Warnf("[Backup] Warning: Backup file verification failed after copy: %v", err)
+		}
 		// 不返回错误，但记录警告
 	}
 
@@ -295,7 +324,9 @@ func cleanupOldBackups(backupDir string, keepDays int) error {
 	}
 
 	if removedCount > 0 {
-		log.Printf("[Backup] Cleaned up %d old backup(s) (older than %d days)", removedCount, keepDays)
+		if Logger != nil {
+			Logger.Infof("[Backup] Cleaned up %d old backup(s) (older than %d days)", removedCount, keepDays)
+		}
 	}
 
 	return nil

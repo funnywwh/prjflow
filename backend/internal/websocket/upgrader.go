@@ -1,8 +1,9 @@
 package websocket
 
 import (
-	"log"
 	"net/http"
+
+	"project-management/internal/utils"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -28,7 +29,9 @@ func HandleWebSocket(c *gin.Context) {
 	// 升级HTTP连接为WebSocket
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		log.Printf("WebSocket升级失败: %v", err)
+		if utils.Logger != nil {
+			utils.Logger.Errorf("WebSocket升级失败: %v", err)
+		}
 		return
 	}
 

@@ -28,6 +28,7 @@ import (
 	"project-management/internal/websocket"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 )
 
 //go:embed frontend-dist
@@ -117,7 +118,11 @@ func setupExternalFrontend(r *gin.Engine) {
 
 	// 如果找到了前端 dist 目录，配置静态文件服务
 	if frontendDistPath != "" {
-		log.Printf("使用外部前端静态文件目录: %s", frontendDistPath)
+		if utils.Logger != nil {
+			utils.Logger.Infof("使用外部前端静态文件目录: %s", frontendDistPath)
+		} else {
+			log.Printf("使用外部前端静态文件目录: %s", frontendDistPath)
+		}
 		// 提供静态资源文件（如 JS、CSS、图片等）
 		r.Static("/assets", filepath.Join(frontendDistPath, "assets"))
 		r.StaticFile("/vite.svg", filepath.Join(frontendDistPath, "vite.svg"))
@@ -138,7 +143,11 @@ func setupExternalFrontend(r *gin.Engine) {
 			c.File(filepath.Join(frontendDistPath, "index.html"))
 		})
 	} else {
-		log.Println("警告: 未找到前端 dist 目录，静态文件服务未启用")
+		if utils.Logger != nil {
+			utils.Logger.Warn("警告: 未找到前端 dist 目录，静态文件服务未启用")
+		} else {
+			log.Println("警告: 未找到前端 dist 目录，静态文件服务未启用")
+		}
 		// 即使没有前端文件，也要处理 API 404
 		r.NoRoute(func(c *gin.Context) {
 			path := c.Request.URL.Path
@@ -646,17 +655,35 @@ func main() {
 	// 设置Gin模式
 	gin.SetMode(config.AppConfig.Server.Mode)
 
-	// 初始化数据库
+	// 初始化数据库（先初始化数据库，因为日志级别配置存储在数据库中）
 	db, err := utils.InitDB()
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
+	// 初始化日志系统（在数据库初始化后，这样可以从数据库读取日志级别配置）
+	if err := utils.InitLogger(db); err != nil {
+		// 日志初始化失败，回退到标准库log，但不中断启动
+		log.Printf("Warning: Failed to initialize logger: %v, using standard log", err)
+	} else {
+		// 配置Gin框架的日志输出
+		gin.DefaultWriter = utils.Logger.Writer()
+		gin.DefaultErrorWriter = utils.Logger.WriterLevel(logrus.ErrorLevel)
+	}
+
 	// 自动迁移数据库
 	if err := utils.AutoMigrate(db); err != nil {
-		log.Fatalf("Failed to migrate database: %v", err)
+		if utils.Logger != nil {
+			utils.Logger.Fatalf("Failed to migrate database: %v", err)
+		} else {
+			log.Fatalf("Failed to migrate database: %v", err)
+		}
 	}
-	log.Println("Database migrated successfully")
+	if utils.Logger != nil {
+		utils.Logger.Info("Database migrated successfully")
+	} else {
+		log.Println("Database migrated successfully")
+	}
 
 	// 创建Gin引擎
 	r := gin.New()
@@ -1035,6 +1062,11 @@ func main() {
 		systemGroup.GET("/backup-config", middleware.RequirePermissionOptional(db, "system:settings"), systemHandler.GetBackupConfig)
 		systemGroup.POST("/backup-config", middleware.RequirePermissionOptional(db, "system:settings"), systemHandler.SaveBackupConfig)
 		systemGroup.POST("/backup/trigger", middleware.RequirePermissionOptional(db, "system:settings"), systemHandler.TriggerBackup)
+		// 日志管理路由
+		systemGroup.GET("/log-level", systemHandler.GetLogLevel)
+		systemGroup.POST("/log-level", middleware.RequirePermissionOptional(db, "log:settings"), systemHandler.SetLogLevel)
+		systemGroup.GET("/log-files", middleware.RequirePermissionOptional(db, "log:settings"), systemHandler.GetLogFiles)
+		systemGroup.GET("/log-files/:filename", middleware.RequirePermissionOptional(db, "log:settings"), systemHandler.DownloadLogFile)
 	}
 
 	// 静态文件服务（前端构建后的文件，使用 embed 嵌入）
@@ -1044,15 +1076,27 @@ func main() {
 	// 使用 Sub 获取 frontend-dist 子目录
 	distFS, err := fs.Sub(frontendFS, "frontend-dist")
 	if err != nil {
-		log.Printf("警告: 无法获取前端文件系统子目录: %v，尝试使用外部文件", err)
+		if utils.Logger != nil {
+			utils.Logger.Warnf("警告: 无法获取前端文件系统子目录: %v，尝试使用外部文件", err)
+		} else {
+			log.Printf("警告: 无法获取前端文件系统子目录: %v，尝试使用外部文件", err)
+		}
 		setupExternalFrontend(r)
 	} else {
 		// 检查是否有文件（至少应该有 index.html）
 		if _, err := fs.Stat(distFS, "index.html"); err != nil {
-			log.Printf("警告: 嵌入的前端文件系统中未找到 index.html: %v，尝试使用外部文件", err)
+			if utils.Logger != nil {
+				utils.Logger.Warnf("警告: 嵌入的前端文件系统中未找到 index.html: %v，尝试使用外部文件", err)
+			} else {
+				log.Printf("警告: 嵌入的前端文件系统中未找到 index.html: %v，尝试使用外部文件", err)
+			}
 			setupExternalFrontend(r)
 		} else {
-			log.Println("使用嵌入的前端静态文件（embed）")
+			if utils.Logger != nil {
+				utils.Logger.Info("使用嵌入的前端静态文件（embed）")
+			} else {
+				log.Println("使用嵌入的前端静态文件（embed）")
+			}
 
 			// 提供静态资源文件（如 JS、CSS、图片等）
 			// 使用自定义处理器确保正确的 MIME 类型
@@ -1138,13 +1182,25 @@ func main() {
 	// 启动备份定时任务
 	scheduler := utils.GetBackupScheduler(db)
 	scheduler.Start()
-	log.Println("Backup scheduler started")
+	if utils.Logger != nil {
+		utils.Logger.Info("Backup scheduler started")
+	} else {
+		log.Println("Backup scheduler started")
+	}
 
 	// 启动服务器（异步）
 	go func() {
-		log.Printf("Server starting on port %d", config.AppConfig.Server.Port)
+		if utils.Logger != nil {
+			utils.Logger.Infof("Server starting on port %d", config.AppConfig.Server.Port)
+		} else {
+			log.Printf("Server starting on port %d", config.AppConfig.Server.Port)
+		}
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Failed to start server: %v", err)
+			if utils.Logger != nil {
+				utils.Logger.Fatalf("Failed to start server: %v", err)
+			} else {
+				log.Fatalf("Failed to start server: %v", err)
+			}
 		}
 	}()
 
@@ -1153,15 +1209,27 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("Shutting down server...")
+	if utils.Logger != nil {
+		utils.Logger.Info("Shutting down server...")
+	} else {
+		log.Println("Shutting down server...")
+	}
 
 	// 优雅关闭
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatalf("Server forced to shutdown: %v", err)
+		if utils.Logger != nil {
+			utils.Logger.Fatalf("Server forced to shutdown: %v", err)
+		} else {
+			log.Fatalf("Server forced to shutdown: %v", err)
+		}
 	}
 
-	log.Println("Server exited")
+	if utils.Logger != nil {
+		utils.Logger.Info("Server exited")
+	} else {
+		log.Println("Server exited")
+	}
 }

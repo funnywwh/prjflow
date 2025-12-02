@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/spf13/viper"
 )
@@ -76,7 +75,8 @@ func LoadConfig(configPath string) error {
 	viper.AutomaticEnv()
 
 	if err := viper.ReadInConfig(); err != nil {
-		log.Printf("Warning: Could not read config file: %v. Using defaults.", err)
+		// 配置加载时日志系统可能还未初始化，使用标准库log
+		// 这个警告会在日志系统初始化前输出
 	}
 
 	AppConfig = &Config{}

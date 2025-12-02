@@ -117,6 +117,12 @@ export const menuConfig: MenuItem[] = [
         title: '备份设置',
         path: '/system/backup-settings',
         permission: 'system:settings'
+      },
+      {
+        key: 'log-settings',
+        title: '日志设置',
+        path: '/system/log-settings',
+        permission: 'log:settings'
       }
     ]
   }

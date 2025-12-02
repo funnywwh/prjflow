@@ -2,8 +2,9 @@ package websocket
 
 import (
 	"encoding/json"
-	"log"
 	"sync"
+
+	"project-management/internal/utils"
 
 	"github.com/gorilla/websocket"
 )
@@ -64,7 +65,9 @@ func (h *Hub) Register(ticket string, conn *websocket.Conn) *Connection {
 	go connection.writePump()
 	go connection.readPump()
 
-	log.Printf("WebSocket连接已注册: ticket=%s", ticket)
+	if utils.Logger != nil {
+		utils.Logger.Infof("WebSocket连接已注册: ticket=%s", ticket)
+	}
 	return connection
 }
 
@@ -76,7 +79,9 @@ func (h *Hub) Unregister(ticket string) {
 	if conn, ok := h.connections[ticket]; ok {
 		close(conn.send)
 		delete(h.connections, ticket)
-		log.Printf("WebSocket连接已注销: ticket=%s", ticket)
+		if utils.Logger != nil {
+			utils.Logger.Infof("WebSocket连接已注销: ticket=%s", ticket)
+		}
 	}
 }
 
@@ -130,7 +135,9 @@ func (c *Connection) readPump() {
 		_, _, err := c.ws.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("WebSocket错误: %v", err)
+				if utils.Logger != nil {
+					utils.Logger.Errorf("WebSocket错误: %v", err)
+				}
 			}
 			break
 		}
@@ -151,7 +158,9 @@ func (c *Connection) writePump() {
 			}
 
 			if err := c.ws.WriteMessage(websocket.TextMessage, message); err != nil {
-				log.Printf("WebSocket写入错误: %v", err)
+				if utils.Logger != nil {
+					utils.Logger.Errorf("WebSocket写入错误: %v", err)
+				}
 				return
 			}
 		}

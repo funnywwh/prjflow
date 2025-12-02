@@ -188,6 +188,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/system/log-settings',
+    name: 'LogSettings',
+    component: () => import('../views/system/LogSettings.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/reports/daily/create',
     name: 'CreateDailyReport',
     component: () => import('../views/report/Report.vue'),

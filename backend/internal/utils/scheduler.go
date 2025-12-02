@@ -2,7 +2,6 @@ package utils
 
 import (
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
@@ -49,12 +48,16 @@ func (s *BackupScheduler) Start() {
 	// 读取配置并计算下次执行时间
 	nextTime := s.calculateNextBackupTime()
 	if nextTime.IsZero() {
-		log.Printf("[Scheduler] Auto backup is disabled or not configured")
+		if Logger != nil {
+			Logger.Info("[Scheduler] Auto backup is disabled or not configured")
+		}
 		return
 	}
 
 	duration := time.Until(nextTime)
-	log.Printf("[Scheduler] Next backup scheduled at: %s (in %v)", nextTime.Format("2006-01-02 15:04:05"), duration)
+	if Logger != nil {
+		Logger.Infof("[Scheduler] Next backup scheduled at: %s (in %v)", nextTime.Format("2006-01-02 15:04:05"), duration)
+	}
 
 	// 设置定时器
 	s.timer = time.AfterFunc(duration, func() {
@@ -72,14 +75,18 @@ func (s *BackupScheduler) Stop() {
 	if s.timer != nil {
 		s.timer.Stop()
 		s.timer = nil
-		log.Printf("[Scheduler] Backup scheduler stopped")
+		if Logger != nil {
+			Logger.Info("[Scheduler] Backup scheduler stopped")
+		}
 	}
 	// 注意：不关闭 stopChan，因为 Reload() 可能需要重新使用
 }
 
 // Reload 重新加载配置并重启定时任务
 func (s *BackupScheduler) Reload() {
-	log.Printf("[Scheduler] Reloading backup scheduler configuration")
+	if Logger != nil {
+		Logger.Info("[Scheduler] Reloading backup scheduler configuration")
+	}
 	s.mu.Lock()
 	// 停止现有定时器
 	if s.timer != nil {
@@ -126,7 +133,9 @@ func (s *BackupScheduler) calculateNextBackupTime() time.Time {
 	// 解析备份时间 (格式: HH:MM)
 	backupTime, err := time.Parse("15:04", timeConfig.Value)
 	if err != nil {
-		log.Printf("[Scheduler] Invalid backup time format: %s", timeConfig.Value)
+		if Logger != nil {
+			Logger.Warnf("[Scheduler] Invalid backup time format: %s", timeConfig.Value)
+		}
 		return time.Time{}
 	}
 
@@ -162,7 +171,9 @@ func (s *BackupScheduler) executeBackup() {
 	backupMutex.Lock()
 	if isBackingUp {
 		backupMutex.Unlock()
-		log.Printf("[Scheduler] Backup is already in progress, skipping")
+		if Logger != nil {
+			Logger.Info("[Scheduler] Backup is already in progress, skipping")
+		}
 		return
 	}
 	isBackingUp = true
@@ -177,27 +188,37 @@ func (s *BackupScheduler) executeBackup() {
 	// 再次检查配置（可能在执行过程中被禁用）
 	var enabledConfig model.SystemConfig
 	if err := s.db.Where("key = ?", "backup_enabled").First(&enabledConfig).Error; err != nil {
-		log.Printf("[Scheduler] Failed to read backup_enabled config: %v", err)
+		if Logger != nil {
+			Logger.Warnf("[Scheduler] Failed to read backup_enabled config: %v", err)
+		}
 		return
 	}
 
 	if enabledConfig.Value != "true" {
-		log.Printf("[Scheduler] Auto backup is disabled, skipping")
+		if Logger != nil {
+			Logger.Info("[Scheduler] Auto backup is disabled, skipping")
+		}
 		return
 	}
 
 	backupStartTime := time.Now()
-	log.Printf("[Scheduler] Starting scheduled backup at %s...", backupStartTime.Format("2006-01-02 15:04:05"))
+	if Logger != nil {
+		Logger.Infof("[Scheduler] Starting scheduled backup at %s...", backupStartTime.Format("2006-01-02 15:04:05"))
+	}
 	
 	// 执行备份
 	if err := BackupDatabase(s.db); err != nil {
 		backupDuration := time.Since(backupStartTime)
-		log.Printf("[Scheduler] Scheduled backup failed after %v: %v", backupDuration, err)
+		if Logger != nil {
+			Logger.Errorf("[Scheduler] Scheduled backup failed after %v: %v", backupDuration, err)
+		}
 		return
 	}
 	
 	backupDuration := time.Since(backupStartTime)
-	log.Printf("[Scheduler] Scheduled backup completed in %v", backupDuration)
+	if Logger != nil {
+		Logger.Infof("[Scheduler] Scheduled backup completed in %v", backupDuration)
+	}
 
 	// 更新上次备份日期
 	today := time.Now().Format("2006-01-02")
@@ -210,10 +231,14 @@ func (s *BackupScheduler) executeBackup() {
 	if err := s.db.Where("key = ?", "backup_last_date").
 		Assign(model.SystemConfig{Value: today, Type: "string"}).
 		FirstOrCreate(&lastDateConfig).Error; err != nil {
-		log.Printf("[Scheduler] Failed to update backup_last_date: %v", err)
+		if Logger != nil {
+			Logger.Warnf("[Scheduler] Failed to update backup_last_date: %v", err)
+		}
 	}
 
-	log.Printf("[Scheduler] Scheduled backup completed successfully")
+	if Logger != nil {
+		Logger.Info("[Scheduler] Scheduled backup completed successfully")
+	}
 }
 
 // TriggerBackup 手动触发备份（带并发控制）

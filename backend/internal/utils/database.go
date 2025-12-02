@@ -3,9 +3,11 @@ package utils
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	_ "modernc.org/sqlite" // 纯Go SQLite驱动，支持静态编译，必须在 gorm.io/driver/sqlite 之前导入
 	
+	"github.com/sirupsen/logrus"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -13,6 +15,20 @@ import (
 
 	"project-management/internal/config"
 )
+
+// gormLogrusWriter 实现GORM的logger.Writer接口，将GORM日志输出到logrus
+type gormLogrusWriter struct {
+	logger *logrus.Logger
+}
+
+// Printf 实现logger.Writer接口
+func (w *gormLogrusWriter) Printf(format string, args ...interface{}) {
+	if w.logger != nil {
+		// 将GORM的日志格式转换为logrus日志
+		message := fmt.Sprintf(format, args...)
+		w.logger.Info(message)
+	}
+}
 
 func InitDB() (*gorm.DB, error) {
 	var dialector gorm.Dialector
@@ -43,8 +59,25 @@ func InitDB() (*gorm.DB, error) {
 		return nil, fmt.Errorf("unsupported database type: %s", config.AppConfig.Database.Type)
 	}
 
+	// 配置GORM logger
+	var gormLogger logger.Interface
+	if Logger != nil {
+		// 创建logrus适配器，实现GORM的logger.Writer接口
+		gormWriter := &gormLogrusWriter{logger: Logger}
+		gormLogger = logger.New(
+			gormWriter,
+			logger.Config{
+				SlowThreshold: time.Second,
+				LogLevel:      logger.Info,
+				Colorful:      false,
+			},
+		)
+	} else {
+		gormLogger = logger.Default.LogMode(logger.Info)
+	}
+
 	db, err := gorm.Open(dialector, &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		Logger: gormLogger,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect database: %w", err)

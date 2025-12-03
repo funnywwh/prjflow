@@ -353,7 +353,21 @@ func (h *BugHandler) CreateBug(c *gin.Context) {
 	// 记录创建操作
 	dbValue, _ := c.Get("db")
 	if db, ok := dbValue.(*gorm.DB); ok {
-		utils.RecordAction(db, "bug", bug.ID, "created", userID.(uint), "", nil)
+		actionID, _ := utils.RecordAction(db, "bug", bug.ID, "created", userID.(uint), "", nil)
+		// 如果创建时就有分配人，记录到历史记录中
+		if len(bug.Assignees) > 0 {
+			var assigneeIDs []uint
+			for _, assignee := range bug.Assignees {
+				assigneeIDs = append(assigneeIDs, assignee.ID)
+			}
+			assigneeIDsStr := formatUintSlice(assigneeIDs)
+			if assigneeIDsStr != "" {
+				changes := []utils.HistoryChange{
+					{Field: "assignee_ids", Old: "", New: assigneeIDsStr},
+				}
+				utils.RecordHistory(db, actionID, changes)
+			}
+		}
 	}
 
 	utils.Success(c, bug)
@@ -763,34 +777,32 @@ func (h *BugHandler) UpdateBugStatus(c *gin.Context) {
 		bug.Confirmed = true
 	}
 
-	// 禅道逻辑：当状态变为resolved且当前没有分配人时，自动指派
-	// 优先指回给最后一个被分配的用户（测试员），如果没有则指派给创建者
+	// 禅道逻辑：当状态变为resolved时，自动指派给创建者
+	var autoAssigned bool
+	var autoAssignedUserIDs []uint
+	var oldAssigneeIDsForHistory []uint
 	if req.Status == "resolved" && currentStatus != "resolved" {
 		// 加载当前分配人信息
 		h.db.Preload("Assignees").First(&bug, bug.ID)
 		
-		// 如果当前没有分配人，自动指派
-		if len(bug.Assignees) == 0 {
-			// 查找最后一个被分配的用户ID列表
-			lastAssignedUserIDs := h.getLastAssignedUserIDs(bug.ID)
-			
-			var assigneeIDs []uint
-			if len(lastAssignedUserIDs) > 0 {
-				// 找到了最后一个被分配的用户，使用这些用户
-				assigneeIDs = lastAssignedUserIDs
-			} else {
-				// 没找到，指派给创建者
-				assigneeIDs = []uint{bug.CreatorID}
-			}
-			
-			// 验证用户是否存在
-			var assignees []model.User
-			if err := h.db.Where("id IN ?", assigneeIDs).Find(&assignees).Error; err == nil && len(assignees) > 0 {
-				// 自动指派
-				if err := h.db.Model(&bug).Association("Assignees").Replace(assignees); err == nil {
-					// 重新加载分配人信息
-					h.db.Preload("Assignees").First(&bug, bug.ID)
-				}
+		// 获取旧的分配人ID列表（用于记录历史）
+		for _, assignee := range bug.Assignees {
+			oldAssigneeIDsForHistory = append(oldAssigneeIDsForHistory, assignee.ID)
+		}
+		
+		// 直接指派给创建者
+		assigneeIDs := []uint{bug.CreatorID}
+		
+		// 验证创建者是否存在
+		var assignees []model.User
+		if err := h.db.Where("id IN ?", assigneeIDs).Find(&assignees).Error; err == nil && len(assignees) > 0 {
+			// 自动指派
+			if err := h.db.Model(&bug).Association("Assignees").Replace(assignees); err == nil {
+				// 记录自动指派信息，用于后续记录历史
+				autoAssigned = true
+				autoAssignedUserIDs = assigneeIDs
+				// 重新加载分配人信息
+				h.db.Preload("Assignees").First(&bug, bug.ID)
 			}
 		}
 	}
@@ -916,6 +928,29 @@ func (h *BugHandler) UpdateBugStatus(c *gin.Context) {
 			actionID, _ := utils.RecordAction(db, "bug", bug.ID, actionType, userID.(uint), comment, extra)
 			// 记录字段变更
 			changes := utils.CompareObjects(oldBug, bug)
+			// 如果自动指派了，手动添加assignee_ids的变更记录（因为CompareObjects不会比较关联字段）
+			if autoAssigned && len(autoAssignedUserIDs) > 0 {
+				// 检查是否已经有assignee_ids的变更记录
+				hasAssigneeChange := false
+				for _, change := range changes {
+					if change.Field == "assignee_ids" {
+						hasAssigneeChange = true
+						break
+					}
+				}
+				// 如果没有，添加自动指派的变更记录
+				if !hasAssigneeChange {
+					oldIDsStr := formatUintSlice(oldAssigneeIDsForHistory)
+					newIDsStr := formatUintSlice(autoAssignedUserIDs)
+					if oldIDsStr != newIDsStr {
+						changes = append(changes, utils.HistoryChange{
+							Field: "assignee_ids",
+							Old:   oldIDsStr,
+							New:   newIDsStr,
+						})
+					}
+				}
+			}
 			if len(changes) > 0 {
 				utils.RecordHistory(db, actionID, changes)
 			}
@@ -1085,33 +1120,90 @@ func parseUintSlice(idsStr string) []uint {
 	return ids
 }
 
-// getLastAssignedUserIDs 从历史记录中查找最后一个被分配的用户ID列表
+// getLastAssignedUserIDs 从历史记录中查找最后一个被分配的用户ID列表（已废弃，使用getLastAssignedTesterIDs）
 func (h *BugHandler) getLastAssignedUserIDs(bugID uint) []uint {
-	// 查询该bug的所有操作记录
-	var actions []model.Action
-	if err := h.db.Where("object_type = ? AND object_id = ?", "bug", bugID).
-		Order("date DESC").
-		Find(&actions).Error; err != nil {
+	// 直接查询历史记录，查找assignee_ids字段的变更，按时间倒序
+	// 使用JOIN查询，确保按操作时间排序
+	var histories []model.History
+	if err := h.db.Table("histories").
+		Select("histories.*").
+		Joins("JOIN actions ON actions.id = histories.action_id").
+		Where("actions.object_type = ? AND actions.object_id = ? AND histories.field = ? AND histories.new != '' AND histories.new IS NOT NULL", "bug", bugID, "assignee_ids").
+		Order("actions.date DESC, actions.id DESC").
+		Limit(1).
+		Find(&histories).Error; err != nil {
 		return nil
 	}
 
-	// 遍历操作记录，查找assignee_ids字段的变更
-	for _, action := range actions {
-		var history model.History
-		if err := h.db.Where("action_id = ? AND field = ? AND new != ''", action.ID, "assignee_ids").
-			First(&history).Error; err == nil {
-			// 找到第一个非空的assignee_ids变更记录
-			userIDs := parseUintSlice(history.New)
-			if len(userIDs) > 0 {
-				// 验证这些用户是否还存在
-				var validUsers []model.User
-				if err := h.db.Where("id IN ?", userIDs).Find(&validUsers).Error; err == nil && len(validUsers) > 0 {
-					// 返回有效的用户ID列表
-					validIDs := make([]uint, 0, len(validUsers))
-					for _, user := range validUsers {
-						validIDs = append(validIDs, user.ID)
+	// 如果找到了历史记录
+	if len(histories) > 0 {
+		history := histories[0]
+		userIDs := parseUintSlice(history.New)
+		if len(userIDs) > 0 {
+			// 验证这些用户是否还存在
+			var validUsers []model.User
+			if err := h.db.Where("id IN ?", userIDs).Find(&validUsers).Error; err == nil && len(validUsers) > 0 {
+				// 返回有效的用户ID列表
+				validIDs := make([]uint, 0, len(validUsers))
+				for _, user := range validUsers {
+					validIDs = append(validIDs, user.ID)
+				}
+				return validIDs
+			}
+		}
+	}
+
+	return nil
+}
+
+// getLastAssignedTesterIDs 从历史记录中查找最后一个被分配的测试工程师ID列表
+// 排除当前用户（解决Bug的工程师）
+func (h *BugHandler) getLastAssignedTesterIDs(bugID uint, excludeUserID uint) []uint {
+	// 直接查询历史记录，查找assignee_ids字段的变更，按时间倒序
+	// 使用JOIN查询，确保按操作时间排序
+	var histories []model.History
+	if err := h.db.Table("histories").
+		Select("histories.*").
+		Joins("JOIN actions ON actions.id = histories.action_id").
+		Where("actions.object_type = ? AND actions.object_id = ? AND histories.field = ? AND histories.new != '' AND histories.new IS NOT NULL", "bug", bugID, "assignee_ids").
+		Order("actions.date DESC, actions.id DESC").
+		Find(&histories).Error; err != nil {
+		return nil
+	}
+
+	// 遍历历史记录，查找测试工程师
+	for _, history := range histories {
+		userIDs := parseUintSlice(history.New)
+		if len(userIDs) > 0 {
+			// 排除当前用户（解决Bug的工程师）
+			filteredUserIDs := make([]uint, 0, len(userIDs))
+			for _, id := range userIDs {
+				if id != excludeUserID {
+					filteredUserIDs = append(filteredUserIDs, id)
+				}
+			}
+			
+			if len(filteredUserIDs) == 0 {
+				continue
+			}
+			
+			// 查询这些用户，并检查是否有测试工程师角色
+			var users []model.User
+			if err := h.db.Preload("Roles").Where("id IN ?", filteredUserIDs).Find(&users).Error; err == nil && len(users) > 0 {
+				// 查找测试工程师（角色代码为 "tester"）
+				testerIDs := make([]uint, 0)
+				for _, user := range users {
+					for _, role := range user.Roles {
+						if role.Code == "tester" {
+							testerIDs = append(testerIDs, user.ID)
+							break
+						}
 					}
-					return validIDs
+				}
+				
+				// 如果找到了测试工程师，返回他们的ID列表
+				if len(testerIDs) > 0 {
+					return testerIDs
 				}
 			}
 		}

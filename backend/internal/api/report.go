@@ -69,8 +69,21 @@ func (h *ReportHandler) summarizeWorkContent(userID uint, startDate, endDate tim
 		createdBugs = []model.Bug{}
 	}
 
-	// 如果既没有资源分配记录，也没有创建的bug，返回空内容
-	if len(allocations) == 0 && len(createdBugs) == 0 {
+	// 查询用户在指定日期范围内完成的任务（即使没有资源分配记录）
+	// 使用时间范围比较：updated_at >= startDateOnly AND updated_at < endDateExclusive AND status = 'done'
+	// 与资源分配的日期范围逻辑保持一致
+	var completedTasks []model.Task
+	taskErr := h.db.Where("assignee_id = ? AND status = ?", userID, "done").
+		Where("updated_at >= ? AND updated_at < ?", startDateOnly, endDateExclusive).
+		Preload("Project").
+		Find(&completedTasks).Error
+	if taskErr != nil {
+		// 查询失败不影响其他汇总，继续处理
+		completedTasks = []model.Task{}
+	}
+
+	// 如果既没有资源分配记录，也没有创建的bug，也没有完成的任务，返回空内容
+	if len(allocations) == 0 && len(createdBugs) == 0 && len(completedTasks) == 0 {
 		return "暂无工作记录", 0
 	}
 
@@ -142,6 +155,41 @@ func (h *ReportHandler) summarizeWorkContent(userID uint, startDate, endDate tim
 			ProjectName: projectName,
 			Hours:       0, // 创建的bug如果没有资源分配，工时为0
 		})
+	}
+
+	// 添加用户完成的任务（去重，避免与资源分配中的任务重复）
+	taskIDMap := make(map[uint]bool)
+	for _, task := range tasks {
+		taskIDMap[task.ID] = true
+	}
+
+	for _, task := range completedTasks {
+		// 如果这个任务已经在资源分配中，跳过（避免重复）
+		if taskIDMap[task.ID] {
+			continue
+		}
+
+		projectName := "未知项目"
+		if task.Project.ID > 0 {
+			projectName = task.Project.Name
+		}
+
+		// 如果任务有实际工时，使用实际工时；否则使用0
+		hours := 0.0
+		if task.ActualHours != nil {
+			hours = *task.ActualHours
+		}
+
+		tasks = append(tasks, WorkItem{
+			ID:          task.ID,
+			Title:       task.Title,
+			ProjectName: projectName,
+			Hours:       hours,
+		})
+		// 如果任务有实际工时，也需要加到总工时中
+		if hours > 0 {
+			totalHours += hours
+		}
 	}
 
 	// 生成Markdown格式的工作内容摘要

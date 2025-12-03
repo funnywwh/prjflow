@@ -115,7 +115,7 @@ redirect_uri=https://project.smartxy.com.cn/auth/wechat/callback
 
 ```
 https://open.weixin.qq.com/connect/oauth2/authorize?
-  appid=wx7f50cff93a1043db&
+  appid=你的应用AppID&
   redirect_uri=https%3A%2F%2Fproject.smartxy.com.cn%2Fauth%2Fwechat%2Fcallback&
   response_type=code&
   scope=snsapi_userinfo&

@@ -25,7 +25,7 @@ export interface VersionListResponse {
 export interface CreateVersionRequest {
   version_number: string
   release_notes?: string
-  status?: 'draft' | 'released' | 'archived'
+  status?: 'wait' | 'normal' | 'fail' | 'terminate'
   project_id: number
   release_date?: string
   requirement_ids?: number[]
@@ -35,7 +35,7 @@ export interface CreateVersionRequest {
 export interface UpdateVersionRequest {
   version_number?: string
   release_notes?: string
-  status?: 'draft' | 'released' | 'archived'
+  status?: 'wait' | 'normal' | 'fail' | 'terminate'
   release_date?: string
   requirement_ids?: number[]
   bug_ids?: number[]

@@ -479,7 +479,7 @@ const shouldKeepDetailOpen = ref(false)
 const formData = reactive<Omit<CreateVersionRequest, 'release_date'> & { id?: number; release_date?: Dayjs | undefined }>({
   version_number: '',
   release_notes: '',
-  status: 'draft',
+  status: 'wait',
   project_id: 0,
   release_date: undefined,
   requirement_ids: [],
@@ -581,7 +581,7 @@ const handleCreate = () => {
   formData.id = undefined
   formData.version_number = ''
   formData.release_notes = ''
-  formData.status = 'draft'
+  formData.status = 'wait'
   // 从 localStorage 恢复最后选择的项目
   const lastProjectId = getLastSelected<number>('last_selected_version_project_form')
   formData.project_id = lastProjectId || 0
@@ -598,14 +598,8 @@ const handleEdit = async (record: Version) => {
   formData.id = record.id
   formData.version_number = record.version_number
   formData.release_notes = record.release_notes || ''
-  // 转换状态值：wait -> draft, normal -> released, fail/terminate -> archived
-  const statusMap: Record<string, 'draft' | 'released' | 'archived'> = {
-    wait: 'draft',
-    normal: 'released',
-    fail: 'archived',
-    terminate: 'archived'
-  }
-  formData.status = statusMap[record.status] || 'draft'
+  // 直接使用后端状态值，不进行转换
+  formData.status = record.status || 'wait'
   formData.project_id = record.project_id
   if (record.release_date) {
     formData.release_date = dayjs(record.release_date)

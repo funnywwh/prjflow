@@ -185,9 +185,10 @@
         </a-form-item>
         <a-form-item label="状态" name="status">
           <a-select v-model:value="editFormData.status">
-            <a-select-option value="draft">草稿</a-select-option>
-            <a-select-option value="released">已发布</a-select-option>
-            <a-select-option value="archived">已归档</a-select-option>
+            <a-select-option value="wait">未开始</a-select-option>
+            <a-select-option value="normal">已发布</a-select-option>
+            <a-select-option value="fail">发布失败</a-select-option>
+            <a-select-option value="terminate">停止维护</a-select-option>
           </a-select>
         </a-form-item>
         <a-form-item label="发布日期" name="release_date">
@@ -290,7 +291,7 @@ const editFormData = reactive<Omit<UpdateVersionRequest, 'release_date'> & {
 }>({
   version_number: '',
   release_notes: '',
-  status: 'draft',
+  status: 'wait',
   release_date: undefined,
   requirement_ids: [],
   bug_ids: [],
@@ -327,14 +328,8 @@ const handleEdit = async () => {
   
   editFormData.version_number = version.value.version_number
   editFormData.release_notes = version.value.release_notes || ''
-  // 转换状态值：wait -> draft, normal -> released, fail/terminate -> archived
-  const statusMap: Record<string, 'draft' | 'released' | 'archived'> = {
-    wait: 'draft',
-    normal: 'released',
-    fail: 'archived',
-    terminate: 'archived'
-  }
-  editFormData.status = statusMap[version.value.status] || 'draft'
+  // 直接使用后端状态值，不进行转换
+  editFormData.status = version.value.status || 'wait'
   editFormData.project_id = version.value.project_id
   editFormData.release_date = version.value.release_date ? dayjs(version.value.release_date) : undefined
   editFormData.requirement_ids = version.value.requirements?.map((r: any) => r.id) || []

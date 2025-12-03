@@ -62,6 +62,7 @@
                   :pagination="dailyPagination"
                   row-key="id"
                   @change="handleDailyTableChange"
+                  @row-click="(record: DailyReport) => handleDailyView(record)"
                 >
                   <template #bodyCell="{ column, record }">
                     <template v-if="column.key === 'status'">
@@ -96,15 +97,15 @@
                       {{ formatDateTime(record.created_at) }}
                     </template>
                     <template v-else-if="column.key === 'action'">
-                      <a-space>
-                        <a-button type="link" size="small" @click="handleDailyEdit(record)">
+                      <a-space @click.stop>
+                        <a-button type="link" size="small" @click.stop="handleDailyEdit(record)">
                           编辑
                         </a-button>
                         <a-button
                           v-if="record.status === 'draft'"
                           type="link"
                           size="small"
-                          @click="handleDailySubmit(record)"
+                          @click.stop="handleDailySubmit(record)"
                         >
                           提交
                         </a-button>
@@ -112,7 +113,7 @@
                           title="确定要删除这个日报吗？"
                           @confirm="handleDailyDelete(record.id)"
                         >
-                          <a-button type="link" size="small" danger>删除</a-button>
+                          <a-button type="link" size="small" danger @click.stop>删除</a-button>
                         </a-popconfirm>
                       </a-space>
                     </template>
@@ -169,6 +170,7 @@
                   :pagination="weeklyPagination"
                   row-key="id"
                   @change="handleWeeklyTableChange"
+                  @row-click="(record: WeeklyReport) => handleWeeklyView(record)"
                 >
                   <template #bodyCell="{ column, record }">
                     <template v-if="column.key === 'status'">
@@ -211,15 +213,15 @@
                       {{ formatDateTime(record.created_at) }}
                     </template>
                     <template v-else-if="column.key === 'action'">
-                      <a-space>
-                        <a-button type="link" size="small" @click="handleWeeklyEdit(record)">
+                      <a-space @click.stop>
+                        <a-button type="link" size="small" @click.stop="handleWeeklyEdit(record)">
                           编辑
                         </a-button>
                         <a-button
                           v-if="record.status === 'draft'"
                           type="link"
                           size="small"
-                          @click="handleWeeklySubmit(record)"
+                          @click.stop="handleWeeklySubmit(record)"
                         >
                           提交
                         </a-button>
@@ -227,7 +229,7 @@
                           title="确定要删除这个周报吗？"
                           @confirm="handleWeeklyDelete(record.id)"
                         >
-                          <a-button type="link" size="small" danger>删除</a-button>
+                          <a-button type="link" size="small" danger @click.stop>删除</a-button>
                         </a-popconfirm>
                       </a-space>
                     </template>
@@ -654,6 +656,145 @@
         </a-space>
       </template>
     </a-modal>
+
+    <!-- 日报详情弹窗 -->
+    <a-modal
+      :mask-closable="true"
+      v-model:open="dailyDetailModalVisible"
+      :title="dailyDetailData ? `日报详情 - ${formatDate(dailyDetailData.date)}` : '日报详情'"
+      :width="900"
+      :footer="null"
+      @cancel="handleDailyDetailCancel"
+    >
+      <a-spin :spinning="dailyDetailLoading" v-if="dailyDetailData">
+        <a-descriptions :column="1" bordered>
+          <a-descriptions-item label="日期">
+            {{ formatDate(dailyDetailData.date) }}
+          </a-descriptions-item>
+          <a-descriptions-item label="工作内容">
+            <div v-html="renderMarkdown(dailyDetailData.content || '')" style="max-height: 400px; overflow-y: auto; border: 1px solid #d9d9d9; padding: 12px; border-radius: 4px;"></div>
+          </a-descriptions-item>
+          <a-descriptions-item label="状态">
+            <a-tag :color="getStatusColor(dailyDetailData.status)">
+              {{ getStatusText(dailyDetailData.status) }}
+            </a-tag>
+          </a-descriptions-item>
+          <a-descriptions-item label="审批人">
+            <div v-if="dailyDetailData.approvers && dailyDetailData.approvers.length > 0">
+              <a-space size="small" wrap>
+                <span v-for="approver in dailyDetailData.approvers" :key="approver.id">
+                  <a-tag :color="getApproverStatusColor(dailyDetailData, approver.id)">
+                    {{ approver.nickname || approver.username }}: {{ getApproverStatusText(dailyDetailData, approver.id) }}
+                  </a-tag>
+                </span>
+              </a-space>
+            </div>
+            <span v-else>-</span>
+          </a-descriptions-item>
+          <a-descriptions-item label="审批记录" v-if="dailyDetailData.approval_records && dailyDetailData.approval_records.length > 0">
+            <a-list :data-source="dailyDetailData.approval_records" size="small" bordered>
+              <template #renderItem="{ item }">
+                <a-list-item>
+                  <a-list-item-meta>
+                    <template #title>
+                      <span>{{ item.approver?.nickname || item.approver?.username || '未知' }}</span>
+                      <a-tag :color="getApproverStatusColor(dailyDetailData, item.approver_id)" style="margin-left: 8px;">
+                        {{ getApproverStatusText(dailyDetailData, item.approver_id) }}
+                      </a-tag>
+                    </template>
+                    <template #description>
+                      <div v-if="item.comment" style="margin-top: 4px; color: #666;">
+                        <strong>批注：</strong>{{ item.comment }}
+                      </div>
+                      <div style="margin-top: 4px; font-size: 12px; color: #999;">
+                        {{ item.updated_at ? formatDateTime(item.updated_at) : (item.created_at ? formatDateTime(item.created_at) : '') }}
+                      </div>
+                    </template>
+                  </a-list-item-meta>
+                </a-list-item>
+              </template>
+            </a-list>
+          </a-descriptions-item>
+          <a-descriptions-item label="创建时间">
+            {{ formatDateTime(dailyDetailData.created_at) }}
+          </a-descriptions-item>
+          <a-descriptions-item label="更新时间">
+            {{ formatDateTime(dailyDetailData.updated_at) }}
+          </a-descriptions-item>
+        </a-descriptions>
+      </a-spin>
+    </a-modal>
+
+    <!-- 周报详情弹窗 -->
+    <a-modal
+      :mask-closable="true"
+      v-model:open="weeklyDetailModalVisible"
+      :title="weeklyDetailData ? `周报详情 - ${formatDate(weeklyDetailData.week_start)} ~ ${formatDate(weeklyDetailData.week_end)}` : '周报详情'"
+      :width="900"
+      :footer="null"
+      @cancel="handleWeeklyDetailCancel"
+    >
+      <a-spin :spinning="weeklyDetailLoading" v-if="weeklyDetailData">
+        <a-descriptions :column="1" bordered>
+          <a-descriptions-item label="周期">
+            {{ formatDate(weeklyDetailData.week_start) }} 至 {{ formatDate(weeklyDetailData.week_end) }}
+          </a-descriptions-item>
+          <a-descriptions-item label="工作总结">
+            <div v-html="renderMarkdown(weeklyDetailData.summary || '')" style="max-height: 300px; overflow-y: auto; border: 1px solid #d9d9d9; padding: 12px; border-radius: 4px;"></div>
+          </a-descriptions-item>
+          <a-descriptions-item label="下周计划">
+            <div v-html="renderMarkdown(weeklyDetailData.next_week_plan || '')" style="max-height: 300px; overflow-y: auto; border: 1px solid #d9d9d9; padding: 12px; border-radius: 4px;"></div>
+          </a-descriptions-item>
+          <a-descriptions-item label="状态">
+            <a-tag :color="getStatusColor(weeklyDetailData.status)">
+              {{ getStatusText(weeklyDetailData.status) }}
+            </a-tag>
+          </a-descriptions-item>
+          <a-descriptions-item label="审批人">
+            <div v-if="weeklyDetailData.approvers && weeklyDetailData.approvers.length > 0">
+              <a-space size="small" wrap>
+                <span v-for="approver in weeklyDetailData.approvers" :key="approver.id">
+                  <a-tag :color="getApproverStatusColor(weeklyDetailData, approver.id)">
+                    {{ approver.nickname || approver.username }}: {{ getApproverStatusText(weeklyDetailData, approver.id) }}
+                  </a-tag>
+                </span>
+              </a-space>
+            </div>
+            <span v-else>-</span>
+          </a-descriptions-item>
+          <a-descriptions-item label="审批记录" v-if="weeklyDetailData.approval_records && weeklyDetailData.approval_records.length > 0">
+            <a-list :data-source="weeklyDetailData.approval_records" size="small" bordered>
+              <template #renderItem="{ item }">
+                <a-list-item>
+                  <a-list-item-meta>
+                    <template #title>
+                      <span>{{ item.approver?.nickname || item.approver?.username || '未知' }}</span>
+                      <a-tag :color="getApproverStatusColor(weeklyDetailData, item.approver_id)" style="margin-left: 8px;">
+                        {{ getApproverStatusText(weeklyDetailData, item.approver_id) }}
+                      </a-tag>
+                    </template>
+                    <template #description>
+                      <div v-if="item.comment" style="margin-top: 4px; color: #666;">
+                        <strong>批注：</strong>{{ item.comment }}
+                      </div>
+                      <div style="margin-top: 4px; font-size: 12px; color: #999;">
+                        {{ item.updated_at ? formatDateTime(item.updated_at) : (item.created_at ? formatDateTime(item.created_at) : '') }}
+                      </div>
+                    </template>
+                  </a-list-item-meta>
+                </a-list-item>
+              </template>
+            </a-list>
+          </a-descriptions-item>
+          <a-descriptions-item label="创建时间">
+            {{ formatDateTime(weeklyDetailData.created_at) }}
+          </a-descriptions-item>
+          <a-descriptions-item label="更新时间">
+            {{ formatDateTime(weeklyDetailData.updated_at) }}
+          </a-descriptions-item>
+        </a-descriptions>
+      </a-spin>
+    </a-modal>
   </div>
 </template>
 
@@ -1064,6 +1205,30 @@ const cleanBlobUrls = (content: string): string => {
   return content.replace(/!\[([^\]]*)\]\(blob:[^)]+\)/g, '')
 }
 
+// 查看日报详情
+const dailyDetailModalVisible = ref(false)
+const dailyDetailLoading = ref(false)
+const dailyDetailData = ref<DailyReport | null>(null)
+
+const handleDailyView = async (record: DailyReport) => {
+  dailyDetailLoading.value = true
+  dailyDetailModalVisible.value = true
+  try {
+    const fullRecord = await getDailyReport(record.id)
+    dailyDetailData.value = fullRecord
+  } catch (error: any) {
+    message.error(error.message || '加载日报详情失败')
+    dailyDetailModalVisible.value = false
+  } finally {
+    dailyDetailLoading.value = false
+  }
+}
+
+const handleDailyDetailCancel = () => {
+  dailyDetailModalVisible.value = false
+  dailyDetailData.value = null
+}
+
 // 编辑日报
 const handleDailyEdit = (record: DailyReport) => {
   dailyModalTitle.value = '编辑日报'
@@ -1170,6 +1335,30 @@ const handleWeeklyTableChange = (pag: any) => {
   weeklyPagination.current = pag.current
   weeklyPagination.pageSize = pag.pageSize
   loadWeeklyReports()
+}
+
+// 查看周报详情
+const weeklyDetailModalVisible = ref(false)
+const weeklyDetailLoading = ref(false)
+const weeklyDetailData = ref<WeeklyReport | null>(null)
+
+const handleWeeklyView = async (record: WeeklyReport) => {
+  weeklyDetailLoading.value = true
+  weeklyDetailModalVisible.value = true
+  try {
+    const fullRecord = await getWeeklyReport(record.id)
+    weeklyDetailData.value = fullRecord
+  } catch (error: any) {
+    message.error(error.message || '加载周报详情失败')
+    weeklyDetailModalVisible.value = false
+  } finally {
+    weeklyDetailLoading.value = false
+  }
+}
+
+const handleWeeklyDetailCancel = () => {
+  weeklyDetailModalVisible.value = false
+  weeklyDetailData.value = null
 }
 
 // 编辑周报

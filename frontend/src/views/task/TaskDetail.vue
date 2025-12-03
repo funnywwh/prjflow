@@ -195,6 +195,7 @@
       v-model:open="progressModalVisible"
       title="更新任务进度"
       :mask-closable="true"
+      :z-index="2000"
       @ok="handleProgressSubmit"
       @cancel="handleProgressCancel"
     >

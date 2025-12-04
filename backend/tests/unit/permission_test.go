@@ -441,8 +441,8 @@ func TestPermissionHandler_GetPermission(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Params = gin.Params{gin.Param{Key: "id", Value: "1"}}
-		c.Request = httptest.NewRequest(http.MethodGet, "/api/permissions/permissions/1", nil)
+		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", perm.ID)}}
+		c.Request = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/permissions/permissions/%d", perm.ID), nil)
 
 		handler.GetPermission(c)
 

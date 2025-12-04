@@ -577,15 +577,21 @@ func TestProjectHandler_GetProjectProgress(t *testing.T) {
 	db := SetupTestDB(t)
 	defer TeardownTestDB(t, db)
 
-	_ = CreateTestProject(t, db, "进度跟踪项目")
+	project := CreateTestProject(t, db, "进度跟踪项目")
+	user := CreateTestUser(t, db, "progressuser", "进度跟踪用户")
 	handler := api.NewProjectHandler(db)
 
 	t.Run("获取项目进度跟踪数据", func(t *testing.T) {
+		// 添加用户到项目（作为项目成员）
+		AddUserToProject(t, db, user.ID, project.ID, "member")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest(http.MethodGet, "/api/projects/1/progress", nil)
-		c.Params = gin.Params{gin.Param{Key: "id", Value: "1"}}
+		c.Set("user_id", user.ID)
+		c.Set("roles", []string{"developer"})
+		c.Request = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/projects/%d/progress", project.ID), nil)
+		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", project.ID)}}
 
 		handler.GetProjectProgress(c)
 

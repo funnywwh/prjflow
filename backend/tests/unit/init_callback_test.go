@@ -10,6 +10,8 @@ import (
 
 	"project-management/internal/api"
 	"project-management/internal/model"
+	"project-management/pkg/wechat"
+	"project-management/tests/unit/mocks"
 )
 
 func TestInitCallbackHandler_HandleCallback(t *testing.T) {
@@ -100,7 +102,84 @@ func TestInitCallbackHandler_HandleCallback(t *testing.T) {
 		assert.Contains(t, w.Body.String(), "初始化失败")
 	})
 
-	// 注意：完整的成功场景测试需要mock微信API，比较复杂
-	// 这里只测试基本的参数验证和错误处理
+	t.Run("HandleCallback成功-完整流程", func(t *testing.T) {
+		// 清理之前的数据
+		db.Exec("DELETE FROM user_roles")
+		db.Where("wechat_open_id = ?", "test_open_id_handle").Unscoped().Delete(&model.User{})
+		db.Exec("DELETE FROM roles")
+		db.Where("key = ?", "initialized").Delete(&model.SystemConfig{})
+
+		// 设置微信配置
+		appIDConfig := model.SystemConfig{
+			Key:   "wechat_app_id",
+			Value: "test_app_id_handle",
+			Type:  "string",
+		}
+		db.Create(&appIDConfig)
+
+		appSecretConfig := model.SystemConfig{
+			Key:   "wechat_app_secret",
+			Value: "test_app_secret_handle",
+			Type:  "string",
+		}
+		db.Create(&appSecretConfig)
+
+		// 创建Handler并替换WeChatClient为Mock
+		handler := api.NewInitCallbackHandler(db)
+		mockWeChatClient := mocks.NewMockWeChatClient()
+		
+		// 配置Mock返回值
+		mockWeChatClient.AccessTokenResponse = &wechat.AccessTokenResponse{
+			AccessToken:  "test_access_token_handle",
+			ExpiresIn:    7200,
+			RefreshToken: "test_refresh_token_handle",
+			OpenID:       "test_open_id_handle",
+			Scope:        "snsapi_userinfo",
+			UnionID:      "test_union_id_handle",
+		}
+
+		mockWeChatClient.UserInfoResponse = &wechat.UserInfoResponse{
+			OpenID:     "test_open_id_handle",
+			Nickname:   "测试管理员",
+			Sex:        1,
+			Province:   "广东",
+			City:       "深圳",
+			Country:    "中国",
+			HeadImgURL: "http://example.com/admin_handle.jpg",
+			Privilege:  []string{},
+			UnionID:    "test_union_id_handle",
+		}
+
+		// 替换WeChatClient（使用Setter方法）
+		handler.SetWeChatClient(mockWeChatClient)
+
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, "/api/init/callback?code=testcode_handle&state=ticket:test_ticket_handle", nil)
+
+		handler.HandleCallback(c)
+
+		// 验证返回成功HTML
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "html")
+		assert.Contains(t, w.Body.String(), "系统初始化成功")
+		
+		// 验证WeChatClient方法被调用
+		assert.Equal(t, 1, mockWeChatClient.GetAccessTokenCallCount)
+		assert.Equal(t, 1, mockWeChatClient.GetUserInfoCallCount)
+
+		// 验证管理员用户已创建
+		var adminUser model.User
+		err := db.Where("wechat_open_id = ?", "test_open_id_handle").First(&adminUser).Error
+		assert.NoError(t, err)
+		assert.Equal(t, "测试管理员", adminUser.Nickname)
+
+		// 验证系统已标记为初始化
+		var initConfig model.SystemConfig
+		err = db.Where("key = ?", "initialized").First(&initConfig).Error
+		assert.NoError(t, err)
+		assert.Equal(t, "true", initConfig.Value)
+	})
 }
 

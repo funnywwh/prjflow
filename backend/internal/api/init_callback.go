@@ -10,7 +10,7 @@ import (
 // InitCallbackHandler 处理微信回调
 type InitCallbackHandler struct {
 	db          *gorm.DB
-	wechatClient *wechat.WeChatClient
+	wechatClient wechat.WeChatClientInterface // 使用接口类型，支持依赖注入
 }
 
 func NewInitCallbackHandler(db *gorm.DB) *InitCallbackHandler {
@@ -18,6 +18,11 @@ func NewInitCallbackHandler(db *gorm.DB) *InitCallbackHandler {
 		db:          db,
 		wechatClient: wechat.NewWeChatClient(),
 	}
+}
+
+// SetWeChatClient 设置WeChatClient（用于测试）
+func (h *InitCallbackHandler) SetWeChatClient(client wechat.WeChatClientInterface) {
+	h.wechatClient = client
 }
 
 // HandleCallback 处理微信授权回调

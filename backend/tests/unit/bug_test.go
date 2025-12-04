@@ -268,7 +268,7 @@ func TestBugHandler_CreateBug(t *testing.T) {
 		reqBody := map[string]interface{}{
 			"title":          "新Bug",
 			"description":    "这是一个新Bug",
-			"status":         "open",
+			"status":         "active",
 			"priority":       "high",
 			"severity":       "critical",
 			"project_id":     project.ID,
@@ -310,7 +310,7 @@ func TestBugHandler_CreateBug(t *testing.T) {
 		reqBody := map[string]interface{}{
 			"title":          "新Bug",
 			"description":    "这是一个新Bug",
-			"status":         "open",
+			"status":         "active",
 			"priority":       "high",
 			"severity":       "critical",
 			"project_id":     otherProject.ID,

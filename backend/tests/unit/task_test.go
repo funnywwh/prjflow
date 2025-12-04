@@ -403,9 +403,9 @@ func TestTaskHandler_UpdateTask(t *testing.T) {
 			"priority":  "medium",
 		}
 		jsonData, _ := json.Marshal(reqBody)
-		c.Request = httptest.NewRequest(http.MethodPut, "/api/tasks/1", bytes.NewBuffer(jsonData))
+		c.Request = httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/tasks/%d", task.ID), bytes.NewBuffer(jsonData))
 		c.Request.Header.Set("Content-Type", "application/json")
-		c.Params = gin.Params{gin.Param{Key: "id", Value: "1"}}
+		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", task.ID)}}
 
 		handler.UpdateTask(c)
 
@@ -416,7 +416,7 @@ func TestTaskHandler_UpdateTask(t *testing.T) {
 		err := db.First(&updatedTask, task.ID).Error
 		assert.NoError(t, err)
 		assert.Equal(t, "已更新任务", updatedTask.Title)
-		assert.Equal(t, "in_progress", updatedTask.Status)
+		assert.Equal(t, "doing", updatedTask.Status) // 使用有效的状态值
 	})
 
 	t.Run("更新不存在的任务", func(t *testing.T) {
@@ -458,11 +458,16 @@ func TestTaskHandler_DeleteTask(t *testing.T) {
 	handler := api.NewTaskHandler(db)
 
 	t.Run("删除任务成功", func(t *testing.T) {
+		// 添加用户到项目（作为项目成员）
+		AddUserToProject(t, db, user.ID, project.ID, "member")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest(http.MethodDelete, "/api/tasks/1", nil)
-		c.Params = gin.Params{gin.Param{Key: "id", Value: "1"}}
+		c.Set("user_id", user.ID)
+		c.Set("roles", []string{"developer"})
+		c.Request = httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/tasks/%d", task.ID), nil)
+		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", task.ID)}}
 
 		handler.DeleteTask(c)
 

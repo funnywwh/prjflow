@@ -246,9 +246,9 @@ func (h *LoginCallbackHandler) Process(ctx *WeChatCallbackContext) (interface{},
 	}
 
 	// 通过WebSocket通知PC前端登录成功
-	if ctx.Ticket != "" {
-		websocket.GetHub().SendMessage(ctx.Ticket, "info", nil, "正在登录...")
-		websocket.GetHub().SendMessage(ctx.Ticket, "success", gin.H{
+	if ctx.Ticket != "" && ctx.Hub != nil {
+		ctx.Hub.SendMessage(ctx.Ticket, "info", nil, "正在登录...")
+		ctx.Hub.SendMessage(ctx.Ticket, "success", gin.H{
 			"token": token,
 			"user": gin.H{
 				"id":       user.ID,
@@ -289,7 +289,7 @@ func (h *AuthHandler) WeChatCallback(c *gin.Context) {
 	state := c.Query("state")
 
 	handler := &LoginCallbackHandler{db: h.db}
-	ctx, result, err := ProcessWeChatCallback(h.db, h.wechatClient, code, state, handler)
+	ctx, result, err := ProcessWeChatCallback(h.db, h.wechatClient, websocket.GetHub(), code, state, handler)
 
 	if err != nil {
 		c.Data(200, "text/html; charset=utf-8", []byte(handler.GetErrorHTML(ctx, err)))
@@ -996,9 +996,9 @@ func (h *BindCallbackHandler) Process(ctx *WeChatCallbackContext) (interface{}, 
 	}
 
 	// 通过WebSocket通知PC前端绑定成功
-	if ctx.Ticket != "" {
-		websocket.GetHub().SendMessage(ctx.Ticket, "info", nil, "正在绑定...")
-		websocket.GetHub().SendMessage(ctx.Ticket, "success", gin.H{
+	if ctx.Ticket != "" && ctx.Hub != nil {
+		ctx.Hub.SendMessage(ctx.Ticket, "info", nil, "正在绑定...")
+		ctx.Hub.SendMessage(ctx.Ticket, "success", gin.H{
 			"message": "绑定成功",
 		}, "微信绑定成功")
 	}
@@ -1027,7 +1027,7 @@ func (h *AuthHandler) WeChatBindCallback(c *gin.Context) {
 	state := c.Query("state")
 
 	handler := &BindCallbackHandler{db: h.db}
-	ctx, result, err := ProcessWeChatCallback(h.db, h.wechatClient, code, state, handler)
+	ctx, result, err := ProcessWeChatCallback(h.db, h.wechatClient, websocket.GetHub(), code, state, handler)
 
 	if err != nil {
 		c.Data(200, "text/html; charset=utf-8", []byte(handler.GetErrorHTML(ctx, err)))

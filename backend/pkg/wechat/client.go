@@ -222,3 +222,42 @@ func (c *WeChatClient) GetUserInfo(accessToken, openID string) (*UserInfoRespons
 	return &result, nil
 }
 
+// SetAppID 设置AppID
+func (c *WeChatClient) SetAppID(appID string) {
+	c.AppID = appID
+}
+
+// SetAppSecret 设置AppSecret
+func (c *WeChatClient) SetAppSecret(appSecret string) {
+	c.AppSecret = appSecret
+}
+
+// SetAccountType 设置AccountType
+func (c *WeChatClient) SetAccountType(accountType string) {
+	c.AccountType = accountType
+}
+
+// SetScope 设置Scope
+func (c *WeChatClient) SetScope(scope string) {
+	c.Scope = scope
+}
+
+// GetAppID 获取AppID
+func (c *WeChatClient) GetAppID() string {
+	return c.AppID
+}
+
+// GetAppSecret 获取AppSecret
+func (c *WeChatClient) GetAppSecret() string {
+	return c.AppSecret
+}
+
+// GetAccountType 获取AccountType
+func (c *WeChatClient) GetAccountType() string {
+	return c.AccountType
+}
+
+// GetScope 获取Scope
+func (c *WeChatClient) GetScope() string {
+	return c.Scope
+}

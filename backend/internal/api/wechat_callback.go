@@ -18,7 +18,8 @@ type WeChatCallbackContext struct {
 	Code         string
 	State        string
 	Ticket       string
-	WeChatClient *wechat.WeChatClient
+	WeChatClient wechat.WeChatClientInterface // 使用接口类型
+	Hub          websocket.HubInterface        // 使用接口类型，用于发送WebSocket消息
 	DB           *gorm.DB
 	AccessToken  *wechat.AccessTokenResponse
 	UserInfo     *wechat.UserInfoResponse
@@ -42,7 +43,8 @@ type WeChatCallbackHandler interface {
 // ProcessWeChatCallback 处理微信回调的通用流程
 func ProcessWeChatCallback(
 	db *gorm.DB,
-	wechatClient *wechat.WeChatClient,
+	wechatClient wechat.WeChatClientInterface, // 使用接口类型
+	hub websocket.HubInterface,                // 使用接口类型，用于发送WebSocket消息
 	code string,
 	state string,
 	handler WeChatCallbackHandler,
@@ -51,6 +53,7 @@ func ProcessWeChatCallback(
 		Code:         code,
 		State:        state,
 		WeChatClient: wechatClient,
+		Hub:          hub,
 		DB:           db,
 	}
 
@@ -63,8 +66,8 @@ func ProcessWeChatCallback(
 
 	// 2. 检查code是否存在
 	if code == "" {
-		if ctx.Ticket != "" {
-			websocket.GetHub().SendMessage(ctx.Ticket, "error", nil, "未获取到授权码")
+		if ctx.Ticket != "" && ctx.Hub != nil {
+			ctx.Hub.SendMessage(ctx.Ticket, "error", nil, "未获取到授权码")
 		}
 		return ctx, nil, &CallbackError{Message: "未获取到授权码"}
 	}
@@ -74,35 +77,35 @@ func ProcessWeChatCallback(
 	if err := db.Where("key = ?", "wechat_app_id").First(&wechatAppIDConfig).Error; err != nil {
 		// 如果数据库中没有配置，尝试使用配置文件中的配置
 		if config.AppConfig.WeChat.AppID == "" || config.AppConfig.WeChat.AppSecret == "" {
-			if ctx.Ticket != "" {
-				websocket.GetHub().SendMessage(ctx.Ticket, "error", nil, "请先配置微信AppID和AppSecret")
+			if ctx.Ticket != "" && ctx.Hub != nil {
+				ctx.Hub.SendMessage(ctx.Ticket, "error", nil, "请先配置微信AppID和AppSecret")
 			}
 			return ctx, nil, &CallbackError{Message: "请先配置微信AppID和AppSecret"}
 		}
-		wechatClient.AppID = config.AppConfig.WeChat.AppID
-		wechatClient.AppSecret = config.AppConfig.WeChat.AppSecret
+		wechatClient.SetAppID(config.AppConfig.WeChat.AppID)
+		wechatClient.SetAppSecret(config.AppConfig.WeChat.AppSecret)
 	} else {
 		// 从数据库读取配置
 		var wechatAppSecretConfig model.SystemConfig
 		if err := db.Where("key = ?", "wechat_app_secret").First(&wechatAppSecretConfig).Error; err != nil {
 			// 如果数据库中没有AppSecret，尝试使用配置文件中的配置
 			if config.AppConfig.WeChat.AppSecret == "" {
-				if ctx.Ticket != "" {
-					websocket.GetHub().SendMessage(ctx.Ticket, "error", nil, "请先配置微信AppSecret")
+				if ctx.Ticket != "" && ctx.Hub != nil {
+					ctx.Hub.SendMessage(ctx.Ticket, "error", nil, "请先配置微信AppSecret")
 				}
 				return ctx, nil, &CallbackError{Message: "请先配置微信AppSecret"}
 			}
-			wechatClient.AppID = wechatAppIDConfig.Value
-			wechatClient.AppSecret = config.AppConfig.WeChat.AppSecret
+			wechatClient.SetAppID(wechatAppIDConfig.Value)
+			wechatClient.SetAppSecret(config.AppConfig.WeChat.AppSecret)
 		} else {
 			// 从数据库读取配置，去除首尾空格
-			wechatClient.AppID = strings.TrimSpace(wechatAppIDConfig.Value)
-			wechatClient.AppSecret = strings.TrimSpace(wechatAppSecretConfig.Value)
+			wechatClient.SetAppID(strings.TrimSpace(wechatAppIDConfig.Value))
+			wechatClient.SetAppSecret(strings.TrimSpace(wechatAppSecretConfig.Value))
 		}
 		// 验证配置是否为空
-		if wechatClient.AppID == "" || wechatClient.AppSecret == "" {
-			if ctx.Ticket != "" {
-				websocket.GetHub().SendMessage(ctx.Ticket, "error", nil, "微信AppID或AppSecret配置为空，请检查配置")
+		if wechatClient.GetAppID() == "" || wechatClient.GetAppSecret() == "" {
+			if ctx.Ticket != "" && ctx.Hub != nil {
+				ctx.Hub.SendMessage(ctx.Ticket, "error", nil, "微信AppID或AppSecret配置为空，请检查配置")
 			}
 			return ctx, nil, &CallbackError{Message: "微信AppID或AppSecret配置为空，请检查配置"}
 		}
@@ -111,68 +114,69 @@ func ProcessWeChatCallback(
 	// 设置AccountType和Scope（优先从数据库读取，其次从配置文件，最后使用默认值）
 	var accountTypeConfig model.SystemConfig
 	if err := db.Where("key = ?", "wechat_account_type").First(&accountTypeConfig).Error; err == nil {
-		wechatClient.AccountType = strings.TrimSpace(accountTypeConfig.Value)
+		wechatClient.SetAccountType(strings.TrimSpace(accountTypeConfig.Value))
 	} else {
-		wechatClient.AccountType = config.AppConfig.WeChat.AccountType
+		wechatClient.SetAccountType(config.AppConfig.WeChat.AccountType)
 	}
-	if wechatClient.AccountType == "" {
-		wechatClient.AccountType = "open_platform" // 默认使用开放平台
+	if wechatClient.GetAccountType() == "" {
+		wechatClient.SetAccountType("open_platform") // 默认使用开放平台
 	}
 
 	var scopeConfig model.SystemConfig
 	if err := db.Where("key = ?", "wechat_scope").First(&scopeConfig).Error; err == nil {
-		wechatClient.Scope = strings.TrimSpace(scopeConfig.Value)
+		wechatClient.SetScope(strings.TrimSpace(scopeConfig.Value))
 	} else {
-		wechatClient.Scope = config.AppConfig.WeChat.Scope
+		wechatClient.SetScope(config.AppConfig.WeChat.Scope)
 	}
-	if wechatClient.Scope == "" {
-		wechatClient.Scope = "snsapi_userinfo" // 默认需要用户确认
+	if wechatClient.GetScope() == "" {
+		wechatClient.SetScope("snsapi_userinfo") // 默认需要用户确认
 	}
 
 	// 4. 验证前置条件
 	if err := handler.Validate(ctx); err != nil {
-		if ctx.Ticket != "" {
-			websocket.GetHub().SendMessage(ctx.Ticket, "error", nil, err.Error())
+		if ctx.Ticket != "" && ctx.Hub != nil {
+			ctx.Hub.SendMessage(ctx.Ticket, "error", nil, err.Error())
 		}
 		return ctx, nil, err
 	}
 
 	// 5. 通知已扫码
-	if ctx.Ticket != "" {
-		websocket.GetHub().SendMessage(ctx.Ticket, "info", nil, "已扫码，正在获取授权...")
+	if ctx.Ticket != "" && ctx.Hub != nil {
+		ctx.Hub.SendMessage(ctx.Ticket, "info", nil, "已扫码，正在获取授权...")
 	}
 
 	// 6. 获取access_token
 	// 添加调试信息：显示实际使用的配置（不显示完整的AppSecret，只显示前4位和后4位）
+	appSecret := wechatClient.GetAppSecret()
 	appSecretMasked := ""
-	if len(wechatClient.AppSecret) > 8 {
-		appSecretMasked = wechatClient.AppSecret[:4] + "****" + wechatClient.AppSecret[len(wechatClient.AppSecret)-4:]
+	if len(appSecret) > 8 {
+		appSecretMasked = appSecret[:4] + "****" + appSecret[len(appSecret)-4:]
 	} else {
 		appSecretMasked = "****"
 	}
 	debugInfo := fmt.Sprintf("使用配置: AppID=%s, AppSecret=%s, AccountType=%s, Scope=%s",
-		wechatClient.AppID, appSecretMasked, wechatClient.AccountType, wechatClient.Scope)
+		wechatClient.GetAppID(), appSecretMasked, wechatClient.GetAccountType(), wechatClient.GetScope())
 
 	accessTokenResp, err := wechatClient.GetAccessToken(code)
 	if err != nil {
 		errorMsg := fmt.Sprintf("获取access_token失败: %s。%s", err.Error(), debugInfo)
-		if ctx.Ticket != "" {
-			websocket.GetHub().SendMessage(ctx.Ticket, "error", nil, errorMsg)
+		if ctx.Ticket != "" && ctx.Hub != nil {
+			ctx.Hub.SendMessage(ctx.Ticket, "error", nil, errorMsg)
 		}
 		return ctx, nil, &CallbackError{Message: errorMsg, Err: err}
 	}
 	ctx.AccessToken = accessTokenResp
 
 	// 7. 通知正在获取用户信息
-	if ctx.Ticket != "" {
-		websocket.GetHub().SendMessage(ctx.Ticket, "info", nil, "正在获取用户信息...")
+	if ctx.Ticket != "" && ctx.Hub != nil {
+		ctx.Hub.SendMessage(ctx.Ticket, "info", nil, "正在获取用户信息...")
 	}
 
 	// 8. 获取用户信息
 	userInfo, err := wechatClient.GetUserInfo(accessTokenResp.AccessToken, accessTokenResp.OpenID)
 	if err != nil {
-		if ctx.Ticket != "" {
-			websocket.GetHub().SendMessage(ctx.Ticket, "error", nil, "获取用户信息失败")
+		if ctx.Ticket != "" && ctx.Hub != nil {
+			ctx.Hub.SendMessage(ctx.Ticket, "error", nil, "获取用户信息失败")
 		}
 		return ctx, nil, &CallbackError{Message: "获取用户信息失败", Err: err}
 	}
@@ -181,8 +185,8 @@ func ProcessWeChatCallback(
 	// 9. 处理业务逻辑
 	result, err := handler.Process(ctx)
 	if err != nil {
-		if ctx.Ticket != "" {
-			websocket.GetHub().SendMessage(ctx.Ticket, "error", nil, err.Error())
+		if ctx.Ticket != "" && ctx.Hub != nil {
+			ctx.Hub.SendMessage(ctx.Ticket, "error", nil, err.Error())
 		}
 		return ctx, nil, err
 	}

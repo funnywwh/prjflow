@@ -5,7 +5,6 @@ import (
 
 	"gorm.io/gorm"
 	"project-management/internal/model"
-	"project-management/internal/websocket"
 
 	"github.com/gin-gonic/gin"
 )
@@ -52,8 +51,8 @@ func (h *AddUserCallbackHandler) Process(ctx *WeChatCallbackContext) (interface{
 			ctx.DB.Preload("Department").Preload("Roles").First(&existingUser, existingUser.ID)
 			
 			// 返回恢复的用户信息
-			if ctx.Ticket != "" {
-				websocket.GetHub().SendMessage(ctx.Ticket, "success", gin.H{
+			if ctx.Ticket != "" && ctx.Hub != nil {
+				ctx.Hub.SendMessage(ctx.Ticket, "success", gin.H{
 					"user": gin.H{
 						"id":            existingUser.ID,
 						"username":      existingUser.Username,
@@ -137,9 +136,9 @@ func (h *AddUserCallbackHandler) Process(ctx *WeChatCallbackContext) (interface{
 	ctx.DB.Preload("Department").Preload("Roles").First(&user, user.ID)
 
 	// 通过WebSocket通知成功
-	if ctx.Ticket != "" {
-		websocket.GetHub().SendMessage(ctx.Ticket, "info", nil, "用户添加成功")
-		websocket.GetHub().SendMessage(ctx.Ticket, "success", gin.H{
+	if ctx.Ticket != "" && ctx.Hub != nil {
+		ctx.Hub.SendMessage(ctx.Ticket, "info", nil, "用户添加成功")
+		ctx.Hub.SendMessage(ctx.Ticket, "success", gin.H{
 			"user": gin.H{
 				"id":            user.ID,
 				"username":      user.Username,

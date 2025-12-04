@@ -3,7 +3,6 @@ package api
 import (
 	"gorm.io/gorm"
 	"project-management/internal/model"
-	"project-management/internal/websocket"
 	"project-management/pkg/auth"
 
 	"github.com/gin-gonic/gin"
@@ -109,8 +108,8 @@ func (h *InitCallbackHandlerImpl) Process(ctx *WeChatCallbackContext) (interface
 	}
 
 	// 通过WebSocket通知PC端成功
-	if ctx.Ticket != "" {
-		websocket.GetHub().SendMessage(ctx.Ticket, "success", gin.H{
+	if ctx.Ticket != "" && ctx.Hub != nil {
+		ctx.Hub.SendMessage(ctx.Ticket, "success", gin.H{
 			"token": token,
 			"user": gin.H{
 				"id":       adminUser.ID,

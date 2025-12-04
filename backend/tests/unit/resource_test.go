@@ -102,11 +102,16 @@ func TestResourceHandler_GetResource(t *testing.T) {
 	handler := api.NewResourceHandler(db)
 
 	t.Run("获取存在的资源", func(t *testing.T) {
+		// 添加用户到项目（作为项目成员）
+		AddUserToProject(t, db, user.ID, project.ID, "member")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest(http.MethodGet, "/api/resources/1", nil)
-		c.Params = gin.Params{gin.Param{Key: "id", Value: "1"}}
+		c.Set("user_id", user.ID)
+		c.Set("roles", []string{"developer"})
+		c.Request = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/resources/%d", resource.ID), nil)
+		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", resource.ID)}}
 
 		handler.GetResource(c)
 

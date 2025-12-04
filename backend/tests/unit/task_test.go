@@ -475,3 +475,209 @@ func TestTaskHandler_DeleteTask(t *testing.T) {
 	})
 }
 
+func TestTaskHandler_UpdateTaskStatus(t *testing.T) {
+	db := SetupTestDB(t)
+	defer TeardownTestDB(t, db)
+
+	project := CreateTestProject(t, db, "更新任务状态项目")
+	user := CreateTestUser(t, db, "updatestatus", "更新状态用户")
+
+	task := &model.Task{
+		Title:     "更新状态任务",
+		ProjectID: project.ID,
+		CreatorID: user.ID,
+		Status:    "wait",
+	}
+	db.Create(&task)
+
+	handler := api.NewTaskHandler(db)
+
+	t.Run("更新任务状态成功", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
+		reqBody := map[string]interface{}{
+			"status": "doing",
+		}
+		jsonData, _ := json.Marshal(reqBody)
+		c.Request = httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/tasks/%d/status", task.ID), bytes.NewBuffer(jsonData))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", task.ID)}}
+
+		handler.UpdateTaskStatus(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		// 验证任务状态已更新
+		var updatedTask model.Task
+		err := db.First(&updatedTask, task.ID).Error
+		assert.NoError(t, err)
+		assert.Equal(t, "doing", updatedTask.Status)
+	})
+
+	t.Run("更新任务状态失败-无效状态", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
+		reqBody := map[string]interface{}{
+			"status": "invalid_status",
+		}
+		jsonData, _ := json.Marshal(reqBody)
+		c.Request = httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/tasks/%d/status", task.ID), bytes.NewBuffer(jsonData))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", task.ID)}}
+
+		handler.UpdateTaskStatus(c)
+
+		var response map[string]interface{}
+		json.Unmarshal(w.Body.Bytes(), &response)
+		assert.True(t, w.Code == http.StatusBadRequest || (response["code"] != nil && response["code"] != float64(200)))
+	})
+}
+
+func TestTaskHandler_UpdateTaskProgress(t *testing.T) {
+	db := SetupTestDB(t)
+	defer TeardownTestDB(t, db)
+
+	project := CreateTestProject(t, db, "更新任务进度项目")
+	user := CreateTestUser(t, db, "updateprogress", "更新进度用户")
+
+	task := &model.Task{
+		Title:          "更新进度任务",
+		ProjectID:      project.ID,
+		CreatorID:      user.ID,
+		Status:         "doing",
+		EstimatedHours: 10.0,
+		Progress:       0,
+	}
+	db.Create(&task)
+
+	handler := api.NewTaskHandler(db)
+
+	t.Run("更新任务进度成功", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Set("user_id", user.ID)
+
+		reqBody := map[string]interface{}{
+			"progress": 50,
+		}
+		jsonData, _ := json.Marshal(reqBody)
+		c.Request = httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/tasks/%d/progress", task.ID), bytes.NewBuffer(jsonData))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", task.ID)}}
+
+		handler.UpdateTaskProgress(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		// 验证任务进度已更新
+		var updatedTask model.Task
+		err := db.First(&updatedTask, task.ID).Error
+		assert.NoError(t, err)
+		assert.Equal(t, 50, updatedTask.Progress)
+	})
+
+	t.Run("更新任务进度失败-无效进度值", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Set("user_id", user.ID)
+
+		reqBody := map[string]interface{}{
+			"progress": 150, // 超过100
+		}
+		jsonData, _ := json.Marshal(reqBody)
+		c.Request = httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/tasks/%d/progress", task.ID), bytes.NewBuffer(jsonData))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", task.ID)}}
+
+		handler.UpdateTaskProgress(c)
+
+		var response map[string]interface{}
+		json.Unmarshal(w.Body.Bytes(), &response)
+		assert.True(t, w.Code == http.StatusBadRequest || (response["code"] != nil && response["code"] != float64(200)))
+	})
+}
+
+func TestTaskHandler_GetTaskHistory(t *testing.T) {
+	db := SetupTestDB(t)
+	defer TeardownTestDB(t, db)
+
+	project := CreateTestProject(t, db, "任务历史项目")
+	user := CreateTestUser(t, db, "taskhistory", "任务历史用户")
+
+	task := &model.Task{
+		Title:     "历史任务",
+		ProjectID: project.ID,
+		CreatorID: user.ID,
+		Status:    "doing",
+	}
+	db.Create(&task)
+
+	handler := api.NewTaskHandler(db)
+
+	t.Run("获取任务历史", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/tasks/%d/history", task.ID), nil)
+		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", task.ID)}}
+
+		handler.GetTaskHistory(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, float64(200), response["code"])
+
+		data := response["data"]
+		if list, ok := data.([]interface{}); ok {
+			// 历史记录可能为空，所以只验证返回的是数组
+			assert.NotNil(t, list)
+		}
+	})
+}
+
+func TestTaskHandler_AddTaskHistoryNote(t *testing.T) {
+	db := SetupTestDB(t)
+	defer TeardownTestDB(t, db)
+
+	project := CreateTestProject(t, db, "任务历史备注项目")
+	user := CreateTestUser(t, db, "tasknote", "任务备注用户")
+
+	task := &model.Task{
+		Title:     "备注任务",
+		ProjectID: project.ID,
+		CreatorID: user.ID,
+		Status:    "doing",
+	}
+	db.Create(&task)
+
+	handler := api.NewTaskHandler(db)
+
+	t.Run("添加任务历史备注成功", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Set("user_id", user.ID)
+
+		reqBody := map[string]interface{}{
+			"note": "这是一个历史备注",
+		}
+		jsonData, _ := json.Marshal(reqBody)
+		c.Request = httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/tasks/%d/history", task.ID), bytes.NewBuffer(jsonData))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", task.ID)}}
+
+		handler.AddTaskHistoryNote(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+}
+

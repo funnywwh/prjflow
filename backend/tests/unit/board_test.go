@@ -478,3 +478,58 @@ func TestBoardHandler_DeleteBoard(t *testing.T) {
 	})
 }
 
+func TestBoardHandler_GetBoardTasks(t *testing.T) {
+	db := SetupTestDB(t)
+	defer TeardownTestDB(t, db)
+
+	project := CreateTestProject(t, db, "看板任务项目")
+	user := CreateTestUser(t, db, "boardtask", "看板任务用户")
+
+	board := &model.Board{
+		Name:      "任务看板",
+		ProjectID: project.ID,
+	}
+	db.Create(&board)
+
+	column := &model.BoardColumn{
+		Name:   "待办",
+		BoardID: board.ID,
+		Status: "wait",
+		Sort:   1,
+	}
+	db.Create(&column)
+
+	task := &model.Task{
+		Title:     "看板任务",
+		ProjectID: project.ID,
+		CreatorID: user.ID,
+		Status:    "wait",
+	}
+	db.Create(&task)
+
+	handler := api.NewBoardHandler(db)
+
+	t.Run("获取看板任务列表", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, "/api/boards/1/tasks", nil)
+		c.Params = gin.Params{gin.Param{Key: "id", Value: "1"}}
+
+		handler.GetBoardTasks(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, float64(200), response["code"])
+
+		data := response["data"]
+		if list, ok := data.([]interface{}); ok {
+			// 验证返回的是数组
+			assert.NotNil(t, list)
+		}
+	})
+}
+

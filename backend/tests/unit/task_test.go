@@ -636,9 +636,14 @@ func TestTaskHandler_GetTaskHistory(t *testing.T) {
 	handler := api.NewTaskHandler(db)
 
 	t.Run("获取任务历史", func(t *testing.T) {
+		// 添加用户到项目（作为项目成员）
+		AddUserToProject(t, db, user.ID, project.ID, "member")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
+		c.Set("user_id", user.ID)
+		c.Set("roles", []string{"developer"})
 		c.Request = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/tasks/%d/history", task.ID), nil)
 		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", task.ID)}}
 

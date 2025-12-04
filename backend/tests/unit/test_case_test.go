@@ -3,6 +3,7 @@ package unit
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -140,19 +141,23 @@ func TestTestCaseHandler_CreateTestCase(t *testing.T) {
 	handler := api.NewTestCaseHandler(db)
 
 	t.Run("创建测试单成功", func(t *testing.T) {
+		// 添加用户到项目（作为项目成员）
+		AddUserToProject(t, db, user.ID, project.ID, "member")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 
 		// 设置user_id（CreateTestCase需要）
 		c.Set("user_id", user.ID)
+		c.Set("roles", []string{"developer"})
 
 		reqBody := map[string]interface{}{
 			"name":        "新测试单",
 			"description": "这是一个新测试单",
 			"test_steps":  "1. 步骤1\n2. 步骤2",
 			"types":       []string{"functional", "performance"},
-			"status":      "pending",
+			"status":      "wait", // 使用有效的状态值
 			"project_id":  project.ID,
 		}
 		jsonData, _ := json.Marshal(reqBody)
@@ -234,7 +239,7 @@ func TestTestCaseHandler_UpdateTestCase(t *testing.T) {
 		Name:      "更新测试单",
 		ProjectID: project.ID,
 		CreatorID: user.ID,
-		Status:    "pending",
+		Status:    "wait", // 使用有效的状态值
 		Types:     model.StringArray{"functional"},
 	}
 	db.Create(&testCase)
@@ -242,19 +247,25 @@ func TestTestCaseHandler_UpdateTestCase(t *testing.T) {
 	handler := api.NewTestCaseHandler(db)
 
 	t.Run("更新测试单成功", func(t *testing.T) {
+		// 添加用户到项目（作为项目成员）
+		AddUserToProject(t, db, user.ID, project.ID, "member")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 
+		c.Set("user_id", user.ID)
+		c.Set("roles", []string{"developer"})
+
 		reqBody := map[string]interface{}{
 			"name":   "已更新测试单",
-			"status": "running",
+			"status": "normal", // 使用有效的状态值
 			"types":  []string{"functional", "security"},
 		}
 		jsonData, _ := json.Marshal(reqBody)
-		c.Request = httptest.NewRequest(http.MethodPut, "/api/test-cases/1", bytes.NewBuffer(jsonData))
+		c.Request = httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/test-cases/%d", testCase.ID), bytes.NewBuffer(jsonData))
 		c.Request.Header.Set("Content-Type", "application/json")
-		c.Params = gin.Params{gin.Param{Key: "id", Value: "1"}}
+		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", testCase.ID)}}
 
 		handler.UpdateTestCase(c)
 
@@ -265,7 +276,7 @@ func TestTestCaseHandler_UpdateTestCase(t *testing.T) {
 		err := db.First(&updatedTestCase, testCase.ID).Error
 		assert.NoError(t, err)
 		assert.Equal(t, "已更新测试单", updatedTestCase.Name)
-		assert.Equal(t, "running", updatedTestCase.Status)
+		assert.Equal(t, "normal", updatedTestCase.Status) // 使用有效的状态值
 		assert.Equal(t, 2, len(updatedTestCase.Types))
 	})
 
@@ -308,17 +319,22 @@ func TestTestCaseHandler_UpdateTestCaseStatus(t *testing.T) {
 	handler := api.NewTestCaseHandler(db)
 
 	t.Run("更新测试单状态成功", func(t *testing.T) {
+		// 添加用户到项目（作为项目成员）
+		AddUserToProject(t, db, user.ID, project.ID, "member")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
+		c.Set("user_id", user.ID)
+		c.Set("roles", []string{"developer"})
 
 		reqBody := map[string]interface{}{
-			"status": "running",
+			"status": "normal", // 使用有效的状态值
 		}
 		jsonData, _ := json.Marshal(reqBody)
-		c.Request = httptest.NewRequest(http.MethodPut, "/api/test-cases/1/status", bytes.NewBuffer(jsonData))
+		c.Request = httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/test-cases/%d/status", testCase.ID), bytes.NewBuffer(jsonData))
 		c.Request.Header.Set("Content-Type", "application/json")
-		c.Params = gin.Params{gin.Param{Key: "id", Value: "1"}}
+		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", testCase.ID)}}
 
 		handler.UpdateTestCaseStatus(c)
 
@@ -328,7 +344,7 @@ func TestTestCaseHandler_UpdateTestCaseStatus(t *testing.T) {
 		var updatedTestCase model.TestCase
 		err := db.First(&updatedTestCase, testCase.ID).Error
 		assert.NoError(t, err)
-		assert.Equal(t, "running", updatedTestCase.Status)
+		assert.Equal(t, "normal", updatedTestCase.Status) // 使用有效的状态值
 	})
 
 	t.Run("更新测试单状态失败-无效状态", func(t *testing.T) {

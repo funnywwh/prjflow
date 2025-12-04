@@ -9,7 +9,11 @@
             <a-tab-pane key="roles" tab="角色管理">
               <a-page-header title="角色管理">
                 <template #extra>
-                  <a-button type="primary" @click="handleCreateRole">
+                  <a-button 
+                    v-permission="'permission:manage'"
+                    type="primary" 
+                    @click="handleCreateRole"
+                  >
                     <template #icon><PlusOutlined /></template>
                     新增角色
                   </a-button>
@@ -43,13 +47,24 @@
                     </template>
                     <template v-else-if="column.key === 'action'">
                       <a-space>
-                        <a-button type="link" size="small" @click="handleEditRole(record)">
+                        <a-button 
+                          v-permission="'permission:manage'"
+                          type="link" 
+                          size="small" 
+                          @click="handleEditRole(record)"
+                        >
                           编辑
                         </a-button>
-                        <a-button type="link" size="small" @click="handleAssignPermissions(record)">
+                        <a-button 
+                          v-permission="'permission:manage'"
+                          type="link" 
+                          size="small" 
+                          @click="handleAssignPermissions(record)"
+                        >
                           分配权限
                         </a-button>
                         <a-popconfirm
+                          v-permission="'permission:manage'"
                           title="确定要删除这个角色吗？"
                           @confirm="handleDeleteRole(record.id)"
                         >
@@ -66,7 +81,11 @@
             <a-tab-pane key="permissions" tab="权限管理">
               <a-page-header title="权限管理">
                 <template #extra>
-                  <a-button type="primary" @click="handleCreatePermission">
+                  <a-button 
+                    v-permission="'permission:manage'"
+                    type="primary" 
+                    @click="handleCreatePermission"
+                  >
                     <template #icon><PlusOutlined /></template>
                     新增权限
                   </a-button>

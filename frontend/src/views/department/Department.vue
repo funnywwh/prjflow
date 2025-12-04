@@ -6,7 +6,11 @@
         <div class="content-inner">
           <a-page-header title="部门管理">
             <template #extra>
-              <a-button type="primary" @click="handleCreate">
+              <a-button 
+                v-permission="'department:create'"
+                type="primary" 
+                @click="handleCreate"
+              >
                 <template #icon><PlusOutlined /></template>
                 新增部门
               </a-button>
@@ -30,16 +34,32 @@
                 </template>
                 <template v-else-if="column.key === 'action'">
                   <a-space>
-                    <a-button type="link" size="small" @click="handleAddChild(record)">
+                    <a-button 
+                      v-permission="'department:create'"
+                      type="link" 
+                      size="small" 
+                      @click="handleAddChild(record)"
+                    >
                       添加子部门
                     </a-button>
-                    <a-button type="link" size="small" @click="handleManageMembers(record)">
+                    <a-button 
+                      v-permission="'department:update'"
+                      type="link" 
+                      size="small" 
+                      @click="handleManageMembers(record)"
+                    >
                       成员管理
                     </a-button>
-                    <a-button type="link" size="small" @click="handleEdit(record)">
+                    <a-button 
+                      v-permission="'department:update'"
+                      type="link" 
+                      size="small" 
+                      @click="handleEdit(record)"
+                    >
                       编辑
                     </a-button>
                     <a-popconfirm
+                      v-permission="'department:delete'"
                       title="确定要删除这个部门吗？"
                       @confirm="handleDelete(record.id)"
                     >

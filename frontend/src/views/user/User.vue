@@ -7,11 +7,18 @@
           <a-page-header title="用户管理">
             <template #extra>
               <a-space>
-                <a-button @click="handleScanAddUser">
+                <a-button 
+                  v-permission="'user:create'"
+                  @click="handleScanAddUser"
+                >
                   <template #icon><QrcodeOutlined /></template>
                   扫码添加用户
                 </a-button>
-                <a-button type="primary" @click="handleCreate">
+                <a-button 
+                  v-permission="'user:create'"
+                  type="primary" 
+                  @click="handleCreate"
+                >
                   <template #icon><PlusOutlined /></template>
                   新增用户
                 </a-button>

@@ -15,51 +15,50 @@ func TestProcessWeChatCallback_Success(t *testing.T) {
 	db := SetupTestDB(t)
 	defer TeardownTestDB(t, db)
 
-	// 设置微信配置
-	appIDConfig := model.SystemConfig{
-		Key:   "wechat_app_id",
-		Value: "test_app_id",
-		Type:  "string",
-	}
-	db.Create(&appIDConfig)
-
-	appSecretConfig := model.SystemConfig{
-		Key:   "wechat_app_secret",
-		Value: "test_app_secret",
-		Type:  "string",
-	}
-	db.Create(&appSecretConfig)
-
-	// 创建Mock对象
-	mockWeChatClient := mocks.NewMockWeChatClient()
-	mockHub := mocks.NewMockWebSocketHub()
-
-	// 配置Mock返回值
-	mockWeChatClient.AccessTokenResponse = &wechat.AccessTokenResponse{
-		AccessToken:  "test_access_token",
-		ExpiresIn:    7200,
-		RefreshToken: "test_refresh_token",
-		OpenID:       "test_open_id",
-		Scope:        "snsapi_userinfo",
-		UnionID:      "test_union_id",
-	}
-
-	mockWeChatClient.UserInfoResponse = &wechat.UserInfoResponse{
-		OpenID:     "test_open_id",
-		Nickname:   "测试用户",
-		Sex:        1,
-		Province:   "广东",
-		City:       "深圳",
-		Country:    "中国",
-		HeadImgURL: "http://example.com/avatar.jpg",
-		Privilege:  []string{},
-		UnionID:    "test_union_id",
-	}
-
 	// 创建测试Handler
 	handler := &api.InitCallbackHandlerImpl{}
 
 	t.Run("成功处理微信回调", func(t *testing.T) {
+		// 设置微信配置
+		appIDConfig := model.SystemConfig{
+			Key:   "wechat_app_id",
+			Value: "test_app_id",
+			Type:  "string",
+		}
+		db.Create(&appIDConfig)
+
+		appSecretConfig := model.SystemConfig{
+			Key:   "wechat_app_secret",
+			Value: "test_app_secret",
+			Type:  "string",
+		}
+		db.Create(&appSecretConfig)
+
+		// 创建Mock对象
+		mockWeChatClient := mocks.NewMockWeChatClient()
+		mockHub := mocks.NewMockWebSocketHub()
+
+		// 配置Mock返回值
+		mockWeChatClient.AccessTokenResponse = &wechat.AccessTokenResponse{
+			AccessToken:  "test_access_token",
+			ExpiresIn:    7200,
+			RefreshToken: "test_refresh_token",
+			OpenID:       "test_open_id",
+			Scope:        "snsapi_userinfo",
+			UnionID:      "test_union_id",
+		}
+
+		mockWeChatClient.UserInfoResponse = &wechat.UserInfoResponse{
+			OpenID:     "test_open_id",
+			Nickname:   "测试用户",
+			Sex:        1,
+			Province:   "广东",
+			City:       "深圳",
+			Country:    "中国",
+			HeadImgURL: "http://example.com/avatar.jpg",
+			Privilege:  []string{},
+			UnionID:    "test_union_id",
+		}
 		code := "test_code"
 		state := "ticket:test_ticket_123"
 
@@ -87,10 +86,29 @@ func TestProcessWeChatCallback_Success(t *testing.T) {
 	})
 
 	t.Run("成功处理微信回调-无ticket", func(t *testing.T) {
-		mockWeChatClient.Reset()
-		mockHub.Reset()
+		// 使用AddUserCallbackHandler，它不需要系统初始化
+		userHandler := &api.AddUserCallbackHandler{}
 
-		// 重新配置Mock返回值
+		// 设置微信配置
+		appIDConfig := model.SystemConfig{
+			Key:   "wechat_app_id",
+			Value: "test_app_id_2",
+			Type:  "string",
+		}
+		db.Create(&appIDConfig)
+
+		appSecretConfig := model.SystemConfig{
+			Key:   "wechat_app_secret",
+			Value: "test_app_secret_2",
+			Type:  "string",
+		}
+		db.Create(&appSecretConfig)
+
+		// 创建新的Mock对象（避免状态污染）
+		mockWeChatClient := mocks.NewMockWeChatClient()
+		mockHub := mocks.NewMockWebSocketHub()
+
+		// 配置Mock返回值
 		mockWeChatClient.AccessTokenResponse = &wechat.AccessTokenResponse{
 			AccessToken: "test_access_token_2",
 			ExpiresIn:    7200,
@@ -115,7 +133,7 @@ func TestProcessWeChatCallback_Success(t *testing.T) {
 		code := "test_code_2"
 		state := "" // 空state，没有ticket
 
-		ctx, result, err := api.ProcessWeChatCallback(db, mockWeChatClient, mockHub, code, state, handler)
+		ctx, result, err := api.ProcessWeChatCallback(db, mockWeChatClient, mockHub, code, state, userHandler)
 
 		// 验证没有错误
 		assert.NoError(t, err)

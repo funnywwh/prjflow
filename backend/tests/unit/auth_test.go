@@ -184,7 +184,7 @@ func TestAuthHandler_ChangePassword(t *testing.T) {
 
 		reqBody := map[string]interface{}{
 			"old_password": "oldpassword",
-			"new_password": "newpassword",
+			"new_password": "newpassword123",
 		}
 		jsonData, _ := json.Marshal(reqBody)
 		c.Request = httptest.NewRequest(http.MethodPost, "/api/auth/change-password", bytes.NewBuffer(jsonData))
@@ -194,10 +194,14 @@ func TestAuthHandler_ChangePassword(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		// 验证密码已更新
+		// 验证密码已更新（需要重新查询用户）
 		var updatedUser model.User
-		db.First(&updatedUser, user.ID)
-		assert.True(t, utils.CheckPassword("newpassword", updatedUser.Password))
+		err := db.First(&updatedUser, user.ID).Error
+		assert.NoError(t, err)
+		// 验证新密码可以验证通过
+		assert.True(t, utils.CheckPassword("newpassword123", updatedUser.Password))
+		// 验证旧密码不能验证通过
+		assert.False(t, utils.CheckPassword("oldpassword", updatedUser.Password))
 	})
 
 	t.Run("修改密码失败-旧密码错误", func(t *testing.T) {

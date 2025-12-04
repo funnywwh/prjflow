@@ -1,0 +1,28 @@
+# Git 属性配置
+# 用于控制 Git 如何处理特定文件
+
+# 确保文本文件使用 LF 行尾（Unix 风格），避免 Windows/Unix 行尾差异
+*.md text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.txt text eol=lf
+*.go text eol=lf
+*.vue text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+
+# 二进制文件
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.db binary

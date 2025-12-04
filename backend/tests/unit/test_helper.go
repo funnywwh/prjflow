@@ -161,7 +161,7 @@ func CreateTestProject(t *testing.T, db *gorm.DB, name string) *model.Project {
 		Name:        name,
 		Code:        code,
 		Description: "Test project",
-		Status:      1, // 1=active
+		Status:      "doing", // doing=进行中
 	}
 	if err := db.Create(project).Error; err != nil {
 		t.Fatalf("Failed to create test project: %v", err)

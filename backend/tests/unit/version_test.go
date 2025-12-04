@@ -379,3 +379,129 @@ func TestVersionHandler_DeleteVersion(t *testing.T) {
 	})
 }
 
+func TestVersionHandler_CreateVersionWithAssociations(t *testing.T) {
+	db := SetupTestDB(t)
+	defer TeardownTestDB(t, db)
+
+	project := CreateTestProject(t, db, "关联版本项目")
+	user := CreateTestUser(t, db, "versionuser", "版本用户")
+
+	// 创建测试需求和Bug
+	requirement := &model.Requirement{
+		Title:     "测试需求",
+		ProjectID: project.ID,
+		CreatorID: user.ID,
+		Status:    "in_progress",
+	}
+	db.Create(requirement)
+
+	bug := &model.Bug{
+		Title:     "测试Bug",
+		ProjectID: project.ID,
+		CreatorID: user.ID,
+		Status:    "open",
+	}
+	db.Create(bug)
+
+	handler := api.NewVersionHandler(db)
+
+	t.Run("创建版本并关联需求和Bug", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
+		reqBody := map[string]interface{}{
+			"version_number":  "v3.0.0",
+			"release_notes":   "关联需求和Bug的版本",
+			"status":          "wait", // 使用有效的状态值
+			"project_id":      project.ID,
+			"requirement_ids": []uint{requirement.ID},
+			"bug_ids":         []uint{bug.ID},
+		}
+		jsonData, _ := json.Marshal(reqBody)
+		c.Request = httptest.NewRequest(http.MethodPost, "/api/versions", bytes.NewBuffer(jsonData))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		handler.CreateVersion(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, float64(200), response["code"])
+
+		// 验证版本已创建并关联
+		var version model.Version
+		err = db.Preload("Requirements").Preload("Bugs").Where("version_number = ?", "v3.0.0").First(&version).Error
+		assert.NoError(t, err)
+		assert.Equal(t, "v3.0.0", version.VersionNumber)
+		assert.GreaterOrEqual(t, len(version.Requirements), 1)
+		assert.GreaterOrEqual(t, len(version.Bugs), 1)
+	})
+}
+
+func TestVersionHandler_GetVersionsWithFilters(t *testing.T) {
+	db := SetupTestDB(t)
+	defer TeardownTestDB(t, db)
+
+	project1 := CreateTestProject(t, db, "版本筛选项目1")
+	project2 := CreateTestProject(t, db, "版本筛选项目2")
+
+	version1 := &model.Version{
+		VersionNumber: "v1.0.0",
+		ProjectID:    project1.ID,
+		Status:       "draft",
+	}
+	db.Create(version1)
+
+	version2 := &model.Version{
+		VersionNumber: "v2.0.0",
+		ProjectID:    project2.ID,
+		Status:       "released",
+	}
+	db.Create(version2)
+
+	handler := api.NewVersionHandler(db)
+
+	t.Run("按项目筛选版本", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, "/api/versions?project_id=1", nil)
+
+		handler.GetVersions(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, float64(200), response["code"])
+
+		data := response["data"].(map[string]interface{})
+		list := data["list"].([]interface{})
+		assert.GreaterOrEqual(t, len(list), 1)
+	})
+
+	t.Run("按状态筛选版本", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, "/api/versions?status=released", nil)
+
+		handler.GetVersions(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, float64(200), response["code"])
+
+		data := response["data"].(map[string]interface{})
+		list := data["list"].([]interface{})
+		assert.GreaterOrEqual(t, len(list), 1)
+	})
+}
+

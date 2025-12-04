@@ -490,12 +490,16 @@ func TestTaskHandler_UpdateTaskStatus(t *testing.T) {
 	}
 	db.Create(&task)
 
+	// 添加用户到项目，以便有权限更新任务
+	AddUserToProject(t, db, user.ID, project.ID, "member")
+
 	handler := api.NewTaskHandler(db)
 
 	t.Run("更新任务状态成功", func(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
+		c.Set("user_id", user.ID)
 
 		reqBody := map[string]interface{}{
 			"status": "doing",

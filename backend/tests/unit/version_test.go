@@ -26,7 +26,7 @@ func TestVersionHandler_GetVersions(t *testing.T) {
 	version1 := &model.Version{
 		VersionNumber: "v1.0.0",
 		ProjectID:    project.ID,
-		Status:       "draft",
+		Status:       "wait", // 使用有效的状态值
 	}
 	db.Create(version1)
 
@@ -84,7 +84,7 @@ func TestVersionHandler_GetVersion(t *testing.T) {
 	version := &model.Version{
 		VersionNumber: "v1.0.0",
 		ProjectID:    project.ID,
-		Status:       "draft",
+		Status:       "wait", // 使用有效的状态值
 	}
 	db.Create(&version)
 
@@ -140,7 +140,7 @@ func TestVersionHandler_CreateVersion(t *testing.T) {
 		reqBody := map[string]interface{}{
 			"version_number": "v2.0.0",
 			"release_notes": "这是一个新版本",
-			"status":         "draft",
+			"status":         "wait", // 使用有效的状态值
 			"project_id":     project.ID,
 		}
 		jsonData, _ := json.Marshal(reqBody)
@@ -213,7 +213,7 @@ func TestVersionHandler_UpdateVersion(t *testing.T) {
 	version := &model.Version{
 		VersionNumber: "v1.0.0",
 		ProjectID:    project.ID,
-		Status:       "draft",
+		Status:       "wait", // 使用有效的状态值
 	}
 	db.Create(&version)
 
@@ -227,12 +227,12 @@ func TestVersionHandler_UpdateVersion(t *testing.T) {
 		reqBody := map[string]interface{}{
 			"version_number": "v1.1.0",
 			"release_notes": "更新后的发布说明",
-			"status":         "released",
+			"status":         "normal", // 使用有效的状态值
 		}
 		jsonData, _ := json.Marshal(reqBody)
-		c.Request = httptest.NewRequest(http.MethodPut, "/api/versions/1", bytes.NewBuffer(jsonData))
+		c.Request = httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/versions/%d", version.ID), bytes.NewBuffer(jsonData))
 		c.Request.Header.Set("Content-Type", "application/json")
-		c.Params = gin.Params{gin.Param{Key: "id", Value: "1"}}
+		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", version.ID)}}
 
 		handler.UpdateVersion(c)
 
@@ -243,7 +243,7 @@ func TestVersionHandler_UpdateVersion(t *testing.T) {
 		err := db.First(&updatedVersion, version.ID).Error
 		assert.NoError(t, err)
 		assert.Equal(t, "v1.1.0", updatedVersion.VersionNumber)
-		assert.Equal(t, "released", updatedVersion.Status)
+		assert.Equal(t, "normal", updatedVersion.Status) // 使用有效的状态值
 	})
 
 	t.Run("更新不存在的版本", func(t *testing.T) {
@@ -352,7 +352,7 @@ func TestVersionHandler_DeleteVersion(t *testing.T) {
 	version := &model.Version{
 		VersionNumber: "v1.0.0",
 		ProjectID:    project.ID,
-		Status:       "draft",
+		Status:       "wait", // 使用有效的状态值
 	}
 	db.Create(&version)
 
@@ -453,7 +453,7 @@ func TestVersionHandler_GetVersionsWithFilters(t *testing.T) {
 	version1 := &model.Version{
 		VersionNumber: "v1.0.0",
 		ProjectID:    project1.ID,
-		Status:       "draft",
+		Status:       "wait", // 使用有效的状态值
 	}
 	db.Create(version1)
 

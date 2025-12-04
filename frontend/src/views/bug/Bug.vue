@@ -151,7 +151,11 @@
                         {{ searchFormVisible ? '收起' : '展开' }}
                       </a-button>
                     </a-space>
-                    <a-button type="primary" @click="handleCreate">
+                    <a-button 
+                      v-permission="'bug:create'"
+                      type="primary" 
+                      @click="handleCreate"
+                    >
                       <template #icon><PlusOutlined /></template>
                       新增Bug
                     </a-button>
@@ -319,13 +323,24 @@
                 </template>
                 <template v-else-if="column.key === 'action'">
                   <a-space @click.stop>
-                    <a-button type="link" size="small" @click.stop="handleEdit(record)">
+                    <a-button 
+                      v-permission="'bug:update'"
+                      type="link" 
+                      size="small" 
+                      @click.stop="handleEdit(record)"
+                    >
                       编辑
                     </a-button>
-                    <a-button type="link" size="small" @click.stop="handleAssign(record)">
+                    <a-button 
+                      v-permission="'bug:assign'"
+                      type="link" 
+                      size="small" 
+                      @click.stop="handleAssign(record)"
+                    >
                       指派
                     </a-button>
                     <a-button
+                      v-permission="'bug:update'"
                       v-if="record.status === 'active' && !record.confirmed"
                       type="link"
                       size="small"
@@ -334,6 +349,7 @@
                       确认
                     </a-button>
                     <a-button
+                      v-permission="'bug:update'"
                       v-if="record.status === 'active'"
                       type="link"
                       size="small"
@@ -342,6 +358,7 @@
                       解决
                     </a-button>
                     <a-popconfirm
+                      v-permission="'bug:delete'"
                       title="确定要删除这个Bug吗？"
                       @confirm="handleDelete(record.id)"
                     >

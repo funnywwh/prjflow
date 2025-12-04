@@ -6,7 +6,11 @@
         <div class="content-inner">
           <a-page-header title="任务管理">
             <template #extra>
-              <a-button type="primary" @click="handleCreate">
+              <a-button 
+                v-permission="'task:create'"
+                type="primary" 
+                @click="handleCreate"
+              >
                 <template #icon><PlusOutlined /></template>
                 新增任务
               </a-button>
@@ -145,13 +149,23 @@
                 </template>
                 <template v-else-if="column.key === 'action'">
                   <a-space @click.stop>
-                    <a-button type="link" size="small" @click.stop="handleEdit(record)">
+                    <a-button 
+                      v-permission="'task:update'"
+                      type="link" 
+                      size="small" 
+                      @click.stop="handleEdit(record)"
+                    >
                       编辑
                     </a-button>
-                    <a-button type="link" size="small" @click.stop="handleUpdateProgress(record)">
+                    <a-button 
+                      v-permission="'task:update'"
+                      type="link" 
+                      size="small" 
+                      @click.stop="handleUpdateProgress(record)"
+                    >
                       进度
                     </a-button>
-                    <a-dropdown>
+                    <a-dropdown v-permission="'task:update'">
                       <a-button type="link" size="small">
                         状态 <DownOutlined />
                       </a-button>
@@ -167,6 +181,7 @@
                       </template>
                     </a-dropdown>
                     <a-popconfirm
+                      v-permission="'task:delete'"
                       title="确定要删除这个任务吗？"
                       @confirm="handleDelete(record.id)"
                     >

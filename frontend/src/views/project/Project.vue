@@ -8,7 +8,11 @@
           <div>
               <a-page-header title="项目管理">
                 <template #extra>
-                  <a-button type="primary" @click="handleCreateProject">
+                  <a-button 
+                    v-permission="'project:create'"
+                    type="primary" 
+                    @click="handleCreateProject"
+                  >
                     <template #icon><PlusOutlined /></template>
                     新增项目
                   </a-button>
@@ -121,12 +125,13 @@
                         <a-button type="link" size="small" @click="handleManageBugs(record)">
                           Bug管理
                         </a-button>
-                        <a-popconfirm
-                          title="确定要删除这个项目吗？"
-                          @confirm="handleDeleteProject(record.id)"
-                        >
-                          <a-button type="link" size="small" danger>删除</a-button>
-                        </a-popconfirm>
+                    <a-popconfirm
+                      v-permission="'project:delete'"
+                      title="确定要删除这个项目吗？"
+                      @confirm="handleDeleteProject(record.id)"
+                    >
+                      <a-button type="link" size="small" danger>删除</a-button>
+                    </a-popconfirm>
                       </a-space>
                     </template>
                   </template>
@@ -385,9 +390,10 @@
               <a-button @click="handleDetailViewProgress">进度跟踪</a-button>
               <a-button @click="handleDetailViewResourceStatistics">资源统计</a-button>
               <a-button @click="handleDetailManageModules">功能模块</a-button>
-              <a-button @click="handleDetailEdit">编辑</a-button>
-              <a-button @click="handleDetailManageMembers">成员管理</a-button>
+              <a-button v-permission="'project:update'" @click="handleDetailEdit">编辑</a-button>
+              <a-button v-permission="'project:manage'" @click="handleDetailManageMembers">成员管理</a-button>
               <a-popconfirm
+                v-permission="'project:delete'"
                 title="确定要删除这个项目吗？"
                 @confirm="handleDetailDelete"
               >

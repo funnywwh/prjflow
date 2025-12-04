@@ -45,10 +45,14 @@
 
             <a-row :gutter="16" class="stats-row">
               <a-col :span="12">
-                <a-statistic title="本周工时" :value="statistics.week_hours" suffix="小时" :precision="1" />
+                <a-card class="stat-card" @click="goToResourceAllocations('week')">
+                  <a-statistic title="本周工时" :value="statistics.week_hours" suffix="小时" :precision="1" />
+                </a-card>
               </a-col>
               <a-col :span="12">
-                <a-statistic title="本月工时" :value="statistics.month_hours" suffix="小时" :precision="1" />
+                <a-card class="stat-card" @click="goToResourceAllocations('month')">
+                  <a-statistic title="本月工时" :value="statistics.month_hours" suffix="小时" :precision="1" />
+                </a-card>
               </a-col>
             </a-row>
 
@@ -158,6 +162,76 @@
                       </a-card>
                     </a-col>
                   </a-row>
+                </a-tab-pane>
+
+                <a-tab-pane key="resources" tab="我的资源分配">
+                  <div>
+                    <a-row :gutter="16" style="margin-bottom: 16px;">
+                      <a-col :span="12">
+                        <a-card class="stat-card" @click="goToResourceAllocations('week')">
+                          <a-statistic
+                            title="本周工时"
+                            :value="statistics.week_hours"
+                            suffix="小时"
+                            :precision="1"
+                            :value-style="{ color: '#1890ff' }"
+                          />
+                        </a-card>
+                      </a-col>
+                      <a-col :span="12">
+                        <a-card class="stat-card" @click="goToResourceAllocations('month')">
+                          <a-statistic
+                            title="本月工时"
+                            :value="statistics.month_hours"
+                            suffix="小时"
+                            :precision="1"
+                            :value-style="{ color: '#52c41a' }"
+                          />
+                        </a-card>
+                      </a-col>
+                    </a-row>
+                    
+                    <!-- 最近的资源分配记录 -->
+                    <a-list
+                      :data-source="resourceAllocations"
+                      :loading="resourceLoading"
+                      :pagination="false"
+                      size="small"
+                    >
+                      <template #renderItem="{ item }">
+                        <a-list-item>
+                          <a-list-item-meta>
+                            <template #title>
+                              <span>{{ formatDate(item.date) }}</span>
+                              <a-tag color="blue" style="margin-left: 8px;">{{ item.hours }}小时</a-tag>
+                            </template>
+                            <template #description>
+                              <div>
+                                <span v-if="item.project?.name" style="margin-right: 8px;">
+                                  <a-tag>{{ item.project.name }}</a-tag>
+                                </span>
+                                <span v-if="item.task?.title" style="margin-right: 8px;">
+                                  任务: {{ item.task.title }}
+                                </span>
+                                <span v-if="item.bug?.title" style="margin-right: 8px;">
+                                  Bug: {{ item.bug.title }}
+                                </span>
+                                <div v-if="item.description" style="margin-top: 4px; color: #666; font-size: 12px;">
+                                  {{ item.description.substring(0, 50) }}{{ item.description.length > 50 ? '...' : '' }}
+                                </div>
+                              </div>
+                            </template>
+                          </a-list-item-meta>
+                        </a-list-item>
+                      </template>
+                      <template #empty>
+                        <a-empty description="暂无资源分配记录" />
+                      </template>
+                    </a-list>
+                    <div style="text-align: center; margin-top: 16px;">
+                      <a-button type="link" @click="goToResourceAllocations('all')">查看全部资源分配</a-button>
+                    </div>
+                  </div>
                 </a-tab-pane>
 
                 <a-tab-pane key="reports">
@@ -297,6 +371,7 @@ import { message } from 'ant-design-vue'
 import dayjs from 'dayjs'
 import { getDashboard, type DashboardData } from '@/api/dashboard'
 import { getDailyReports, getWeeklyReports, type DailyReport, type WeeklyReport } from '@/api/report'
+import { getResourceAllocations, type ResourceAllocation } from '@/api/resource'
 import { useAuthStore } from '@/stores/auth'
 import AppHeader from '@/components/AppHeader.vue'
 
@@ -305,10 +380,12 @@ const authStore = useAuthStore()
 
 const loading = ref(false)
 const reportLoading = ref(false)
+const resourceLoading = ref(false)
 const activeTab = ref('projects')
 const reportTab = ref('daily')
 const dailyReports = ref<DailyReport[]>([])
 const weeklyReports = ref<WeeklyReport[]>([])
+const resourceAllocations = ref<ResourceAllocation[]>([])
 const dashboardData = ref<DashboardData>({
   tasks: { todo: 0, in_progress: 0, done: 0 },
   bugs: { active: 0, resolved: 0, closed: 0 },
@@ -481,10 +558,58 @@ watch(reportTab, () => {
   }
 })
 
+// 加载资源分配列表
+const loadResourceAllocations = async () => {
+  resourceLoading.value = true
+  try {
+    // 获取当前用户ID
+    const userId = authStore.user?.id
+    if (!userId) return
+
+    // 计算本周开始和结束日期
+    const now = dayjs()
+    const weekStart = now.startOf('week').add(1, 'day') // 周一开始
+    const weekEnd = weekStart.add(6, 'days')
+
+    // 加载本周的资源分配（最多10条）
+    const res = await getResourceAllocations({
+      user_id: userId,
+      start_date: weekStart.format('YYYY-MM-DD'),
+      end_date: weekEnd.format('YYYY-MM-DD'),
+      page: 1,
+      size: 10
+    })
+    resourceAllocations.value = res.list
+  } catch (error) {
+    // 静默失败，不影响主界面
+  } finally {
+    resourceLoading.value = false
+  }
+}
+
+// 跳转到资源分配页面
+const goToResourceAllocations = (type: 'week' | 'month' | 'all') => {
+  if (type === 'week') {
+    router.push({
+      path: '/resource-allocation',
+      query: { period: 'week' }
+    })
+  } else if (type === 'month') {
+    router.push({
+      path: '/resource-allocation',
+      query: { period: 'month' }
+    })
+  } else {
+    router.push('/resource-allocation')
+  }
+}
+
 // 监听主Tab切换
 watch(activeTab, (newTab) => {
   if (newTab === 'reports') {
     loadReports()
+  } else if (newTab === 'resources') {
+    loadResourceAllocations()
   }
 })
 

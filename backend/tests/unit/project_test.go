@@ -636,18 +636,24 @@ func TestProjectHandler_AddProjectMembers(t *testing.T) {
 	handler := api.NewProjectHandler(db)
 
 	t.Run("添加项目成员成功", func(t *testing.T) {
+		// 创建用户并添加到项目（作为项目成员，用于添加其他成员）
+		adminUser := CreateTestUser(t, db, "addmemberadmin", "添加成员管理员")
+		AddUserToProject(t, db, adminUser.ID, project.ID, "member")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
+		c.Set("user_id", adminUser.ID)
+		c.Set("roles", []string{"developer"})
 
 		reqBody := map[string]interface{}{
 			"user_ids": []uint{user1.ID, user2.ID},
 			"role":     "developer",
 		}
 		jsonData, _ := json.Marshal(reqBody)
-		c.Request = httptest.NewRequest(http.MethodPost, "/api/projects/1/members", bytes.NewBuffer(jsonData))
+		c.Request = httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/projects/%d/members", project.ID), bytes.NewBuffer(jsonData))
 		c.Request.Header.Set("Content-Type", "application/json")
-		c.Params = gin.Params{gin.Param{Key: "id", Value: "1"}}
+		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", project.ID)}}
 
 		handler.AddProjectMembers(c)
 
@@ -730,13 +736,19 @@ func TestProjectHandler_RemoveProjectMember(t *testing.T) {
 	handler := api.NewProjectHandler(db)
 
 	t.Run("移除项目成员成功", func(t *testing.T) {
+		// 创建另一个用户作为项目成员（用于移除操作）
+		removerUser := CreateTestUser(t, db, "removemember2", "移除成员用户2")
+		AddUserToProject(t, db, removerUser.ID, project.ID, "member")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest(http.MethodDelete, "/api/projects/1/members/1", nil)
+		c.Set("user_id", removerUser.ID)
+		c.Set("roles", []string{"developer"})
+		c.Request = httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/projects/%d/members/%d", project.ID, member.ID), nil)
 		c.Params = gin.Params{
-			gin.Param{Key: "id", Value: "1"},
-			gin.Param{Key: "member_id", Value: "1"},
+			gin.Param{Key: "id", Value: fmt.Sprintf("%d", project.ID)},
+			gin.Param{Key: "member_id", Value: fmt.Sprintf("%d", member.ID)},
 		}
 
 		handler.RemoveProjectMember(c)
@@ -754,15 +766,21 @@ func TestProjectHandler_GetProjectStatistics(t *testing.T) {
 	db := SetupTestDB(t)
 	defer TeardownTestDB(t, db)
 
-	_ = CreateTestProject(t, db, "统计项目")
+	project := CreateTestProject(t, db, "统计项目")
+	user := CreateTestUser(t, db, "statisticsuser", "统计用户")
 	handler := api.NewProjectHandler(db)
 
 	t.Run("获取项目统计", func(t *testing.T) {
+		// 添加用户到项目（作为项目成员）
+		AddUserToProject(t, db, user.ID, project.ID, "member")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest(http.MethodGet, "/api/projects/1/statistics", nil)
-		c.Params = gin.Params{gin.Param{Key: "id", Value: "1"}}
+		c.Set("user_id", user.ID)
+		c.Set("roles", []string{"developer"})
+		c.Request = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/projects/%d/statistics", project.ID), nil)
+		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", project.ID)}}
 
 		handler.GetProjectStatistics(c)
 

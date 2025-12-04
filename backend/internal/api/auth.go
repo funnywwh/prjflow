@@ -62,7 +62,7 @@ func (h *AuthHandler) GetQRCode(c *gin.Context) {
 			return
 		}
 	}
-	
+
 	// 设置AccountType和Scope（优先从数据库读取，其次从配置文件，最后使用默认值）
 	var accountTypeConfig model.SystemConfig
 	if err := h.db.Where("key = ?", "wechat_account_type").First(&accountTypeConfig).Error; err == nil {
@@ -73,7 +73,7 @@ func (h *AuthHandler) GetQRCode(c *gin.Context) {
 	if h.wechatClient.AccountType == "" {
 		h.wechatClient.AccountType = "open_platform" // 默认使用开放平台
 	}
-	
+
 	var scopeConfig model.SystemConfig
 	if err := h.db.Where("key = ?", "wechat_scope").First(&scopeConfig).Error; err == nil {
 		h.wechatClient.Scope = strings.TrimSpace(scopeConfig.Value)
@@ -344,7 +344,7 @@ func (h *AuthHandler) WeChatLogin(c *gin.Context) {
 			return
 		}
 	}
-	
+
 	// 设置AccountType和Scope（优先从数据库读取，其次从配置文件，最后使用默认值）
 	var accountTypeConfig model.SystemConfig
 	if err := h.db.Where("key = ?", "wechat_account_type").First(&accountTypeConfig).Error; err == nil {
@@ -355,7 +355,7 @@ func (h *AuthHandler) WeChatLogin(c *gin.Context) {
 	if h.wechatClient.AccountType == "" {
 		h.wechatClient.AccountType = "open_platform" // 默认使用开放平台
 	}
-	
+
 	var scopeConfig model.SystemConfig
 	if err := h.db.Where("key = ?", "wechat_scope").First(&scopeConfig).Error; err == nil {
 		h.wechatClient.Scope = strings.TrimSpace(scopeConfig.Value)
@@ -772,7 +772,7 @@ func (h *AuthHandler) GetWeChatBindQRCode(c *gin.Context) {
 			return
 		}
 	}
-	
+
 	// 设置AccountType和Scope（优先从数据库读取，其次从配置文件，最后使用默认值）
 	var accountTypeConfig model.SystemConfig
 	if err := h.db.Where("key = ?", "wechat_account_type").First(&accountTypeConfig).Error; err == nil {
@@ -783,7 +783,7 @@ func (h *AuthHandler) GetWeChatBindQRCode(c *gin.Context) {
 	if h.wechatClient.AccountType == "" {
 		h.wechatClient.AccountType = "open_platform" // 默认使用开放平台
 	}
-	
+
 	var scopeConfig model.SystemConfig
 	if err := h.db.Where("key = ?", "wechat_scope").First(&scopeConfig).Error; err == nil {
 		h.wechatClient.Scope = strings.TrimSpace(scopeConfig.Value)

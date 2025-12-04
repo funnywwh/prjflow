@@ -108,19 +108,40 @@
                 </template>
                 <template v-else-if="column.key === 'action'">
                   <a-space>
-                    <a-button type="link" size="small" @click="handleEdit(record)">
+                    <a-button 
+                      v-permission="'user:update'"
+                      type="link" 
+                      size="small" 
+                      @click="handleEdit(record)"
+                    >
                       编辑
                     </a-button>
-                    <a-button type="link" size="small" @click="handleChangePassword(record)">
+                    <a-button 
+                      v-permission="'user:update'"
+                      type="link" 
+                      size="small" 
+                      @click="handleChangePassword(record)"
+                    >
                       修改密码
                     </a-button>
-                    <a-button type="link" size="small" @click="handleAssignRoles(record)">
+                    <a-button 
+                      v-permission="'permission:manage'"
+                      type="link" 
+                      size="small" 
+                      @click="handleAssignRoles(record)"
+                    >
                       分配角色
                     </a-button>
-                    <a-button type="link" size="small" @click="handleBindWeChat(record)">
+                    <a-button 
+                      v-permission="'user:update'"
+                      type="link" 
+                      size="small" 
+                      @click="handleBindWeChat(record)"
+                    >
                       绑定微信
                     </a-button>
                     <a-popconfirm
+                      v-permission="'user:delete'"
                       title="确定要删除这个用户吗？"
                       @confirm="handleDelete(record.id)"
                     >

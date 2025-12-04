@@ -16,7 +16,7 @@ import (
 
 type InitHandler struct {
 	db           *gorm.DB
-	wechatClient *wechat.WeChatClient
+	wechatClient wechat.WeChatClientInterface // 使用接口类型，支持依赖注入
 }
 
 func NewInitHandler(db *gorm.DB) *InitHandler {
@@ -24,6 +24,11 @@ func NewInitHandler(db *gorm.DB) *InitHandler {
 		db:           db,
 		wechatClient: wechat.NewWeChatClient(),
 	}
+}
+
+// SetWeChatClient 设置WeChatClient（用于测试）
+func (h *InitHandler) SetWeChatClient(client wechat.WeChatClientInterface) {
+	h.wechatClient = client
 }
 
 // CheckInitStatus 检查初始化状态
@@ -85,8 +90,8 @@ func (h *InitHandler) SaveWeChatConfig(c *gin.Context) {
 	}
 
 	// 更新WeChatClient的配置（临时，用于后续获取二维码）
-	h.wechatClient.AppID = req.WeChatAppID
-	h.wechatClient.AppSecret = req.WeChatAppSecret
+	h.wechatClient.SetAppID(req.WeChatAppID)
+	h.wechatClient.SetAppSecret(req.WeChatAppSecret)
 
 	utils.Success(c, gin.H{
 		"message": "微信配置保存成功",
@@ -128,35 +133,41 @@ func (h *InitHandler) InitSystem(c *gin.Context) {
 	}
 
 	// 临时设置WeChatClient配置，去除首尾空格
-	h.wechatClient.AppID = strings.TrimSpace(wechatAppIDConfig.Value)
-	h.wechatClient.AppSecret = strings.TrimSpace(wechatAppSecretConfig.Value)
+	appID := strings.TrimSpace(wechatAppIDConfig.Value)
+	appSecret := strings.TrimSpace(wechatAppSecretConfig.Value)
+	h.wechatClient.SetAppID(appID)
+	h.wechatClient.SetAppSecret(appSecret)
 	
 	// 验证配置是否为空
-	if h.wechatClient.AppID == "" || h.wechatClient.AppSecret == "" {
+	if h.wechatClient.GetAppID() == "" || h.wechatClient.GetAppSecret() == "" {
 		utils.Error(c, 400, "微信AppID或AppSecret配置为空，请检查配置")
 		return
 	}
 	
 	// 设置AccountType和Scope（优先从数据库读取，其次从配置文件，最后使用默认值）
 	var accountTypeConfig model.SystemConfig
+	var accountType string
 	if err := h.db.Where("key = ?", "wechat_account_type").First(&accountTypeConfig).Error; err == nil {
-		h.wechatClient.AccountType = strings.TrimSpace(accountTypeConfig.Value)
+		accountType = strings.TrimSpace(accountTypeConfig.Value)
 	} else {
-		h.wechatClient.AccountType = config.AppConfig.WeChat.AccountType
+		accountType = config.AppConfig.WeChat.AccountType
 	}
-	if h.wechatClient.AccountType == "" {
-		h.wechatClient.AccountType = "open_platform" // 默认使用开放平台
+	if accountType == "" {
+		accountType = "open_platform" // 默认使用开放平台
 	}
+	h.wechatClient.SetAccountType(accountType)
 	
 	var scopeConfig model.SystemConfig
+	var scope string
 	if err := h.db.Where("key = ?", "wechat_scope").First(&scopeConfig).Error; err == nil {
-		h.wechatClient.Scope = strings.TrimSpace(scopeConfig.Value)
+		scope = strings.TrimSpace(scopeConfig.Value)
 	} else {
-		h.wechatClient.Scope = config.AppConfig.WeChat.Scope
+		scope = config.AppConfig.WeChat.Scope
 	}
-	if h.wechatClient.Scope == "" {
-		h.wechatClient.Scope = "snsapi_userinfo" // 默认需要用户确认
+	if scope == "" {
+		scope = "snsapi_userinfo" // 默认需要用户确认
 	}
+	h.wechatClient.SetScope(scope)
 
 	// 获取access_token
 	accessTokenResp, err := h.wechatClient.GetAccessToken(req.Code)
@@ -289,24 +300,29 @@ func (h *InitHandler) GetInitQRCode(c *gin.Context) {
 	}
 
 	// 临时设置WeChatClient配置，去除首尾空格
-	h.wechatClient.AppID = strings.TrimSpace(wechatAppIDConfig.Value)
-	h.wechatClient.AppSecret = strings.TrimSpace(wechatAppSecretConfig.Value)
+	appID := strings.TrimSpace(wechatAppIDConfig.Value)
+	appSecret := strings.TrimSpace(wechatAppSecretConfig.Value)
+	h.wechatClient.SetAppID(appID)
+	h.wechatClient.SetAppSecret(appSecret)
 	
 	// 验证配置是否为空
-	if h.wechatClient.AppID == "" || h.wechatClient.AppSecret == "" {
+	if h.wechatClient.GetAppID() == "" || h.wechatClient.GetAppSecret() == "" {
 		utils.Error(c, 400, "微信AppID或AppSecret配置为空，请检查配置")
 		return
 	}
 	
 	// 确保使用配置文件中的 account_type（如果未配置，默认使用 open_platform）
-	h.wechatClient.AccountType = config.AppConfig.WeChat.AccountType
-	if h.wechatClient.AccountType == "" {
-		h.wechatClient.AccountType = "open_platform" // 默认使用开放平台
+	accountType := config.AppConfig.WeChat.AccountType
+	if accountType == "" {
+		accountType = "open_platform" // 默认使用开放平台
 	}
-	h.wechatClient.Scope = config.AppConfig.WeChat.Scope
-	if h.wechatClient.Scope == "" {
-		h.wechatClient.Scope = "snsapi_userinfo" // 默认需要用户确认
+	h.wechatClient.SetAccountType(accountType)
+	
+	scope := config.AppConfig.WeChat.Scope
+	if scope == "" {
+		scope = "snsapi_userinfo" // 默认需要用户确认
 	}
+	h.wechatClient.SetScope(scope)
 
 	// 获取回调地址（初始化回调地址）
 	// 优先级：1. 配置文件中的 callback_domain 2. 查询参数 3. Referer 头 4. 默认值

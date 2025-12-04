@@ -13,6 +13,8 @@ import (
 
 	"project-management/internal/api"
 	"project-management/internal/model"
+	"project-management/pkg/wechat"
+	"project-management/tests/unit/mocks"
 )
 
 func TestInitHandler_CheckInitStatus(t *testing.T) {
@@ -341,5 +343,151 @@ func TestInitHandler_GetInitQRCode(t *testing.T) {
 
 	// 注意：GetInitQRCode需要调用微信API获取二维码，实际测试中需要mock微信客户端
 	// 这里只测试参数验证和错误处理场景
+}
+
+func TestInitHandler_InitSystem(t *testing.T) {
+	db := SetupTestDB(t)
+	defer TeardownTestDB(t, db)
+
+	handler := api.NewInitHandler(db)
+	mockWeChatClient := mocks.NewMockWeChatClient()
+
+	t.Run("通过微信扫码初始化系统成功", func(t *testing.T) {
+		// 清理之前的数据
+		db.Exec("DELETE FROM user_roles")
+		db.Exec("DELETE FROM users")
+		db.Exec("DELETE FROM roles")
+		db.Exec("DELETE FROM system_configs WHERE key = 'initialized'")
+		db.Exec("DELETE FROM system_configs WHERE key IN ('wechat_app_id', 'wechat_app_secret')")
+
+		// 设置微信配置
+		appIDConfig := model.SystemConfig{
+			Key:   "wechat_app_id",
+			Value: "test_app_id",
+			Type:  "string",
+		}
+		db.Create(&appIDConfig)
+
+		appSecretConfig := model.SystemConfig{
+			Key:   "wechat_app_secret",
+			Value: "test_app_secret",
+			Type:  "string",
+		}
+		db.Create(&appSecretConfig)
+
+		// 配置Mock返回值
+		mockWeChatClient.AccessTokenResponse = &wechat.AccessTokenResponse{
+			AccessToken:  "test_access_token",
+			ExpiresIn:    7200,
+			RefreshToken: "test_refresh_token",
+			OpenID:       "test_open_id",
+			Scope:        "snsapi_userinfo",
+			UnionID:      "test_union_id",
+		}
+
+		mockWeChatClient.UserInfoResponse = &wechat.UserInfoResponse{
+			OpenID:     "test_open_id",
+			Nickname:   "测试管理员",
+			Sex:        1,
+			Province:   "广东",
+			City:       "深圳",
+			Country:    "中国",
+			HeadImgURL: "http://example.com/admin.jpg",
+			Privilege:  []string{},
+			UnionID:    "test_union_id",
+		}
+
+		// 替换WeChatClient
+		handler.SetWeChatClient(mockWeChatClient)
+
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
+		reqBody := map[string]interface{}{
+			"code":  "test_code",
+			"state": "test_state",
+		}
+		jsonData, _ := json.Marshal(reqBody)
+		c.Request = httptest.NewRequest(http.MethodPost, "/api/init/system", bytes.NewBuffer(jsonData))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		handler.InitSystem(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, float64(200), response["code"])
+
+		// 验证管理员用户已创建
+		var adminUser model.User
+		err = db.Where("wechat_open_id = ?", "test_open_id").First(&adminUser).Error
+		assert.NoError(t, err)
+		assert.Equal(t, "测试管理员", adminUser.Nickname)
+
+		// 验证系统已标记为初始化
+		var initConfig model.SystemConfig
+		err = db.Where("key = ?", "initialized").First(&initConfig).Error
+		assert.NoError(t, err)
+		assert.Equal(t, "true", initConfig.Value)
+
+		// 验证WeChatClient方法被调用
+		assert.Equal(t, 1, mockWeChatClient.GetAccessTokenCallCount)
+		assert.Equal(t, 1, mockWeChatClient.GetUserInfoCallCount)
+	})
+
+	t.Run("初始化系统失败-系统已初始化", func(t *testing.T) {
+		// 设置初始化状态
+		initConfig := model.SystemConfig{
+			Key:   "initialized",
+			Value: "true",
+			Type:  "boolean",
+		}
+		db.Create(&initConfig)
+
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
+		reqBody := map[string]interface{}{
+			"code":  "test_code",
+			"state": "test_state",
+		}
+		jsonData, _ := json.Marshal(reqBody)
+		c.Request = httptest.NewRequest(http.MethodPost, "/api/init/system", bytes.NewBuffer(jsonData))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		handler.InitSystem(c)
+
+		var response map[string]interface{}
+		json.Unmarshal(w.Body.Bytes(), &response)
+		assert.True(t, w.Code == http.StatusBadRequest || (response["code"] != nil && response["code"] != float64(200)))
+	})
+
+	t.Run("初始化系统失败-未配置微信AppID", func(t *testing.T) {
+		// 清理微信配置
+		db.Exec("DELETE FROM system_configs WHERE key IN ('wechat_app_id', 'wechat_app_secret')")
+		db.Exec("DELETE FROM system_configs WHERE key = 'initialized'")
+
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
+		reqBody := map[string]interface{}{
+			"code":  "test_code",
+			"state": "test_state",
+		}
+		jsonData, _ := json.Marshal(reqBody)
+		c.Request = httptest.NewRequest(http.MethodPost, "/api/init/system", bytes.NewBuffer(jsonData))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		handler.InitSystem(c)
+
+		var response map[string]interface{}
+		json.Unmarshal(w.Body.Bytes(), &response)
+		assert.True(t, w.Code == http.StatusBadRequest || (response["code"] != nil && response["code"] != float64(200)))
+	})
 }
 

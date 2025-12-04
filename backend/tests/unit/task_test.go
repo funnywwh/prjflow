@@ -33,7 +33,7 @@ func TestTaskHandler_GetTasks(t *testing.T) {
 		Title:     "任务1",
 		ProjectID: project.ID,
 		CreatorID: user.ID,
-		Status:    "todo",
+		Status:    "wait", // 使用有效的状态值
 		Priority:  "high",
 	}
 	db.Create(task1)
@@ -44,7 +44,7 @@ func TestTaskHandler_GetTasks(t *testing.T) {
 		Title:     "任务2",
 		ProjectID: project2.ID,
 		CreatorID: otherUser.ID,
-		Status:    "todo",
+		Status:    "wait", // 使用有效的状态值
 		Priority:  "high",
 	}
 	db.Create(task2)
@@ -162,7 +162,7 @@ func TestTaskHandler_GetTask(t *testing.T) {
 		Title:     "测试任务",
 		ProjectID: project.ID,
 		CreatorID: user.ID,
-		Status:    "todo",
+		Status:    "wait", // 使用有效的状态值
 		Priority:  "high",
 	}
 	db.Create(&task)
@@ -265,7 +265,7 @@ func TestTaskHandler_CreateTask(t *testing.T) {
 		reqBody := map[string]interface{}{
 			"title":          "新任务",
 			"description":    "这是一个新任务",
-			"status":         "todo",
+			"status":         "wait", // 使用有效的状态值
 			"priority":       "high",
 			"project_id":     project.ID,
 			"estimated_hours": 4.0,
@@ -306,7 +306,7 @@ func TestTaskHandler_CreateTask(t *testing.T) {
 		reqBody := map[string]interface{}{
 			"title":          "新任务",
 			"description":    "这是一个新任务",
-			"status":         "todo",
+			"status":         "wait", // 使用有效的状态值
 			"priority":       "high",
 			"project_id":     otherProject.ID,
 			"estimated_hours": 4.0,
@@ -380,7 +380,7 @@ func TestTaskHandler_UpdateTask(t *testing.T) {
 		Title:     "更新任务",
 		ProjectID: project.ID,
 		CreatorID: user.ID,
-		Status:    "todo",
+		Status:    "wait", // 使用有效的状态值
 		Priority:  "high",
 	}
 	db.Create(&task)
@@ -388,13 +388,18 @@ func TestTaskHandler_UpdateTask(t *testing.T) {
 	handler := api.NewTaskHandler(db)
 
 	t.Run("更新任务成功", func(t *testing.T) {
+		// 添加用户到项目（作为项目成员）
+		AddUserToProject(t, db, user.ID, project.ID, "member")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
+		c.Set("user_id", user.ID)
+		c.Set("roles", []string{"developer"})
 
 		reqBody := map[string]interface{}{
 			"title":     "已更新任务",
-			"status":    "in_progress",
+			"status":    "doing", // 使用有效的状态值
 			"priority":  "medium",
 		}
 		jsonData, _ := json.Marshal(reqBody)
@@ -446,7 +451,7 @@ func TestTaskHandler_DeleteTask(t *testing.T) {
 		Title:     "删除任务",
 		ProjectID: project.ID,
 		CreatorID: user.ID,
-		Status:    "todo",
+		Status:    "wait", // 使用有效的状态值
 	}
 	db.Create(&task)
 

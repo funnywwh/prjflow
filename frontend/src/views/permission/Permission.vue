@@ -114,10 +114,16 @@
                     </template>
                     <template v-else-if="column.key === 'operation'">
                       <a-space>
-                        <a-button type="link" size="small" @click="handleEditPermission(record)">
+                        <a-button 
+                          v-permission="'permission:manage'"
+                          type="link" 
+                          size="small" 
+                          @click="handleEditPermission(record)"
+                        >
                           编辑
                         </a-button>
                         <a-popconfirm
+                          v-permission="'permission:manage'"
                           title="确定要删除这个权限吗？"
                           @confirm="handleDeletePermission(record.id)"
                         >

@@ -397,17 +397,23 @@ func TestBugHandler_UpdateBug(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
+		c.Set("user_id", user.ID)
+		c.Set("roles", []string{"developer"})
+
+		// 先将Bug状态改为active（因为初始状态是open，需要先改为active）
+		bug.Status = "active"
+		db.Save(&bug)
 
 		reqBody := map[string]interface{}{
 			"title":     "已更新Bug",
-			"status":    "in_progress",
+			"status":    "resolved", // 使用有效的状态值：active -> resolved
 			"priority":  "medium",
 			"severity":  "high",
 		}
 		jsonData, _ := json.Marshal(reqBody)
-		c.Request = httptest.NewRequest(http.MethodPut, "/api/bugs/1", bytes.NewBuffer(jsonData))
+		c.Request = httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/bugs/%d", bug.ID), bytes.NewBuffer(jsonData))
 		c.Request.Header.Set("Content-Type", "application/json")
-		c.Params = gin.Params{gin.Param{Key: "id", Value: "1"}}
+		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", bug.ID)}}
 
 		handler.UpdateBug(c)
 
@@ -418,7 +424,7 @@ func TestBugHandler_UpdateBug(t *testing.T) {
 		err := db.First(&updatedBug, bug.ID).Error
 		assert.NoError(t, err)
 		assert.Equal(t, "已更新Bug", updatedBug.Title)
-		assert.Equal(t, "in_progress", updatedBug.Status)
+		assert.Equal(t, "resolved", updatedBug.Status)
 	})
 
 	t.Run("更新不存在的Bug", func(t *testing.T) {
@@ -463,8 +469,10 @@ func TestBugHandler_DeleteBug(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest(http.MethodDelete, "/api/bugs/1", nil)
-		c.Params = gin.Params{gin.Param{Key: "id", Value: "1"}}
+		c.Set("user_id", user.ID)
+		c.Set("roles", []string{"developer"})
+		c.Request = httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/bugs/%d", bug.ID), nil)
+		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", bug.ID)}}
 
 		handler.DeleteBug(c)
 

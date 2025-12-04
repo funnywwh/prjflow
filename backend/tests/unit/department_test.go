@@ -3,6 +3,7 @@ package unit
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -240,22 +241,21 @@ func TestDepartmentHandler_DeleteDepartment(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest(http.MethodDelete, "/api/departments/1", nil)
-		c.Params = gin.Params{gin.Param{Key: "id", Value: "1"}}
+		c.Request = httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/departments/%d", dept.ID), nil)
+		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", dept.ID)}}
 
 		handler.DeleteDepartment(c)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		// 验证部门已软删除
+		// 验证部门已硬删除（物理删除，完全删除）
 		var deletedDept model.Department
 		err := db.First(&deletedDept, dept.ID).Error
-		assert.Error(t, err) // 应该找不到（软删除）
+		assert.Error(t, err) // 应该找不到（硬删除）
 
-		// 验证软删除后仍可通过Unscoped查询
+		// 验证硬删除后通过Unscoped也找不到
 		err = db.Unscoped().First(&deletedDept, dept.ID).Error
-		assert.NoError(t, err)
-		assert.NotNil(t, deletedDept.DeletedAt)
+		assert.Error(t, err) // 硬删除后Unscoped也找不到
 	})
 }
 

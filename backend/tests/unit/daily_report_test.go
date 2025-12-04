@@ -166,8 +166,9 @@ func TestReportHandler_CreateDailyReport(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 
+		dateStr := time.Now().Format("2006-01-02")
 		reqBody := map[string]interface{}{
-			"date":    time.Now().Format("2006-01-02"),
+			"date":    dateStr,
 			"content": "今日工作内容",
 			"status":  "draft",
 		}
@@ -186,9 +187,10 @@ func TestReportHandler_CreateDailyReport(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, float64(200), response["code"])
 
-		// 验证日报已创建
+		// 验证日报已创建（使用time.Parse解析日期字符串）
+		date, _ := time.Parse("2006-01-02", dateStr)
 		var report model.DailyReport
-		err = db.Where("user_id = ? AND date = ?", user.ID, reqBody["date"]).First(&report).Error
+		err = db.Where("user_id = ? AND date = ?", user.ID, date).First(&report).Error
 		assert.NoError(t, err)
 		assert.Equal(t, "今日工作内容", report.Content)
 	})

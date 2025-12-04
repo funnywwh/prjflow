@@ -186,8 +186,8 @@ func TestPermissionHandler_GetRole(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Params = gin.Params{gin.Param{Key: "id", Value: "1"}}
-		c.Request = httptest.NewRequest(http.MethodGet, "/api/permissions/roles/1", nil)
+		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", role.ID)}}
+		c.Request = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/permissions/roles/%d", role.ID), nil)
 
 		handler.GetRole(c)
 
@@ -321,14 +321,14 @@ func TestPermissionHandler_UpdateRole(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Params = gin.Params{gin.Param{Key: "id", Value: "1"}}
+		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", role.ID)}}
 
 		reqBody := map[string]interface{}{
 			"name":        "更新后的角色",
 			"description": "更新后的描述",
 		}
 		jsonData, _ := json.Marshal(reqBody)
-		c.Request = httptest.NewRequest(http.MethodPut, "/api/permissions/roles/1", bytes.NewBuffer(jsonData))
+		c.Request = httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/permissions/roles/%d", role.ID), bytes.NewBuffer(jsonData))
 		c.Request.Header.Set("Content-Type", "application/json")
 
 		handler.UpdateRole(c)
@@ -380,17 +380,22 @@ func TestPermissionHandler_DeleteRole(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Params = gin.Params{gin.Param{Key: "id", Value: "1"}}
-		c.Request = httptest.NewRequest(http.MethodDelete, "/api/permissions/roles/1", nil)
+		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", role.ID)}}
+		c.Request = httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/permissions/roles/%d", role.ID), nil)
 
 		handler.DeleteRole(c)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		// 验证角色已删除
+		// 验证角色已软删除
 		var deletedRole model.Role
 		err := db.First(&deletedRole, role.ID).Error
-		assert.Error(t, err)
+		assert.Error(t, err) // 应该找不到（软删除）
+
+		// 验证软删除后仍可通过Unscoped查询
+		err = db.Unscoped().First(&deletedRole, role.ID).Error
+		assert.NoError(t, err)
+		assert.NotNil(t, deletedRole.DeletedAt)
 	})
 
 	t.Run("删除角色失败-有关联用户", func(t *testing.T) {

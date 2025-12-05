@@ -202,21 +202,14 @@
           </a-select>
         </a-form-item>
         <a-form-item label="负责人" name="assignee_id">
-          <a-select
-            v-model:value="editFormData.assignee_id"
+          <ProjectMemberSelect
+            v-model="editFormData.assignee_id"
+            :project-id="requirement?.project_id"
+            :multiple="false"
             placeholder="选择负责人（可选）"
-            allow-clear
-            show-search
-            :filter-option="filterUserOption"
-          >
-            <a-select-option
-              v-for="user in users"
-              :key="user.id"
-              :value="user.id"
-            >
-              {{ user.username }}{{ user.nickname ? `(${user.nickname})` : '' }}
-            </a-select-option>
-          </a-select>
+            :show-role="true"
+            :show-hint="!requirement?.project_id"
+          />
         </a-form-item>
         <a-form-item label="预估工时" name="estimated_hours">
           <a-input-number
@@ -265,6 +258,7 @@ import { DownOutlined } from '@ant-design/icons-vue'
 import { formatDateTime } from '@/utils/date'
 import AppHeader from '@/components/AppHeader.vue'
 import MarkdownEditor from '@/components/MarkdownEditor.vue'
+import ProjectMemberSelect from '@/components/ProjectMemberSelect.vue'
 import {
   getRequirement,
   updateRequirement,
@@ -276,7 +270,6 @@ import {
   type CreateRequirementRequest,
   type Action
 } from '@/api/requirement'
-import { getUsers, type User } from '@/api/user'
 import { createBug, type CreateBugRequest } from '@/api/bug'
 
 const route = useRoute()
@@ -284,7 +277,6 @@ const router = useRouter()
 
 const loading = ref(false)
 const requirement = ref<Requirement | null>(null)
-const users = ref<User[]>([])
 
 // 历史记录相关
 const historyLoading = ref(false)
@@ -367,9 +359,6 @@ const handleEdit = async () => {
   editFormData.estimated_hours = requirement.value.estimated_hours
   
   editModalVisible.value = true
-  if (users.value.length === 0) {
-    await loadUsers()
-  }
 }
 
 // 编辑提交
@@ -425,20 +414,6 @@ const handleEditCancel = () => {
   editFormRef.value?.resetFields()
 }
 
-// 加载用户列表
-const loadUsers = async () => {
-  try {
-    const response = await getUsers()
-    users.value = response.list || []
-  } catch (error: any) {
-    console.error('加载用户列表失败:', error)
-  }
-}
-
-// 用户筛选
-const filterUserOption = (input: string, option: any) => {
-  return option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
-}
 
 // 判断历史记录是否有详情
 const hasHistoryDetails = (action: Action): boolean => {

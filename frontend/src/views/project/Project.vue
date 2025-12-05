@@ -294,7 +294,7 @@
         >
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'user'">
-              {{ record.user?.username || '-' }}
+              {{ record.user?.username || '-' }}{{ record.user?.nickname ? `(${record.user.nickname})` : '' }}
             </template>
             <template v-else-if="column.key === 'role'">
               <a-select

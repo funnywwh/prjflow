@@ -163,6 +163,14 @@
                       v-permission="'task:update'"
                       type="link" 
                       size="small" 
+                      @click.stop="handleAssign(record)"
+                    >
+                      指派
+                    </a-button>
+                    <a-button 
+                      v-permission="'task:update'"
+                      type="link" 
+                      size="small" 
                       @click.stop="handleUpdateProgress(record)"
                     >
                       进度
@@ -286,6 +294,16 @@
             :project-id="formData.project_id"
             :multiple="false"
             placeholder="选择负责人（可选）"
+            :show-role="true"
+            :show-hint="!formData.project_id"
+          />
+        </a-form-item>
+        <a-form-item label="指派给" name="assignee_id">
+          <ProjectMemberSelect
+            v-model="formData.assignee_id"
+            :project-id="formData.project_id"
+            :multiple="false"
+            placeholder="选择指派给（可选）"
             :show-role="true"
             :show-hint="!formData.project_id"
           />
@@ -446,6 +464,7 @@
       :width="1200"
       :mask-closable="true"
       :footer="null"
+      :z-index="2000"
       @cancel="handleDetailCancel"
     >
       <template #title>
@@ -462,6 +481,7 @@
           <div style="margin-bottom: 16px; text-align: right">
             <a-space>
               <a-button @click="handleDetailEdit">编辑</a-button>
+              <a-button @click="handleDetailAssign">指派</a-button>
               <a-button @click="handleDetailUpdateProgress">更新进度</a-button>
               <a-dropdown>
                 <a-button>
@@ -546,6 +566,57 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <!-- 任务指派模态框 -->
+    <a-modal
+      v-model:open="assignModalVisible"
+      title="指派任务"
+      :mask-closable="true"
+      :z-index="2100"
+      @ok="handleAssignSubmit"
+      @cancel="handleAssignCancel"
+    >
+      <a-form
+        ref="assignFormRef"
+        :model="assignFormData"
+        :rules="assignFormRules"
+        :label-col="{ span: 6 }"
+        :wrapper-col="{ span: 18 }"
+      >
+        <a-form-item label="指派给" name="assignee_id">
+          <ProjectMemberSelect
+            v-model="assignFormData.assignee_id"
+            :project-id="currentAssignTaskId ? (tasks.find(t => t.id === currentAssignTaskId)?.project_id) : assignFormData.project_id"
+            :multiple="false"
+            placeholder="选择指派给"
+            :show-role="true"
+            :get-popup-container="(triggerNode) => triggerNode.parentElement"
+          />
+        </a-form-item>
+        <a-form-item label="状态" name="status">
+          <a-select
+            v-model:value="assignFormData.status"
+            placeholder="选择状态（可选，不选择则自动修改）"
+            allow-clear
+            :get-popup-container="(triggerNode) => triggerNode.parentElement"
+          >
+            <a-select-option value="wait">未开始</a-select-option>
+            <a-select-option value="doing">进行中</a-select-option>
+            <a-select-option value="done">已完成</a-select-option>
+            <a-select-option value="pause">已暂停</a-select-option>
+            <a-select-option value="cancel">已取消</a-select-option>
+            <a-select-option value="closed">已关闭</a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item label="备注" name="comment">
+          <a-textarea
+            v-model:value="assignFormData.comment"
+            placeholder="请输入备注（可选）"
+            :rows="4"
+          />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -572,6 +643,7 @@ import {
   updateTaskProgress,
   getTaskHistory,
   addTaskHistoryNote,
+  assignTask,
   type Task,
   type CreateTaskRequest,
   type UpdateTaskProgressRequest,
@@ -608,6 +680,20 @@ const detailNoteFormRules = {
   comment: [{ required: true, message: '请输入备注', trigger: 'blur' }]
 }
 const shouldKeepDetailOpen = ref(false)
+
+// 指派模态框相关
+const assignModalVisible = ref(false)
+const assignFormRef = ref()
+const assignFormData = reactive({
+  assignee_id: undefined as number | undefined,
+  project_id: undefined as number | undefined,
+  status: undefined as string | undefined,
+  comment: undefined as string | undefined
+})
+const assignFormRules = {
+  assignee_id: [{ required: true, message: '请选择指派人', trigger: 'change' }]
+}
+const currentAssignTaskId = ref<number | null>(null)
 
 const searchForm = reactive({
   keyword: '',
@@ -1213,6 +1299,64 @@ const handleDetailDelete = async () => {
   } catch (error: any) {
     message.error(error.message || '删除失败')
   }
+}
+
+// 指派
+const handleAssign = (record: Task) => {
+  currentAssignTaskId.value = record.id
+  assignFormData.project_id = record.project_id
+  // 设置默认值：如果当前状态是 "wait"，默认选择 "doing"；否则默认不选择（自动修改）
+  if (record.status === 'wait') {
+    assignFormData.status = 'doing'
+  } else {
+    assignFormData.status = undefined
+  }
+  assignFormData.assignee_id = record.assignee_id // 预填充当前指派人
+  assignFormData.comment = undefined // 清空备注
+  assignModalVisible.value = true
+}
+
+// 指派提交
+const handleAssignSubmit = async () => {
+  if (!currentAssignTaskId.value) return
+  try {
+    await assignFormRef.value.validate()
+    const requestData: any = { assignee_id: assignFormData.assignee_id }
+    if (assignFormData.status) {
+      requestData.status = assignFormData.status
+    }
+    if (assignFormData.comment) {
+      requestData.comment = assignFormData.comment
+    }
+    await assignTask(currentAssignTaskId.value, requestData)
+    message.success('指派成功')
+    assignModalVisible.value = false
+    if (detailTask.value && detailTask.value.id === currentAssignTaskId.value) {
+      await loadTaskDetail(detailTask.value.id)
+    }
+    loadTasks()
+  } catch (error: any) {
+    if (error.errorFields) {
+      return
+    }
+    message.error(error.message || '指派失败')
+  }
+}
+
+// 指派取消
+const handleAssignCancel = () => {
+  assignFormRef.value?.resetFields()
+  assignFormData.status = undefined
+  assignFormData.comment = undefined
+  assignFormData.assignee_id = undefined
+  assignFormData.project_id = undefined
+  currentAssignTaskId.value = null
+}
+
+// 详情页指派
+const handleDetailAssign = () => {
+  if (!detailTask.value) return
+  handleAssign(detailTask.value)
 }
 
 // 详情页添加备注

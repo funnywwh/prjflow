@@ -150,6 +150,7 @@
       v-model:open="assignModalVisible"
       title="指派需求"
       :mask-closable="true"
+      :z-index="2100"
       @ok="handleAssignSubmit"
       @cancel="handleAssignCancel"
     >
@@ -167,6 +168,7 @@
             :multiple="false"
             placeholder="选择指派给"
             :show-role="true"
+            :get-popup-container="(triggerNode) => triggerNode.parentElement"
           />
         </a-form-item>
         <a-form-item label="状态" name="status">
@@ -174,6 +176,7 @@
             v-model:value="assignFormData.status"
             placeholder="选择状态（可选，不选择则自动修改）"
             allow-clear
+            :get-popup-container="(triggerNode) => triggerNode.parentElement"
           >
             <a-select-option value="draft">草稿</a-select-option>
             <a-select-option value="reviewing">评审中</a-select-option>

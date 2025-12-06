@@ -748,7 +748,8 @@ func main() {
 	authGroup := r.Group("/api/auth")
 	{
 		authGroup.POST("/login", authHandler.Login) // 用户名密码登录
-		authGroup.GET("/wechat/qrcode", authHandler.GetQRCode)
+		// GetQRCode 需要可选认证：如果是添加用户场景，需要登录；如果是登录场景，不需要登录
+		authGroup.GET("/wechat/qrcode", middleware.AuthOptional(db), authHandler.GetQRCode)
 		authGroup.GET("/wechat/callback", authHandler.WeChatCallback)                   // 微信登录回调接口（GET请求，微信直接重定向到这里）
 		authGroup.GET("/wechat/add-user/callback", userHandler.AddUserByWeChatCallback) // 微信添加用户回调接口（GET请求，微信直接重定向到这里）
 		authGroup.POST("/wechat/login", authHandler.WeChatLogin)                        // 微信登录（POST请求，保留用于其他场景）

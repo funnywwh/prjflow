@@ -104,11 +104,21 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	// 检查用户名是否已存在
+	// 检查用户名是否已存在（包括软删除的用户）
 	var existingUser model.User
-	if err := h.db.Where("username = ?", req.Username).First(&existingUser).Error; err == nil {
-		utils.Error(c, 400, "用户名已存在")
-		return
+	// 使用 Unscoped() 查询，包括软删除的用户
+	if err := h.db.Unscoped().Where("username = ?", req.Username).First(&existingUser).Error; err == nil {
+		// 如果用户存在且是软删除的，直接硬删除它（因为现在系统已改为硬删除）
+		if existingUser.DeletedAt.Valid {
+			// 先删除关联关系
+			h.db.Model(&existingUser).Association("Roles").Clear()
+			// 硬删除软删除的用户
+			h.db.Unscoped().Delete(&existingUser, existingUser.ID)
+		} else {
+			// 用户存在且未删除
+			utils.Error(c, 400, "用户名已存在")
+			return
+		}
 	}
 
 	// 创建用户
@@ -142,19 +152,39 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		if utils.IsUniqueConstraintError(err) {
 			// 检查是哪个字段的唯一约束
 			if utils.IsUniqueConstraintOnField(err, "username") {
-				utils.Error(c, 400, "用户名已存在")
-				return
-			}
-			if utils.IsUniqueConstraintOnField(err, "wechat_open_id") {
+				// 可能是软删除用户导致的冲突，尝试硬删除软删除的用户
+				var softDeletedUser model.User
+				if err := h.db.Unscoped().Where("username = ? AND deleted_at IS NOT NULL", req.Username).First(&softDeletedUser).Error; err == nil {
+					// 找到软删除的用户，硬删除它
+					h.db.Model(&softDeletedUser).Association("Roles").Clear()
+					h.db.Unscoped().Delete(&softDeletedUser, softDeletedUser.ID)
+					// 重试创建
+					if err := h.db.Create(&user).Error; err != nil {
+						if utils.IsUniqueConstraintError(err) {
+							utils.Error(c, 400, "用户名已存在")
+							return
+						}
+						utils.Error(c, utils.CodeError, "创建失败: "+err.Error())
+						return
+					}
+					// 创建成功，继续后续处理
+				} else {
+					// 不是软删除用户导致的冲突，用户名确实已存在
+					utils.Error(c, 400, "用户名已存在")
+					return
+				}
+			} else if utils.IsUniqueConstraintOnField(err, "wechat_open_id") {
 				utils.Error(c, 400, "微信OpenID已存在")
 				return
+			} else {
+				utils.Error(c, 400, "数据已存在，请检查唯一性约束")
+				return
 			}
-			utils.Error(c, 400, "数据已存在，请检查唯一性约束")
+		} else {
+			// 其他数据库错误
+			utils.Error(c, utils.CodeError, "创建失败: "+err.Error())
 			return
 		}
-		// 其他数据库错误
-		utils.Error(c, utils.CodeError, "创建失败: "+err.Error())
-		return
 	}
 
 	// 重新加载用户（包含关联数据）
@@ -248,10 +278,30 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	utils.Success(c, user)
 }
 
-// DeleteUser 删除用户
+// DeleteUser 删除用户（硬删除）
 func (h *UserHandler) DeleteUser(c *gin.Context) {
 	id := c.Param("id")
-	if err := h.db.Delete(&model.User{}, id).Error; err != nil {
+	
+	// 先检查用户是否存在
+	var user model.User
+	if err := h.db.First(&user, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			utils.Error(c, 404, "用户不存在")
+			return
+		}
+		utils.Error(c, utils.CodeError, "查询用户失败")
+		return
+	}
+	
+	// 硬删除：先删除关联关系，再删除用户
+	// 删除用户角色关联
+	if err := h.db.Model(&user).Association("Roles").Clear(); err != nil {
+		utils.Error(c, utils.CodeError, "删除用户角色关联失败")
+		return
+	}
+	
+	// 硬删除用户
+	if err := h.db.Unscoped().Delete(&model.User{}, id).Error; err != nil {
 		utils.Error(c, utils.CodeError, "删除失败")
 		return
 	}

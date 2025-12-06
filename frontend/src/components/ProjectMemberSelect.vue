@@ -11,6 +11,7 @@
       :loading="loading"
       :disabled="disabled || !projectId"
       :style="style"
+      :get-popup-container="getPopupContainer"
       @change="handleChange"
     >
       <a-select-option
@@ -46,6 +47,7 @@ interface Props {
   showRole?: boolean
   showHint?: boolean
   hintText?: string
+  getPopupContainer?: (triggerNode: HTMLElement) => HTMLElement
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -57,7 +59,8 @@ const props = withDefaults(defineProps<Props>(), {
   style: () => ({}),
   showRole: true,
   showHint: true,
-  hintText: ''
+  hintText: '',
+  getPopupContainer: undefined
 })
 
 const emit = defineEmits<{

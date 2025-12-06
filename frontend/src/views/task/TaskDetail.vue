@@ -279,6 +279,7 @@
       v-model:open="assignModalVisible"
       title="指派任务"
       :mask-closable="true"
+      :z-index="2100"
       @ok="handleAssignSubmit"
       @cancel="handleAssignCancel"
     >
@@ -296,6 +297,7 @@
             :multiple="false"
             placeholder="选择指派给"
             :show-role="true"
+            :get-popup-container="(triggerNode) => triggerNode.parentElement"
           />
         </a-form-item>
         <a-form-item label="状态" name="status">
@@ -303,6 +305,7 @@
             v-model:value="assignFormData.status"
             placeholder="选择状态（可选，不选择则自动修改）"
             allow-clear
+            :get-popup-container="(triggerNode) => triggerNode.parentElement"
           >
             <a-select-option value="wait">未开始</a-select-option>
             <a-select-option value="doing">进行中</a-select-option>

@@ -91,7 +91,7 @@ func (h *AuthHandler) GetQRCode(c *gin.Context) {
 	
 	// 如果是添加用户场景，需要检查权限
 	if isAddUser {
-		// 检查用户是否已登录
+		// 检查用户是否已登录（AuthOptional 中间件已经处理，但为了安全再次检查）
 		userID, exists := c.Get("user_id")
 		if !exists {
 			utils.Error(c, 401, "未授权，请先登录")
@@ -117,12 +117,12 @@ func (h *AuthHandler) GetQRCode(c *gin.Context) {
 		// 检查用户是否有创建用户的权限
 		hasPermission, err := permission.CheckPermissionWithDB(h.db, roleCodes, "user:create")
 		if err != nil {
-			utils.Error(c, utils.CodeError, "权限检查失败")
+			utils.Error(c, utils.CodeError, "权限检查失败: "+err.Error())
 			return
 		}
 		
 		if !hasPermission {
-			utils.Error(c, 403, "没有权限添加用户")
+			utils.Error(c, 403, "没有权限添加用户，需要 user:create 权限")
 			return
 		}
 	}

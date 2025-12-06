@@ -61,3 +61,4 @@ zentaopms/
 backend/migrate
 releases/
 data.db
+audit.db

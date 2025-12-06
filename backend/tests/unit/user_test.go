@@ -148,9 +148,16 @@ func TestUserHandler_CreateUser(t *testing.T) {
 	handler := api.NewUserHandler(db)
 
 	t.Run("创建用户成功", func(t *testing.T) {
+		// 创建测试用户（用于审计日志）
+		adminUser := CreateTestUser(t, db, "admin", "管理员")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
+
+		// 设置用户信息（用于审计日志）
+		c.Set("user_id", adminUser.ID)
+		c.Set("username", adminUser.Username)
 
 		reqBody := map[string]interface{}{
 			"username": "newuser",
@@ -236,9 +243,16 @@ func TestUserHandler_UpdateUser(t *testing.T) {
 	handler := api.NewUserHandler(db)
 
 	t.Run("更新用户成功", func(t *testing.T) {
+		// 创建测试用户（用于审计日志）
+		adminUser := CreateTestUser(t, db, "admin", "管理员")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
+
+		// 设置用户信息（用于审计日志）
+		c.Set("user_id", adminUser.ID)
+		c.Set("username", adminUser.Username)
 
 		reqBody := map[string]interface{}{
 			"nickname": "已更新用户",
@@ -292,9 +306,17 @@ func TestUserHandler_DeleteUser(t *testing.T) {
 	handler := api.NewUserHandler(db)
 
 	t.Run("删除用户成功", func(t *testing.T) {
+		// 创建测试用户（用于审计日志）
+		adminUser := CreateTestUser(t, db, "admin", "管理员")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
+
+		// 设置用户信息（用于审计日志）
+		c.Set("user_id", adminUser.ID)
+		c.Set("username", adminUser.Username)
+
 		c.Request = httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/users/%d", user.ID), nil)
 		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", user.ID)}}
 

@@ -84,9 +84,16 @@ func TestPermissionHandler_CreatePermission(t *testing.T) {
 	handler := api.NewPermissionHandler(db)
 
 	t.Run("创建权限成功", func(t *testing.T) {
+		// 创建测试用户
+		user := CreateTestUser(t, db, "testuser", "测试用户")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
+
+		// 设置用户信息（用于审计日志）
+		c.Set("user_id", user.ID)
+		c.Set("username", user.Username)
 
 		reqBody := map[string]interface{}{
 			"code":        "new:permission",
@@ -224,9 +231,16 @@ func TestPermissionHandler_CreateRole(t *testing.T) {
 	handler := api.NewPermissionHandler(db)
 
 	t.Run("创建角色成功", func(t *testing.T) {
+		// 创建测试用户
+		user := CreateTestUser(t, db, "testuser", "测试用户")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
+
+		// 设置用户信息（用于审计日志）
+		c.Set("user_id", user.ID)
+		c.Set("username", user.Username)
 
 		reqBody := map[string]interface{}{
 			"name":        "新角色",
@@ -318,10 +332,17 @@ func TestPermissionHandler_UpdateRole(t *testing.T) {
 	handler := api.NewPermissionHandler(db)
 
 	t.Run("更新角色成功", func(t *testing.T) {
+		// 创建测试用户
+		user := CreateTestUser(t, db, "testuser", "测试用户")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", role.ID)}}
+
+		// 设置用户信息（用于审计日志）
+		c.Set("user_id", user.ID)
+		c.Set("username", user.Username)
 
 		reqBody := map[string]interface{}{
 			"name":        "更新后的角色",
@@ -377,10 +398,18 @@ func TestPermissionHandler_DeleteRole(t *testing.T) {
 	handler := api.NewPermissionHandler(db)
 
 	t.Run("删除角色成功", func(t *testing.T) {
+		// 创建测试用户
+		user := CreateTestUser(t, db, "testuser", "测试用户")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", role.ID)}}
+
+		// 设置用户信息（用于审计日志）
+		c.Set("user_id", user.ID)
+		c.Set("username", user.Username)
+
 		c.Request = httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/permissions/roles/%d", role.ID), nil)
 
 		handler.DeleteRole(c)
@@ -486,10 +515,17 @@ func TestPermissionHandler_UpdatePermission(t *testing.T) {
 	handler := api.NewPermissionHandler(db)
 
 	t.Run("更新权限成功", func(t *testing.T) {
+		// 创建测试用户
+		user := CreateTestUser(t, db, "testuser", "测试用户")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", perm.ID)}}
+
+		// 设置用户信息（用于审计日志）
+		c.Set("user_id", user.ID)
+		c.Set("username", user.Username)
 
 		reqBody := map[string]interface{}{
 			"name":        "更新后的权限",
@@ -525,10 +561,18 @@ func TestPermissionHandler_DeletePermission(t *testing.T) {
 	handler := api.NewPermissionHandler(db)
 
 	t.Run("删除权限成功", func(t *testing.T) {
+		// 创建测试用户
+		user := CreateTestUser(t, db, "testuser", "测试用户")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", perm.ID)}}
+
+		// 设置用户信息（用于审计日志）
+		c.Set("user_id", user.ID)
+		c.Set("username", user.Username)
+
 		c.Request = httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/permissions/permissions/%d", perm.ID), nil)
 
 		handler.DeletePermission(c)

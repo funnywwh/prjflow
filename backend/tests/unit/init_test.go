@@ -77,9 +77,16 @@ func TestInitHandler_SaveWeChatConfig(t *testing.T) {
 	handler := api.NewInitHandler(db)
 
 	t.Run("保存微信配置成功", func(t *testing.T) {
+		// 创建测试用户（用于审计日志）
+		user := CreateTestUser(t, db, "testuser", "测试用户")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
+
+		// 设置用户信息（用于审计日志）
+		c.Set("user_id", user.ID)
+		c.Set("username", user.Username)
 
 		reqBody := map[string]interface{}{
 			"wechat_app_id":     "test_app_id",

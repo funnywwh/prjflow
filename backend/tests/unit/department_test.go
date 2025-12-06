@@ -130,9 +130,16 @@ func TestDepartmentHandler_CreateDepartment(t *testing.T) {
 	handler := api.NewDepartmentHandler(db)
 
 	t.Run("创建部门成功", func(t *testing.T) {
+		// 创建测试用户（用于审计日志）
+		user := CreateTestUser(t, db, "testuser", "测试用户")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
+
+		// 设置用户信息（用于审计日志）
+		c.Set("user_id", user.ID)
+		c.Set("username", user.Username)
 
 		reqBody := map[string]interface{}{
 			"name":   "新部门",
@@ -179,9 +186,16 @@ func TestDepartmentHandler_UpdateDepartment(t *testing.T) {
 	handler := api.NewDepartmentHandler(db)
 
 	t.Run("更新部门成功", func(t *testing.T) {
+		// 创建测试用户（用于审计日志）
+		user := CreateTestUser(t, db, "testuser", "测试用户")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
+
+		// 设置用户信息（用于审计日志）
+		c.Set("user_id", user.ID)
+		c.Set("username", user.Username)
 
 		reqBody := map[string]interface{}{
 			"name":   "已更新部门",
@@ -238,9 +252,17 @@ func TestDepartmentHandler_DeleteDepartment(t *testing.T) {
 	handler := api.NewDepartmentHandler(db)
 
 	t.Run("删除部门成功", func(t *testing.T) {
+		// 创建测试用户（用于审计日志）
+		user := CreateTestUser(t, db, "testuser", "测试用户")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
+
+		// 设置用户信息（用于审计日志）
+		c.Set("user_id", user.ID)
+		c.Set("username", user.Username)
+
 		c.Request = httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/departments/%d", dept.ID), nil)
 		c.Params = gin.Params{gin.Param{Key: "id", Value: fmt.Sprintf("%d", dept.ID)}}
 

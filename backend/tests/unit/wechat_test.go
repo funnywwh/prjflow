@@ -102,9 +102,16 @@ func TestWeChatHandler_SaveWeChatConfig(t *testing.T) {
 	handler := api.NewWeChatHandler(db)
 
 	t.Run("保存微信配置成功-仅必填字段", func(t *testing.T) {
+		// 创建测试用户（用于审计日志）
+		user := CreateTestUser(t, db, "testuser", "测试用户")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
+
+		// 设置用户信息（用于审计日志）
+		c.Set("user_id", user.ID)
+		c.Set("username", user.Username)
 
 		reqBody := map[string]interface{}{
 			"wechat_app_id":     "test_app_id",
@@ -136,9 +143,16 @@ func TestWeChatHandler_SaveWeChatConfig(t *testing.T) {
 	})
 
 	t.Run("保存微信配置成功-包含可选字段", func(t *testing.T) {
+		// 创建测试用户（用于审计日志）
+		user := CreateTestUser(t, db, "testuser2", "测试用户2")
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
+
+		// 设置用户信息（用于审计日志）
+		c.Set("user_id", user.ID)
+		c.Set("username", user.Username)
 
 		reqBody := map[string]interface{}{
 			"wechat_app_id":     "test_app_id_2",
@@ -213,6 +227,9 @@ func TestWeChatHandler_SaveWeChatConfig(t *testing.T) {
 	})
 
 	t.Run("更新微信配置", func(t *testing.T) {
+		// 创建测试用户（用于审计日志）
+		user := CreateTestUser(t, db, "testuser3", "测试用户3")
+
 		// 先创建配置
 		appIDConfig := model.SystemConfig{
 			Key:   "wechat_app_id",
@@ -224,6 +241,10 @@ func TestWeChatHandler_SaveWeChatConfig(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
+
+		// 设置用户信息（用于审计日志）
+		c.Set("user_id", user.ID)
+		c.Set("username", user.Username)
 
 		reqBody := map[string]interface{}{
 			"wechat_app_id":     "new_app_id",

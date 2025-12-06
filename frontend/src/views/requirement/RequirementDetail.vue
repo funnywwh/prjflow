@@ -168,7 +168,7 @@
             :multiple="false"
             placeholder="选择指派给"
             :show-role="true"
-            :get-popup-container="(triggerNode) => triggerNode.parentElement"
+            :get-popup-container="(triggerNode: HTMLElement) => triggerNode.parentElement || triggerNode.ownerDocument.body"
           />
         </a-form-item>
         <a-form-item label="状态" name="status">
@@ -176,7 +176,7 @@
             v-model:value="assignFormData.status"
             placeholder="选择状态（可选，不选择则自动修改）"
             allow-clear
-            :get-popup-container="(triggerNode) => triggerNode.parentElement"
+            :get-popup-container="(triggerNode: HTMLElement) => triggerNode.parentElement || triggerNode.ownerDocument.body"
           >
             <a-select-option value="draft">草稿</a-select-option>
             <a-select-option value="reviewing">评审中</a-select-option>

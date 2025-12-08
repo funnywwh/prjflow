@@ -467,6 +467,7 @@ func initDefaultPermissionsAndRoles(db *gorm.DB) error {
 				"project-management",          // 项目管理菜单
 				"project:list",                // 项目列表
 				"project:read",                // 查看项目
+				"project:update",              // 更新项目（用于创建版本）
 				"requirement:menu",            // 需求管理菜单
 				"requirement:read",            // 查看需求
 				"task:read",                   // 任务管理（菜单和查看）

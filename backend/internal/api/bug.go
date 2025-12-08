@@ -1636,35 +1636,47 @@ func (h *BugHandler) SaveBugColumnSettings(c *gin.Context) {
 
 	// 开启事务
 	tx := h.db.Begin()
+	if tx.Error != nil {
+		utils.Error(c, utils.CodeError, "开启事务失败")
+		return
+	}
+
+	// 使用 defer 确保事务被正确处理
+	committed := false
 	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
+		if !committed {
+			if r := recover(); r != nil {
+				tx.Rollback()
+				panic(r) // 重新抛出 panic
+			} else {
+				tx.Rollback()
+			}
 		}
 	}()
 
 	// 删除该用户该页面的所有现有设置（硬删除，包括软删除的记录）
 	if err := tx.Unscoped().Where("user_id = ? AND page = ?", uid, "bug").Delete(&model.UserTableColumnSetting{}).Error; err != nil {
-		tx.Rollback()
-		utils.Error(c, utils.CodeError, "删除旧设置失败")
+		utils.Error(c, utils.CodeError, "删除旧设置失败: "+err.Error())
 		return
 	}
 
 	// 创建新设置
+	now := time.Now()
 	for _, item := range req {
-		// 使用 Omit 排除自动更新的字段，确保 visible 字段（包括 false）被正确保存
-		setting := model.UserTableColumnSetting{
-			UserID:    uid,
-			Page:      "bug",
-			ColumnKey: item.Key,
-			Visible:   item.Visible, // 明确设置 Visible 值（包括 false）
-			Order:     item.Order,
-			Width:     item.Width,
+		// 使用原生 SQL 插入，确保 visible 字段（包括 false）被正确保存
+		// 这样可以避免 GORM 的默认值干扰
+		var widthValue interface{}
+		if item.Width != nil {
+			widthValue = *item.Width
+		} else {
+			widthValue = nil
 		}
-		// 使用 Omit 排除 ID、CreatedAt、UpdatedAt，使用 Select 明确指定要保存的字段
-		if err := tx.Omit("id", "created_at", "updated_at", "deleted_at").
-			Select("user_id", "page", "column_key", "visible", "order", "width").
-			Create(&setting).Error; err != nil {
-			tx.Rollback()
+		
+		// 使用参数化查询，兼容 SQLite 和 MySQL
+		if err := tx.Exec(`
+			INSERT INTO user_table_column_settings (user_id, page, column_key, visible, `+"`order`"+`, width, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`, uid, "bug", item.Key, item.Visible, item.Order, widthValue, now, now).Error; err != nil {
 			utils.Error(c, utils.CodeError, "保存列设置失败: "+err.Error())
 			return
 		}
@@ -1672,9 +1684,10 @@ func (h *BugHandler) SaveBugColumnSettings(c *gin.Context) {
 
 	// 提交事务
 	if err := tx.Commit().Error; err != nil {
-		utils.Error(c, utils.CodeError, "保存列设置失败")
+		utils.Error(c, utils.CodeError, "提交事务失败: "+err.Error())
 		return
 	}
+	committed = true
 
 	utils.Success(c, gin.H{"message": "列设置已保存"})
 }

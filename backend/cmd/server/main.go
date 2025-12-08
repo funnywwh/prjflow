@@ -931,6 +931,9 @@ func main() {
 	bugGroup := r.Group("/api/bugs", middleware.Auth())
 	{
 		bugGroup.GET("/statistics", middleware.RequirePermission(db, "bug:read"), bugHandler.GetBugStatistics)
+		// 列设置路由（必须在 /:id 之前）
+		bugGroup.GET("/column-settings", middleware.RequirePermission(db, "bug:read"), bugHandler.GetBugColumnSettings)
+		bugGroup.POST("/column-settings", middleware.RequirePermission(db, "bug:read"), bugHandler.SaveBugColumnSettings)
 		bugGroup.GET("", middleware.RequirePermission(db, "bug:read"), bugHandler.GetBugs)
 		// 历史记录路由（必须在 /:id 之前）
 		bugGroup.GET("/:id/history", middleware.RequirePermission(db, "bug:read"), bugHandler.GetBugHistory)

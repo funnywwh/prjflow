@@ -151,14 +151,23 @@
                         {{ searchFormVisible ? '收起' : '展开' }}
                       </a-button>
                     </a-space>
-                    <a-button 
-                      v-permission="'bug:create'"
-                      type="primary" 
-                      @click="handleCreate"
-                    >
-                      <template #icon><PlusOutlined /></template>
-                      新增Bug
-                    </a-button>
+                    <a-space>
+                      <a-button 
+                        type="text" 
+                        @click="showColumnSettingsModal"
+                      >
+                        <template #icon><SettingOutlined /></template>
+                        列设置
+                      </a-button>
+                      <a-button 
+                        v-permission="'bug:create'"
+                        type="primary" 
+                        @click="handleCreate"
+                      >
+                        <template #icon><PlusOutlined /></template>
+                        新增Bug
+                      </a-button>
+                    </a-space>
                   </a-space>
                 </template>
                 <a-form v-show="searchFormVisible" :model="searchForm" layout="vertical">
@@ -288,7 +297,7 @@
 
               <a-card :bordered="false" class="table-card">
                 <a-table
-                  :columns="columns"
+                  :columns="displayColumns"
                   :data-source="bugs"
                   :loading="loading"
                   :pagination="pagination"
@@ -835,17 +844,56 @@
       </div>
     </a-modal>
 
+    <!-- 列设置弹窗 -->
+    <a-modal
+      v-model:open="columnSettingsModalVisible"
+      title="列设置"
+      :width="500"
+      :mask-closable="false"
+      @ok="handleSaveColumnSettings"
+      @cancel="handleCancelColumnSettings"
+    >
+      <div class="column-settings-list">
+        <div
+          v-for="(col, index) in columnSettingsList"
+          :key="col.key"
+          :draggable="true"
+          @dragstart="handleDragStart($event, index)"
+          @dragover.prevent
+          @drop="handleDrop($event, index)"
+          class="column-setting-item"
+          :class="{ 'dragging': draggedIndex === index }"
+        >
+          <a-space style="width: 100%; justify-content: space-between">
+            <a-space>
+              <span class="drag-handle">⋮⋮</span>
+              <a-checkbox v-model:checked="col.visible" @change="updateColumnOrder">
+                {{ col.title }}
+              </a-checkbox>
+            </a-space>
+          </a-space>
+        </div>
+      </div>
+      <template #footer>
+        <a-space>
+          <a-button @click="handleResetColumnSettings">重置</a-button>
+          <a-button @click="handleCancelColumnSettings">取消</a-button>
+          <a-button type="primary" @click="handleSaveColumnSettings">保存</a-button>
+        </a-space>
+      </template>
+    </a-modal>
+
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch, nextTick } from 'vue'
+import { ref, reactive, onMounted, watch, nextTick, computed } from 'vue'
 import { saveLastSelected, getLastSelected } from '@/utils/storage'
 import { useRoute, useRouter } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
 import { type Dayjs } from 'dayjs'
 import { formatDateTime } from '@/utils/date'
-import { PlusOutlined, UpOutlined, DownOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, UpOutlined, DownOutlined, SettingOutlined } from '@ant-design/icons-vue'
 import AppHeader from '@/components/AppHeader.vue'
 import BugDetailContent from '@/components/BugDetailContent.vue'
 import MarkdownEditor from '@/components/MarkdownEditor.vue'
@@ -862,9 +910,12 @@ import {
   assignBug,
   confirmBug,
   getBugStatistics,
+  getBugColumnSettings,
+  saveBugColumnSettings,
   type Bug,
   type CreateBugRequest,
-  type BugStatistics
+  type BugStatistics,
+  type ColumnSetting
 } from '@/api/bug'
 import { getProjects, getProjectMembers, type Project } from '@/api/project'
 import { getUsers, type User } from '@/api/user'
@@ -925,19 +976,49 @@ const pagination = reactive({
   position: ['topRight'] as const
 })
 
-const columns = [
-  { title: 'Bug标题', dataIndex: 'title', key: 'title', width: 300, ellipsis: true },
-  { title: '项目', key: 'project', width: 120 },
-  { title: '版本号', key: 'versions', width: 150 },
-  { title: '状态', key: 'status', width: 100 },
-  { title: '优先级', key: 'priority', width: 100 },
-  { title: '严重程度', key: 'severity', width: 100 },
-  { title: '创建人', key: 'creator', width: 150 },
-  { title: '指派给', key: 'assignees', width: 160 },
-  { title: '更新时间', dataIndex: 'updated_at', key: 'updated_at', width: 180 },
-  { title: '创建时间', dataIndex: 'created_at', key: 'created_at', width: 180 },
-  { title: '操作', key: 'action', width: 300, fixed: 'right' as const }
+// 所有可用列的默认配置（不包含"操作"列）
+const defaultColumnConfig = [
+  { key: 'title', title: 'Bug标题', dataIndex: 'title', width: 300, ellipsis: true, visible: true, order: 1 },
+  { key: 'project', title: '项目', width: 120, visible: true, order: 2 },
+  { key: 'versions', title: '版本号', width: 150, visible: true, order: 3 },
+  { key: 'status', title: '状态', width: 100, visible: true, order: 4 },
+  { key: 'priority', title: '优先级', width: 100, visible: true, order: 5 },
+  { key: 'severity', title: '严重程度', width: 100, visible: true, order: 6 },
+  { key: 'creator', title: '创建人', width: 150, visible: true, order: 7 },
+  { key: 'assignees', title: '指派给', width: 160, visible: true, order: 8 },
+  { key: 'updated_at', title: '更新时间', dataIndex: 'updated_at', width: 180, visible: true, order: 9 },
+  { key: 'created_at', title: '创建时间', dataIndex: 'created_at', width: 180, visible: true, order: 10 }
 ]
+
+// "操作"列固定配置
+const actionColumn = { title: '操作', key: 'action', width: 300, fixed: 'right' as const }
+
+// 列设置相关状态
+const columnSettingsModalVisible = ref(false)
+const columnSettingsList = ref<Array<{ key: string; title: string; visible: boolean; order: number; width?: number; dataIndex?: string; ellipsis?: boolean }>>([])
+const draggedIndex = ref<number | null>(null)
+const originalColumnSettings = ref<ColumnSetting[]>([])
+
+// 计算属性：根据列设置生成表格列
+const displayColumns = computed(() => {
+  // 获取可见的列并按order排序
+  const visibleColumns = columnSettingsList.value
+    .filter(col => col.visible)
+    .sort((a, b) => a.order - b.order)
+    .map(col => {
+      const config = defaultColumnConfig.find(c => c.key === col.key)
+      return {
+        title: col.title,
+        key: col.key,
+        dataIndex: col.dataIndex || config?.dataIndex,
+        width: col.width || config?.width,
+        ellipsis: col.ellipsis || config?.ellipsis
+      }
+    })
+  
+  // 追加固定的"操作"列
+  return [...visibleColumns, actionColumn]
+})
 
 const modalVisible = ref(false)
 const modalTitle = ref('新增Bug')
@@ -1027,6 +1108,182 @@ const assignFormRules = {
   assignee_ids: [{ required: true, message: '请选择指派给', trigger: 'change' }]
 }
 
+// 加载列设置
+const loadColumnSettings = async () => {
+  try {
+    const settings = await getBugColumnSettings()
+    console.log('从后端加载的列设置:', settings)
+    if (settings && settings.length > 0) {
+      // 合并用户设置和默认配置，确保所有列都有设置
+      const mergedSettings = defaultColumnConfig.map(defaultCol => {
+        const userSetting = settings.find(s => s.key === defaultCol.key)
+        if (userSetting) {
+          // 确保使用后端返回的 visible 值（即使是 false）
+          const result = {
+            ...defaultCol,
+            visible: userSetting.visible, // 直接使用后端返回的值
+            order: userSetting.order,
+            width: userSetting.width !== undefined ? userSetting.width : defaultCol.width
+          }
+          console.log(`列 ${defaultCol.key}: 后端visible=${userSetting.visible}, 最终visible=${result.visible}`)
+          return result
+        }
+        // 如果后端没有该列的设置，使用默认配置
+        return defaultCol
+      })
+      // 按order排序
+      mergedSettings.sort((a, b) => a.order - b.order)
+      columnSettingsList.value = mergedSettings
+      // 保存完整的设置（包括所有列）
+      originalColumnSettings.value = mergedSettings.map(col => ({
+        key: col.key,
+        visible: col.visible,
+        order: col.order,
+        width: col.width
+      }))
+      console.log('合并后的列设置:', columnSettingsList.value)
+    } else {
+      // 使用默认配置
+      columnSettingsList.value = [...defaultColumnConfig]
+      originalColumnSettings.value = []
+    }
+  } catch (error) {
+    // 加载失败时使用默认配置
+    console.error('加载列设置失败:', error)
+    columnSettingsList.value = [...defaultColumnConfig]
+    originalColumnSettings.value = []
+  }
+}
+
+// 显示列设置弹窗
+const showColumnSettingsModal = () => {
+  // 确保列设置已加载
+  if (columnSettingsList.value.length === 0) {
+    loadColumnSettings()
+  }
+  columnSettingsModalVisible.value = true
+}
+
+// 保存列设置
+const handleSaveColumnSettings = async () => {
+  try {
+    // 更新order值（按当前顺序）
+    columnSettingsList.value.forEach((col, index) => {
+      col.order = index + 1
+    })
+    
+    // 确保所有默认列都有设置（包括可能被隐藏的列）
+    // 合并 columnSettingsList 和 defaultColumnConfig，确保所有列都被保存
+    const allSettingsMap = new Map<string, ColumnSetting>()
+    
+    // 先添加当前列设置列表中的所有列
+    columnSettingsList.value.forEach(col => {
+      allSettingsMap.set(col.key, {
+        key: col.key,
+        visible: col.visible,
+        order: col.order,
+        width: col.width
+      })
+    })
+    
+    // 确保所有默认列都有设置（如果某个列不在列表中，使用默认值）
+    defaultColumnConfig.forEach(defaultCol => {
+      if (!allSettingsMap.has(defaultCol.key)) {
+        allSettingsMap.set(defaultCol.key, {
+          key: defaultCol.key,
+          visible: defaultCol.visible,
+          order: defaultCol.order,
+          width: defaultCol.width
+        })
+      }
+    })
+    
+    // 转换为数组并按order排序
+    const settingsToSave: ColumnSetting[] = Array.from(allSettingsMap.values())
+      .sort((a, b) => a.order - b.order)
+    
+    // 调试：打印要保存的数据
+    console.log('保存列设置:', settingsToSave)
+    
+    await saveBugColumnSettings(settingsToSave)
+    message.success('列设置已保存')
+    originalColumnSettings.value = settingsToSave
+    columnSettingsModalVisible.value = false
+    
+    // 保存后重新加载设置以确保同步
+    await loadColumnSettings()
+  } catch (error: any) {
+    message.error(error.message || '保存列设置失败')
+  }
+}
+
+// 取消列设置
+const handleCancelColumnSettings = () => {
+  // 恢复原始设置
+  if (originalColumnSettings.value.length > 0) {
+    const mergedSettings = defaultColumnConfig.map(defaultCol => {
+      const userSetting = originalColumnSettings.value.find(s => s.key === defaultCol.key)
+      if (userSetting) {
+        return {
+          ...defaultCol,
+          visible: userSetting.visible,
+          order: userSetting.order,
+          width: userSetting.width || defaultCol.width
+        }
+      }
+      return defaultCol
+    })
+    mergedSettings.sort((a, b) => a.order - b.order)
+    columnSettingsList.value = mergedSettings
+  } else {
+    columnSettingsList.value = [...defaultColumnConfig]
+  }
+  columnSettingsModalVisible.value = false
+  draggedIndex.value = null
+}
+
+// 重置列设置
+const handleResetColumnSettings = () => {
+  columnSettingsList.value = [...defaultColumnConfig]
+  originalColumnSettings.value = []
+}
+
+// 拖拽开始
+const handleDragStart = (event: DragEvent, index: number) => {
+  draggedIndex.value = index
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+  }
+}
+
+// 拖拽放置
+const handleDrop = (event: DragEvent, targetIndex: number) => {
+  event.preventDefault()
+  if (draggedIndex.value === null || draggedIndex.value === targetIndex) {
+    draggedIndex.value = null
+    return
+  }
+  
+  const draggedItem = columnSettingsList.value[draggedIndex.value]
+  if (!draggedItem) {
+    draggedIndex.value = null
+    return
+  }
+  
+  columnSettingsList.value.splice(draggedIndex.value, 1)
+  columnSettingsList.value.splice(targetIndex, 0, draggedItem)
+  
+  // 更新order值
+  updateColumnOrder()
+  draggedIndex.value = null
+}
+
+// 更新列顺序
+const updateColumnOrder = () => {
+  columnSettingsList.value.forEach((col, index) => {
+    col.order = index + 1
+  })
+}
 
 // 加载Bug列表
 const loadBugs = async () => {
@@ -2159,6 +2416,8 @@ watch([modalVisible, assignModalVisible, statusModalVisible], ([editVisible, ass
 })
 
 onMounted(async () => {
+  // 加载列设置
+  await loadColumnSettings()
   // 先加载项目列表，确保项目选择器有数据
   await loadProjects()
   loadUsers()
@@ -2191,6 +2450,41 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* 列设置相关样式 */
+.column-settings-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.column-setting-item {
+  padding: 12px;
+  margin-bottom: 8px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  cursor: move;
+  background: #fff;
+  transition: all 0.3s;
+}
+
+.column-setting-item:hover {
+  border-color: #40a9ff;
+  background: #f0f7ff;
+}
+
+.column-setting-item.dragging {
+  opacity: 0.5;
+}
+
+.drag-handle {
+  color: #999;
+  cursor: move;
+  user-select: none;
+  margin-right: 8px;
+}
+
+.drag-handle:hover {
+  color: #40a9ff;
+}
 .bug-management {
   height: 100vh;
   display: flex;

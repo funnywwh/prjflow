@@ -77,6 +77,9 @@ func AutoMigrate(db *gorm.DB) error {
 		// 工作台
 		&model.UserDashboard{},
 
+		// 用户表格列设置
+		&model.UserTableColumnSetting{},
+
 		// 系统配置
 		&model.SystemConfig{},
 

@@ -1559,3 +1559,122 @@ func (h *BugHandler) AddBugHistoryNote(c *gin.Context) {
 
 	utils.Success(c, gin.H{"message": "添加备注成功"})
 }
+
+// GetBugColumnSettings 获取Bug列表列设置
+func (h *BugHandler) GetBugColumnSettings(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		utils.Error(c, 401, "未授权")
+		return
+	}
+
+	uid := userID.(uint)
+	
+	// 使用原生 SQL 查询，直接读取数据库中的值，避免 GORM 的默认值干扰
+	type ColumnSettingRow struct {
+		ColumnKey string
+		Visible   bool
+		Order     int
+		Width     *int
+	}
+	
+	var rows []ColumnSettingRow
+	// 使用子查询去重，只取每个 column_key 的最新记录（按 id 降序），并过滤软删除的记录
+	if err := h.db.Raw(`
+		SELECT column_key, visible, ` + "`order`" + `, width 
+		FROM user_table_column_settings 
+		WHERE id IN (
+			SELECT MAX(id) 
+			FROM user_table_column_settings 
+			WHERE user_id = ? AND page = ? AND deleted_at IS NULL 
+			GROUP BY column_key
+		)
+		ORDER BY ` + "`order`" + ` ASC
+	`, uid, "bug").Scan(&rows).Error; err != nil {
+		utils.Error(c, utils.CodeError, "查询列设置失败")
+		return
+	}
+
+	// 转换为前端需要的格式
+	result := make([]gin.H, len(rows))
+	for i, row := range rows {
+		item := gin.H{
+			"key":     row.ColumnKey,
+			"visible": row.Visible, // 直接使用从数据库读取的值
+			"order":   row.Order,
+		}
+		if row.Width != nil {
+			item["width"] = *row.Width
+		}
+		result[i] = item
+	}
+
+	utils.Success(c, result)
+}
+
+// SaveBugColumnSettings 保存Bug列表列设置
+func (h *BugHandler) SaveBugColumnSettings(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		utils.Error(c, 401, "未授权")
+		return
+	}
+
+	uid := userID.(uint)
+
+	var req []struct {
+		Key     string `json:"key" binding:"required"`
+		Visible bool   `json:"visible"`
+		Order   int    `json:"order"`
+		Width   *int   `json:"width,omitempty"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Error(c, 400, "参数错误: "+err.Error())
+		return
+	}
+
+	// 开启事务
+	tx := h.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 删除该用户该页面的所有现有设置（硬删除，包括软删除的记录）
+	if err := tx.Unscoped().Where("user_id = ? AND page = ?", uid, "bug").Delete(&model.UserTableColumnSetting{}).Error; err != nil {
+		tx.Rollback()
+		utils.Error(c, utils.CodeError, "删除旧设置失败")
+		return
+	}
+
+	// 创建新设置
+	for _, item := range req {
+		// 使用 Omit 排除自动更新的字段，确保 visible 字段（包括 false）被正确保存
+		setting := model.UserTableColumnSetting{
+			UserID:    uid,
+			Page:      "bug",
+			ColumnKey: item.Key,
+			Visible:   item.Visible, // 明确设置 Visible 值（包括 false）
+			Order:     item.Order,
+			Width:     item.Width,
+		}
+		// 使用 Omit 排除 ID、CreatedAt、UpdatedAt，使用 Select 明确指定要保存的字段
+		if err := tx.Omit("id", "created_at", "updated_at", "deleted_at").
+			Select("user_id", "page", "column_key", "visible", "order", "width").
+			Create(&setting).Error; err != nil {
+			tx.Rollback()
+			utils.Error(c, utils.CodeError, "保存列设置失败: "+err.Error())
+			return
+		}
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		utils.Error(c, utils.CodeError, "保存列设置失败")
+		return
+	}
+
+	utils.Success(c, gin.H{"message": "列设置已保存"})
+}

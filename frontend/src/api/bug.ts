@@ -210,3 +210,19 @@ export const addBugHistoryNote = async (id: number, data: AddBugHistoryNoteReque
   return request.post(`/bugs/${id}/history/note`, data)
 }
 
+// 列设置相关接口
+export interface ColumnSetting {
+  key: string
+  visible: boolean
+  order: number
+  width?: number
+}
+
+export const getBugColumnSettings = async (): Promise<ColumnSetting[]> => {
+  return request.get('/bugs/column-settings')
+}
+
+export const saveBugColumnSettings = async (settings: ColumnSetting[]): Promise<void> => {
+  return request.post('/bugs/column-settings', settings)
+}
+

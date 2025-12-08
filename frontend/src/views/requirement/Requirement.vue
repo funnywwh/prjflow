@@ -370,6 +370,8 @@
             placeholder="选择工作日期（可选）"
             style="width: 100%"
             format="YYYY-MM-DD"
+            :getPopupContainer="getPopupContainer"
+            :popupStyle="{ zIndex: 2100 }"
           />
           <span style="margin-left: 8px; color: #999">不填则使用今天</span>
         </a-form-item>
@@ -1276,6 +1278,11 @@ onMounted(async () => {
     loadRequirements()
   })
 })
+
+// 获取下拉框容器（用于解决模态框中下拉框被遮挡的问题）
+const getPopupContainer = (triggerNode: HTMLElement): HTMLElement => {
+  return triggerNode.parentElement || document.body
+}
 </script>
 
 <style scoped>

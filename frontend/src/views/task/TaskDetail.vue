@@ -108,6 +108,8 @@
             placeholder="选择工作日期（默认今天）"
             style="width: 100%"
             format="YYYY-MM-DD"
+            :getPopupContainer="getPopupContainer"
+            :popupStyle="{ zIndex: 2100 }"
           />
         </a-form-item>
       </a-form>
@@ -868,6 +870,11 @@ const handleDelete = async () => {
 onMounted(() => {
   loadTask()
 })
+
+// 获取下拉框容器（用于解决模态框中下拉框被遮挡的问题）
+const getPopupContainer = (triggerNode: HTMLElement): HTMLElement => {
+  return triggerNode.parentElement || document.body
+}
 </script>
 
 <style scoped>

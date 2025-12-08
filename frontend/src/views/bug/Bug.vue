@@ -515,6 +515,8 @@
             placeholder="选择工作日期（可选）"
             style="width: 100%"
             format="YYYY-MM-DD"
+            :getPopupContainer="getPopupContainer"
+            :popupStyle="{ zIndex: 2100 }"
           />
           <span style="margin-left: 8px; color: #999">不填则使用今天</span>
         </a-form-item>
@@ -648,6 +650,8 @@
             placeholder="选择工作日期（可选）"
             style="width: 100%"
             format="YYYY-MM-DD"
+            :getPopupContainer="getPopupContainer"
+            :popupStyle="{ zIndex: 2100 }"
           />
           <span style="margin-left: 8px; color: #999">不填则使用今天</span>
         </a-form-item>

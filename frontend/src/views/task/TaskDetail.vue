@@ -411,14 +411,13 @@ const editFormData = reactive<Omit<CreateTaskRequest, 'start_date' | 'end_date' 
   assignee_id: undefined,
   start_date: undefined,
   end_date: undefined,
-  attachment_ids: []
-})
-const taskAttachments = ref<Attachment[]>([])
   due_date: undefined,
   progress: 0,
   estimated_hours: undefined,
-  dependency_ids: []
+  dependency_ids: [],
+  attachment_ids: []
 })
+const taskAttachments = ref<Attachment[]>([])
 const editFormRules = {
   title: [{ required: true, message: '请输入任务标题', trigger: 'blur' }],
   project_id: [{ required: true, message: '请选择项目', trigger: 'change' }]

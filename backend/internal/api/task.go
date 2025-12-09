@@ -114,7 +114,9 @@ func (h *TaskHandler) GetTasks(c *gin.Context) {
 func (h *TaskHandler) GetTask(c *gin.Context) {
 	id := c.Param("id")
 	var task model.Task
-	if err := h.db.Preload("Project").Preload("Requirement").Preload("Creator").Preload("Assignee").Preload("Dependencies").First(&task, id).Error; err != nil {
+	if err := h.db.Preload("Project").Preload("Requirement").Preload("Creator").Preload("Assignee").Preload("Dependencies").
+		Preload("Attachments").Preload("Attachments.Creator").
+		First(&task, id).Error; err != nil {
 		utils.Error(c, 404, "任务不存在")
 		return
 	}
@@ -338,6 +340,7 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 		ActualHours    *float64 `json:"actual_hours"` // 实际工时，会自动创建资源分配
 		WorkDate       *string  `json:"work_date"`     // 工作日期（YYYY-MM-DD），用于资源分配
 		DependencyIDs  *[]uint  `json:"dependency_ids"`
+		AttachmentIDs  *[]uint  `json:"attachment_ids"` // 附件ID列表
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -529,8 +532,56 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 		}
 	}
 
-	// 重新加载关联数据
-	h.db.Preload("Project").Preload("Requirement").Preload("Creator").Preload("Assignee").Preload("Dependencies").First(&task, task.ID)
+	// 更新附件关联
+	if req.AttachmentIDs != nil {
+		projectID := task.ProjectID
+		if req.ProjectID != nil {
+			projectID = *req.ProjectID
+		}
+		var attachments []model.Attachment
+		if len(*req.AttachmentIDs) > 0 {
+			// 验证附件是否存在且属于同一项目
+			if err := h.db.Where("id IN ?", *req.AttachmentIDs).Find(&attachments).Error; err != nil {
+				utils.Error(c, 400, "附件查询失败: "+err.Error())
+				return
+			}
+			if len(attachments) != len(*req.AttachmentIDs) {
+				// 检查是否有附件被软删除
+				var deletedAttachments []model.Attachment
+				h.db.Unscoped().Where("id IN ? AND deleted_at IS NOT NULL", *req.AttachmentIDs).Find(&deletedAttachments)
+				if len(deletedAttachments) > 0 {
+					utils.Error(c, 400, fmt.Sprintf("部分附件已被删除：期望 %d 个，实际找到 %d 个，已删除 %d 个", len(*req.AttachmentIDs), len(attachments), len(deletedAttachments)))
+					return
+				}
+				utils.Error(c, 400, fmt.Sprintf("附件不存在：期望 %d 个，实际找到 %d 个", len(*req.AttachmentIDs), len(attachments)))
+				return
+			}
+			// 验证附件是否属于同一项目（通过检查附件是否关联到项目）
+			for _, attachment := range attachments {
+				var count int64
+				if err := h.db.Table("project_attachments").
+					Where("attachment_id = ? AND project_id = ?", attachment.ID, projectID).
+					Count(&count).Error; err != nil {
+					utils.Error(c, 400, "验证附件项目关联失败: "+err.Error())
+					return
+				}
+				if count == 0 {
+					utils.Error(c, 400, fmt.Sprintf("附件 %d 不属于项目 %d", attachment.ID, projectID))
+					return
+				}
+			}
+		}
+		// 使用Replace方法同步附件关联（空数组表示移除所有附件）
+		if err := h.db.Model(&task).Association("Attachments").Replace(attachments); err != nil {
+			utils.Error(c, utils.CodeError, "更新附件关联失败: "+err.Error())
+			return
+		}
+	}
+
+	// 重新加载关联数据（包含附件）
+	h.db.Session(&gorm.Session{}).Preload("Project").Preload("Requirement").Preload("Creator").Preload("Assignee").Preload("Dependencies").
+		Preload("Attachments").Preload("Attachments.Creator").
+		First(&task, task.ID)
 
 	// 记录编辑操作和字段变更
 	userID, exists := c.Get("user_id")

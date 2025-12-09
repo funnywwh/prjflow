@@ -375,8 +375,10 @@
           <AttachmentUpload
             v-if="formData.project_id && formData.project_id > 0"
             :project-id="formData.project_id"
-            v-model="formData.attachment_ids"
+            :model-value="formData.attachment_ids"
             :existing-attachments="taskAttachments"
+            @update:modelValue="(value) => { formData.attachment_ids = value }"
+            @attachment-deleted="handleAttachmentDeleted"
           />
           <span v-else style="color: #999;">请先选择项目后再上传附件</span>
         </a-form-item>
@@ -762,6 +764,12 @@ const formData = reactive<Omit<CreateTaskRequest, 'start_date' | 'end_date' | 'd
 
 const taskAttachments = ref<Attachment[]>([]) // 任务附件列表
 
+// 处理附件删除事件
+const handleAttachmentDeleted = (attachmentId: number) => {
+  // 从taskAttachments中移除已删除的附件
+  taskAttachments.value = taskAttachments.value.filter(a => a.id !== attachmentId)
+}
+
 const formRules = {
   title: [{ required: true, message: '请输入任务标题', trigger: 'blur' }],
   project_id: [{ required: true, message: '请选择项目', trigger: 'change' }]
@@ -1079,6 +1087,15 @@ const handleSubmit = async () => {
       work_date: formData.work_date && formData.work_date.isValid() ? formData.work_date.format('YYYY-MM-DD') : undefined,
       dependency_ids: formData.dependency_ids
     }
+    
+    // 始终发送 attachment_ids，如果为 undefined 或 null，发送空数组
+    const attachmentIdsValue = formData.attachment_ids
+    if (attachmentIdsValue === undefined || attachmentIdsValue === null) {
+      data.attachment_ids = []
+    } else {
+      data.attachment_ids = Array.isArray(attachmentIdsValue) ? attachmentIdsValue : []
+    }
+    
     let taskId: number
     if (formData.id) {
       taskId = formData.id

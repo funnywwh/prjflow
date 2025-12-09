@@ -21,6 +21,7 @@ export interface Task {
   estimated_hours?: number
   actual_hours?: number
   dependencies?: Task[]
+  attachments?: any[] // 附件列表
   created_at?: string
   updated_at?: string
 }
@@ -48,6 +49,7 @@ export interface CreateTaskRequest {
   actual_hours?: number
   work_date?: string
   dependency_ids?: number[]
+  attachment_ids?: number[] // 附件ID列表
 }
 
 export interface UpdateTaskStatusRequest {

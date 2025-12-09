@@ -41,6 +41,9 @@ type Task struct {
 
 	// 任务依赖关系（多对多）
 	Dependencies []Task `gorm:"many2many:task_dependencies;joinForeignKey:task_id;joinReferences:dependency_id" json:"dependencies,omitempty"`
+
+	// 附件（多对多关系）
+	Attachments []Attachment `gorm:"many2many:task_attachments;" json:"attachments"`
 }
 
 // TaskDependency 任务依赖关系表

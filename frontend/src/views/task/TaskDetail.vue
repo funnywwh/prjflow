@@ -248,6 +248,17 @@
             style="width: 100%"
           />
         </a-form-item>
+        <a-form-item label="附件">
+          <AttachmentUpload
+            v-if="editFormData.project_id && editFormData.project_id > 0"
+            :project-id="editFormData.project_id"
+            :model-value="editFormData.attachment_ids"
+            :existing-attachments="taskAttachments"
+            @update:modelValue="(value) => { editFormData.attachment_ids = value }"
+            @attachment-deleted="handleAttachmentDeleted"
+          />
+          <span v-else style="color: #999;">请先选择项目后再上传附件</span>
+        </a-form-item>
       </a-form>
     </a-modal>
 
@@ -339,6 +350,8 @@ import AppHeader from '@/components/AppHeader.vue'
 import MarkdownEditor from '@/components/MarkdownEditor.vue'
 import ProjectMemberSelect from '@/components/ProjectMemberSelect.vue'
 import TaskDetailContent from '@/components/TaskDetailContent.vue'
+import AttachmentUpload from '@/components/AttachmentUpload.vue'
+import { getAttachments, type Attachment } from '@/api/attachment'
 import {
   getTask,
   updateTask,
@@ -387,6 +400,7 @@ const editFormData = reactive<Omit<CreateTaskRequest, 'start_date' | 'end_date' 
   start_date?: Dayjs | undefined
   end_date?: Dayjs | undefined
   due_date?: Dayjs | undefined
+  attachment_ids?: number[]
 }>({
   title: '',
   description: '',
@@ -397,6 +411,9 @@ const editFormData = reactive<Omit<CreateTaskRequest, 'start_date' | 'end_date' 
   assignee_id: undefined,
   start_date: undefined,
   end_date: undefined,
+  attachment_ids: []
+})
+const taskAttachments = ref<Attachment[]>([])
   due_date: undefined,
   progress: 0,
   estimated_hours: undefined,
@@ -503,6 +520,21 @@ const handleEdit = async () => {
   editFormData.assignee_id = task.value.assignee_id
   editFormData.start_date = task.value.start_date ? dayjs(task.value.start_date) : undefined
   editFormData.end_date = task.value.end_date ? dayjs(task.value.end_date) : undefined
+  
+  // 加载任务附件
+  try {
+    if (task.value.attachments && task.value.attachments.length > 0) {
+      taskAttachments.value = task.value.attachments
+      editFormData.attachment_ids = task.value.attachments.map((a: any) => a.id)
+    } else {
+      taskAttachments.value = await getAttachments({ task_id: task.value.id })
+      editFormData.attachment_ids = taskAttachments.value.map(a => a.id)
+    }
+  } catch (error: any) {
+    console.error('加载附件失败:', error)
+    taskAttachments.value = []
+    editFormData.attachment_ids = []
+  }
   editFormData.due_date = task.value.due_date ? dayjs(task.value.due_date) : undefined
   editFormData.progress = task.value.progress
   editFormData.estimated_hours = task.value.estimated_hours
@@ -543,7 +575,7 @@ const handleEditSubmit = async () => {
       }
     }
     
-    const data: Partial<CreateTaskRequest> = {
+    const data: any = {
       title: editFormData.title,
       description: description || '',
       status: editFormData.status,
@@ -558,6 +590,14 @@ const handleEditSubmit = async () => {
       dependency_ids: editFormData.dependency_ids
     }
     
+    // 始终发送 attachment_ids，如果为 undefined 或 null，发送空数组
+    const attachmentIdsValue = editFormData.attachment_ids
+    if (attachmentIdsValue === undefined || attachmentIdsValue === null) {
+      data.attachment_ids = []
+    } else {
+      data.attachment_ids = Array.isArray(attachmentIdsValue) ? attachmentIdsValue : []
+    }
+    
     await updateTask(task.value.id, data)
     
     message.success('更新成功')
@@ -568,6 +608,16 @@ const handleEditSubmit = async () => {
       return
     }
     message.error(error.message || '更新失败')
+  }
+}
+
+// 处理附件删除事件
+const handleAttachmentDeleted = (attachmentId: number) => {
+  // 从taskAttachments中移除已删除的附件
+  taskAttachments.value = taskAttachments.value.filter(a => a.id !== attachmentId)
+  // 同时从 editFormData.attachment_ids 中移除
+  if (editFormData.attachment_ids) {
+    editFormData.attachment_ids = editFormData.attachment_ids.filter(id => id !== attachmentId)
   }
 }
 

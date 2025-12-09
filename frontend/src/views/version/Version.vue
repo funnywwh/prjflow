@@ -251,6 +251,17 @@
             </a-select-option>
           </a-select>
         </a-form-item>
+        <a-form-item label="附件">
+          <AttachmentUpload
+            v-if="formData.project_id && formData.project_id > 0"
+            :project-id="formData.project_id"
+            :model-value="formData.attachment_ids"
+            :existing-attachments="versionAttachments"
+            @update:modelValue="(value) => { formData.attachment_ids = value }"
+            @attachment-deleted="handleAttachmentDeleted"
+          />
+          <span v-else style="color: #999;">请先选择项目后再上传附件</span>
+        </a-form-item>
       </a-form>
     </a-modal>
 
@@ -420,6 +431,8 @@ import { useRouter } from 'vue-router'
 import { formatDateTime } from '@/utils/date'
 import AppHeader from '@/components/AppHeader.vue'
 import MarkdownEditor from '@/components/MarkdownEditor.vue'
+import AttachmentUpload from '@/components/AttachmentUpload.vue'
+import { getAttachments, type Attachment } from '@/api/attachment'
 import {
   getVersions,
   getVersion,
@@ -483,15 +496,23 @@ const detailModalVisible = ref(false)
 const detailLoading = ref(false)
 const detailVersion = ref<Version | null>(null)
 const shouldKeepDetailOpen = ref(false)
-const formData = reactive<Omit<CreateVersionRequest, 'release_date'> & { id?: number; release_date?: Dayjs | undefined }>({
+const formData = reactive<Omit<CreateVersionRequest, 'release_date'> & { id?: number; release_date?: Dayjs | undefined; attachment_ids?: number[] }>({
   version_number: '',
   release_notes: '',
   status: 'wait',
   project_id: 0,
   release_date: undefined,
   requirement_ids: [],
-  bug_ids: []
+  bug_ids: [],
+  attachment_ids: []
 })
+const versionAttachments = ref<Attachment[]>([])
+
+// 处理附件删除事件
+const handleAttachmentDeleted = (attachmentId: number) => {
+  // 从versionAttachments中移除已删除的附件
+  versionAttachments.value = versionAttachments.value.filter(a => a.id !== attachmentId)
+}
 
 const formRules = {
   version_number: [{ required: true, message: '请输入版本号', trigger: 'blur' }],
@@ -595,6 +616,8 @@ const handleCreate = () => {
   formData.release_date = undefined
   formData.requirement_ids = []
   formData.bug_ids = []
+  formData.attachment_ids = []
+  versionAttachments.value = []
   loadAvailableRequirementsAndBugs()
   modalVisible.value = true
 }
@@ -615,6 +638,22 @@ const handleEdit = async (record: Version) => {
   }
   formData.requirement_ids = record.requirements?.map((r: any) => r.id) || []
   formData.bug_ids = record.bugs?.map((b: any) => b.id) || []
+  
+  // 加载版本附件
+  try {
+    if (record.attachments && record.attachments.length > 0) {
+      versionAttachments.value = record.attachments
+      formData.attachment_ids = record.attachments.map((a: any) => a.id)
+    } else {
+      versionAttachments.value = await getAttachments({ version_id: record.id })
+      formData.attachment_ids = versionAttachments.value.map(a => a.id)
+    }
+  } catch (error: any) {
+    console.error('加载附件失败:', error)
+    versionAttachments.value = []
+    formData.attachment_ids = []
+  }
+  
   await loadAvailableRequirementsAndBugs()
   modalVisible.value = true
 }
@@ -634,6 +673,15 @@ const handleSubmit = async () => {
         requirement_ids: formData.requirement_ids || [],
         bug_ids: formData.bug_ids || []
       }
+      
+      // 始终发送 attachment_ids，如果为 undefined 或 null，发送空数组
+      const attachmentIdsValue = formData.attachment_ids
+      if (attachmentIdsValue === undefined || attachmentIdsValue === null) {
+        updateData.attachment_ids = []
+      } else {
+        updateData.attachment_ids = Array.isArray(attachmentIdsValue) ? attachmentIdsValue : []
+      }
+      
       await updateVersion(formData.id, updateData)
       message.success('更新成功')
     } else {
@@ -647,6 +695,15 @@ const handleSubmit = async () => {
         requirement_ids: formData.requirement_ids || [],
         bug_ids: formData.bug_ids || []
       }
+      
+      // 始终发送 attachment_ids，如果为 undefined 或 null，发送空数组
+      const attachmentIdsValue = formData.attachment_ids
+      if (attachmentIdsValue === undefined || attachmentIdsValue === null) {
+        createData.attachment_ids = []
+      } else {
+        createData.attachment_ids = Array.isArray(attachmentIdsValue) ? attachmentIdsValue : []
+      }
+      
       await createVersion(createData)
       message.success('创建成功')
     }

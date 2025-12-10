@@ -288,7 +288,7 @@
                   <a-row>
                     <a-col :span="24">
                       <a-form-item :wrapper-col="{ offset: 0 }">
-                        <a-space>
+                        <a-space style="justify-content: flex-end; width: 100%">
                           <a-button type="primary" @click="handleSearch">查询</a-button>
                           <a-button @click="handleReset">重置</a-button>
                         </a-space>

@@ -30,24 +30,6 @@ func (h *DepartmentHandler) GetDepartments(c *gin.Context) {
 
 	// 构建树形结构
 	tree := h.buildDepartmentTree(departments, nil)
-	
-	// 调试：打印构建后的树结构
-	fmt.Printf("=== 构建后的部门树 ===\n")
-	var printTree func([]model.Department, int)
-	printTree = func(nodes []model.Department, indent int) {
-		for _, node := range nodes {
-			prefix := ""
-			for i := 0; i < indent; i++ {
-				prefix += "  "
-			}
-			fmt.Printf("%sID: %d, Name: %s, Code: %s, Level: %d, Children: %d\n",
-				prefix, node.ID, node.Name, node.Code, node.Level, len(node.Children))
-			if len(node.Children) > 0 {
-				printTree(node.Children, indent+1)
-			}
-		}
-	}
-	printTree(tree, 0)
 
 	utils.Success(c, tree)
 }

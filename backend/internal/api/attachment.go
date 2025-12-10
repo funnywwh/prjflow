@@ -257,6 +257,57 @@ func (h *AttachmentHandler) DownloadFile(c *gin.Context) {
 	c.File(fullPath)
 }
 
+// PreviewFile 预览文件（内联显示，不强制下载）
+// 权限要求：登录 + 项目成员验证
+func (h *AttachmentHandler) PreviewFile(c *gin.Context) {
+	id := c.Param("id")
+
+	var attachment model.Attachment
+	if err := h.db.Preload("Projects").First(&attachment, id).Error; err != nil {
+		utils.Error(c, 404, "附件不存在")
+		return
+	}
+
+	// 检查权限：用户必须是附件关联的任意一个项目的成员
+	hasAccess := false
+
+	// 管理员可以访问所有附件
+	if utils.IsAdmin(c) {
+		hasAccess = true
+	} else {
+		// 检查用户是否是附件关联的任意一个项目的成员
+		for _, project := range attachment.Projects {
+			if utils.CheckProjectAccess(h.db, c, project.ID) {
+				hasAccess = true
+				break
+			}
+		}
+	}
+
+	if !hasAccess {
+		utils.Error(c, 403, "没有权限访问该附件")
+		return
+	}
+
+	// 构建文件完整路径
+	storagePath := config.AppConfig.Upload.StoragePath
+	if !filepath.IsAbs(storagePath) {
+		storagePath = filepath.Join(".", storagePath)
+	}
+	fullPath := filepath.Join(storagePath, attachment.FilePath)
+
+	// 检查文件是否存在
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		utils.Error(c, 404, "文件不存在")
+		return
+	}
+
+	// 设置响应头（内联显示，不强制下载）
+	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", attachment.FileName))
+	c.Header("Content-Type", attachment.MimeType)
+	c.File(fullPath)
+}
+
 // DeleteAttachment 删除附件
 // 权限要求：登录 + 项目成员验证 + attachment:delete 权限
 func (h *AttachmentHandler) DeleteAttachment(c *gin.Context) {

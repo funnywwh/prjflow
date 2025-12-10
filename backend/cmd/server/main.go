@@ -1065,6 +1065,7 @@ func main() {
 		attachmentGroup.POST("/upload", middleware.RequirePermission(db, "attachment:upload"), attachmentHandler.UploadFile)
 		attachmentGroup.GET("/:id", attachmentHandler.GetAttachment)
 		attachmentGroup.GET("/:id/download", attachmentHandler.DownloadFile)
+		attachmentGroup.GET("/:id/preview", attachmentHandler.PreviewFile)
 		attachmentGroup.DELETE("/:id", middleware.RequirePermission(db, "attachment:delete"), attachmentHandler.DeleteAttachment)
 		attachmentGroup.GET("", attachmentHandler.GetAttachments)
 		attachmentGroup.POST("/:id/attach", attachmentHandler.AttachToEntity)

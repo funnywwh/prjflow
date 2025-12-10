@@ -82,32 +82,7 @@
       </a-card>
 
       <!-- 附件 -->
-      <a-card title="附件" :bordered="false" style="margin-bottom: 16px">
-        <div v-if="bug?.attachments && bug.attachments.length > 0" class="attachment-list">
-          <div
-            v-for="attachment in bug.attachments"
-            :key="attachment.id"
-            class="attachment-item"
-          >
-            <div class="attachment-info">
-              <PaperClipOutlined class="attachment-icon" />
-              <span class="attachment-name" :title="attachment.file_name">{{ attachment.file_name }}</span>
-              <span class="attachment-size">{{ formatFileSize(attachment.file_size) }}</span>
-            </div>
-            <div class="attachment-actions">
-              <a-button
-                type="link"
-                size="small"
-                @click="handleDownloadAttachment(attachment)"
-              >
-                <template #icon><DownloadOutlined /></template>
-                下载
-              </a-button>
-            </div>
-          </div>
-        </div>
-        <a-empty v-else description="暂无附件" />
-      </a-card>
+      <AttachmentList :attachments="bug?.attachments || []" />
 
       <!-- 历史记录 -->
       <a-card :bordered="false" style="margin-bottom: 16px">
@@ -208,16 +183,15 @@
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue'
 import { message } from 'ant-design-vue'
-import { PaperClipOutlined, DownloadOutlined } from '@ant-design/icons-vue'
 import { formatDateTime } from '@/utils/date'
 import MarkdownEditor from '@/components/MarkdownEditor.vue'
+import AttachmentList from '@/components/AttachmentList.vue'
 import {
   getBugHistory,
   addBugHistoryNote,
   type Bug,
   type Action
 } from '@/api/bug'
-import { downloadFile, type Attachment } from '@/api/attachment'
 
 interface Props {
   bug: Bug | null
@@ -460,23 +434,6 @@ const handleVersionClick = (versionId: number) => {
   emit('version-click', versionId)
 }
 
-// 格式化文件大小
-const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
-}
-
-// 下载附件
-const handleDownloadAttachment = async (attachment: Attachment) => {
-  try {
-    await downloadFile(attachment.id, attachment.file_name)
-  } catch (error: any) {
-    message.error(error.message || '下载失败')
-  }
-}
 
 // 暴露方法给父组件
 defineExpose({
@@ -498,51 +455,5 @@ defineExpose({
   min-height: 200px;
 }
 
-.attachment-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.attachment-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  background: #fafafa;
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
-}
-
-.attachment-info {
-  display: flex;
-  align-items: center;
-  flex: 1;
-  min-width: 0;
-}
-
-.attachment-icon {
-  margin-right: 8px;
-  color: #1890ff;
-}
-
-.attachment-name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  margin-right: 8px;
-}
-
-.attachment-size {
-  color: #999;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.attachment-actions {
-  display: flex;
-  align-items: center;
-}
 </style>
 

@@ -1,7 +1,6 @@
 package api
 
 import (
-	"fmt"
 	"sort"
 
 	"github.com/gin-gonic/gin"
@@ -628,11 +627,8 @@ func (h *PermissionHandler) GetMenus(c *gin.Context) {
 		if perm.ParentMenuID != nil {
 			if parent, exists := menuMap[*perm.ParentMenuID]; exists {
 				parent.Children = append(parent.Children, *menuItem)
-				// 调试日志
-				fmt.Printf("菜单构建: 将子菜单 %s (ID:%d) 添加到父菜单 %s (ID:%d)\n", menuItem.Title, menuItem.ID, parent.Title, parent.ID)
 			} else {
 				// 父菜单不存在或不在权限范围内，作为根菜单
-				fmt.Printf("菜单构建: 父菜单 ID:%d 不存在，将 %s (ID:%d) 作为根菜单\n", *perm.ParentMenuID, menuItem.Title, menuItem.ID)
 				rootMenuSet[perm.ID] = true
 			}
 		}
@@ -643,15 +639,6 @@ func (h *PermissionHandler) GetMenus(c *gin.Context) {
 	for rootID := range rootMenuSet {
 		if rootMenu, exists := menuMap[rootID]; exists {
 			rootMenus = append(rootMenus, *rootMenu)
-		}
-	}
-	
-	// 调试日志：输出最终菜单结构
-	fmt.Printf("菜单构建完成: 根菜单数量=%d\n", len(rootMenus))
-	for _, root := range rootMenus {
-		fmt.Printf("  根菜单: %s (ID:%d), 子菜单数量=%d\n", root.Title, root.ID, len(root.Children))
-		for _, child := range root.Children {
-			fmt.Printf("    子菜单: %s (ID:%d)\n", child.Title, child.ID)
 		}
 	}
 

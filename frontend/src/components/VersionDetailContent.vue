@@ -107,42 +107,15 @@
       </a-card>
 
       <!-- 附件 -->
-      <a-card title="附件" :bordered="false" style="margin-bottom: 16px">
-        <div v-if="version?.attachments && version.attachments.length > 0" class="attachment-list">
-          <div
-            v-for="attachment in version.attachments"
-            :key="attachment.id"
-            class="attachment-item"
-          >
-            <div class="attachment-info">
-              <PaperClipOutlined class="attachment-icon" />
-              <span class="attachment-name" :title="attachment.file_name">{{ attachment.file_name }}</span>
-              <span class="attachment-size">{{ formatFileSize(attachment.file_size) }}</span>
-            </div>
-            <div class="attachment-actions">
-              <a-button
-                type="link"
-                size="small"
-                @click="handleDownloadAttachment(attachment)"
-              >
-                <template #icon><DownloadOutlined /></template>
-                下载
-              </a-button>
-            </div>
-          </div>
-        </div>
-        <a-empty v-else description="暂无附件" />
-      </a-card>
+      <AttachmentList :attachments="version?.attachments || []" />
     </a-spin>
   </div>
 </template>
 
 <script setup lang="ts">
-import { message } from 'ant-design-vue'
-import { PaperClipOutlined, DownloadOutlined } from '@ant-design/icons-vue'
 import { formatDateTime } from '@/utils/date'
 import MarkdownEditor from '@/components/MarkdownEditor.vue'
-import { downloadFile, type Attachment } from '@/api/attachment'
+import AttachmentList from '@/components/AttachmentList.vue'
 import type { Version } from '@/api/version'
 
 interface Props {
@@ -154,24 +127,6 @@ withDefaults(defineProps<Props>(), {
   version: null,
   loading: false
 })
-
-// 格式化文件大小
-const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
-}
-
-// 下载附件
-const handleDownloadAttachment = async (attachment: Attachment) => {
-  try {
-    await downloadFile(attachment.id, attachment.file_name)
-  } catch (error: any) {
-    message.error(error.message || '下载失败')
-  }
-}
 
 // 状态颜色
 const getStatusColor = (status: string) => {
@@ -291,54 +246,5 @@ const getSeverityText = (severity: string) => {
   width: 100%;
 }
 
-.attachment-list {
-  width: 100%;
-}
-
-.attachment-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px;
-  border: 1px solid #f0f0f0;
-  border-radius: 4px;
-  margin-bottom: 8px;
-  transition: all 0.3s;
-}
-
-.attachment-item:hover {
-  background-color: #fafafa;
-  border-color: #d9d9d9;
-}
-
-.attachment-info {
-  display: flex;
-  align-items: center;
-  flex: 1;
-  min-width: 0;
-}
-
-.attachment-icon {
-  font-size: 20px;
-  color: #1890ff;
-  margin-right: 12px;
-}
-
-.attachment-name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  margin-right: 12px;
-}
-
-.attachment-size {
-  color: #999;
-  font-size: 12px;
-}
-
-.attachment-actions {
-  flex-shrink: 0;
-}
 </style>
 

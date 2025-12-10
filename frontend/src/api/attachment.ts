@@ -69,6 +69,31 @@ export const getAttachment = async (id: number): Promise<Attachment> => {
   return request.get(`/attachments/${id}`)
 }
 
+// 获取预览文件URL（用于img、video、iframe等标签的src属性）
+// 注意：由于浏览器会自动在请求头中携带Authorization（通过axios拦截器），
+// 但直接使用URL时无法自动携带，所以需要使用blob URL或通过axios获取
+export const getPreviewUrl = (id: number): string => {
+  // 使用相对路径，浏览器会使用当前页面的Authorization header
+  // 但这种方式在img/video/iframe标签中无法自动携带token
+  // 所以我们需要在组件中通过axios获取blob URL
+  return `/api/attachments/${id}/preview`
+}
+
+// 获取预览文件的Blob URL（用于需要认证的预览）
+export const getPreviewBlobUrl = async (id: number): Promise<string> => {
+  const authStore = useAuthStore()
+  const token = authStore.token
+
+  const response = await axios.get(`/api/attachments/${id}/preview`, {
+    responseType: 'blob',
+    headers: {
+      'Authorization': token ? `Bearer ${token}` : ''
+    }
+  })
+
+  return window.URL.createObjectURL(response.data)
+}
+
 // 下载文件
 export const downloadFile = async (id: number, fileName: string): Promise<void> => {
   const authStore = useAuthStore()

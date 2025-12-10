@@ -257,6 +257,15 @@ func TestBugHandler_CreateBug(t *testing.T) {
 		// 添加用户到项目
 		AddUserToProject(t, db, user.ID, project.ID, "member")
 
+		// 创建测试版本（Bug创建需要version_ids）
+		version := &model.Version{
+			VersionNumber: "v1.0.0",
+			ProjectID:     project.ID,
+			Status:        "wait",
+		}
+		err := db.Create(version).Error
+		require.NoError(t, err)
+
 		gin.SetMode(gin.TestMode)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
@@ -273,6 +282,7 @@ func TestBugHandler_CreateBug(t *testing.T) {
 			"severity":       "critical",
 			"project_id":     project.ID,
 			"estimated_hours": 8.0,
+			"version_ids":    []uint{version.ID}, // 必填字段
 		}
 		jsonData, _ := json.Marshal(reqBody)
 		c.Request = httptest.NewRequest(http.MethodPost, "/api/bugs", bytes.NewBuffer(jsonData))
@@ -283,7 +293,7 @@ func TestBugHandler_CreateBug(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 
 		var response map[string]interface{}
-		err := json.Unmarshal(w.Body.Bytes(), &response)
+		err = json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 		assert.Equal(t, float64(200), response["code"])
 

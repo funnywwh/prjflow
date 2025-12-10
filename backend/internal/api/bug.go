@@ -284,44 +284,9 @@ func (h *BugHandler) GetBug(c *gin.Context) {
 	id := c.Param("id")
 	var bug model.Bug
 
-	// 在 Preload 之前检查关联表
-	var beforePreloadCount int64
-	if err := h.db.Table("bug_attachments").Where("bug_id = ?", id).Count(&beforePreloadCount).Error; err == nil {
-		fmt.Printf("GetBug: Preload 之前，bug_attachments 表中的记录数: %d\n", beforePreloadCount)
-		if beforePreloadCount > 0 {
-			var attachmentIDs []uint
-			h.db.Table("bug_attachments").Where("bug_id = ?", id).Pluck("attachment_id", &attachmentIDs)
-			fmt.Printf("GetBug: Preload 之前，关联的附件ID: %v\n", attachmentIDs)
-		}
-	}
-
 	if err := h.db.Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").Preload("Module").Preload("Versions").Preload("Attachments").Preload("Attachments.Creator").First(&bug, id).Error; err != nil {
 		utils.Error(c, 404, "Bug不存在")
 		return
-	}
-
-	// 调试：检查附件是否加载成功
-	fmt.Printf("GetBug: Preload 后，bug.Attachments 长度: %d\n", len(bug.Attachments))
-	if len(bug.Attachments) > 0 {
-		ids := make([]uint, len(bug.Attachments))
-		for i, att := range bug.Attachments {
-			ids[i] = att.ID
-			fmt.Printf("GetBug: 附件 %d: ID=%d, FileName=%s, DeletedAt=%v\n", i, att.ID, att.FileName, att.DeletedAt)
-		}
-		fmt.Printf("GetBug: 成功加载 %d 个附件，附件ID: %v\n", len(bug.Attachments), ids)
-	} else if beforePreloadCount > 0 {
-		fmt.Printf("GetBug: 警告 - 附件列表为空，但关联表中有 %d 条记录\n", beforePreloadCount)
-		// 检查关联表中的附件是否被软删除
-		var attachmentIDs []uint
-		h.db.Table("bug_attachments").Where("bug_id = ?", id).Pluck("attachment_id", &attachmentIDs)
-		if len(attachmentIDs) > 0 {
-			var attachments []model.Attachment
-			if err := h.db.Unscoped().Where("id IN ?", attachmentIDs).Find(&attachments).Error; err == nil {
-				for _, att := range attachments {
-					fmt.Printf("GetBug: 附件 %d: FileName=%s, DeletedAt=%v\n", att.ID, att.FileName, att.DeletedAt)
-				}
-			}
-		}
 	}
 
 	// 权限检查：普通用户只能查看自己创建或参与的Bug
@@ -861,78 +826,15 @@ func (h *BugHandler) UpdateBug(c *gin.Context) {
 			utils.Error(c, utils.CodeError, "更新附件关联失败: "+err.Error())
 			return
 		}
-		fmt.Printf("UpdateBug: 附件关联已更新，attachment_ids=%v, 附件数量=%d\n", *req.AttachmentIDs, len(attachments))
-
-		// 验证关联是否建立成功
-		var count int64
-		if err := h.db.Table("bug_attachments").Where("bug_id = ?", bug.ID).Count(&count).Error; err == nil {
-			fmt.Printf("UpdateBug: 验证关联表，bug_attachments 表中的记录数: %d\n", count)
-		}
 	}
 
 	// 重新加载关联数据（包括附件）
 	// 注意：必须在 Replace 之后重新查询，才能获取到最新的附件关联
 	// 使用 Session 确保使用新的查询上下文，避免缓存问题
 	// 注意：Preload 会自动过滤软删除的记录（DeletedAt IS NULL）
-
-	// 在 Preload 之前检查关联表
-	if req.AttachmentIDs != nil {
-		var beforePreloadCount int64
-		if err := h.db.Table("bug_attachments").Where("bug_id = ?", bug.ID).Count(&beforePreloadCount).Error; err == nil {
-			fmt.Printf("UpdateBug: Preload 之前，bug_attachments 表中的记录数: %d\n", beforePreloadCount)
-			if beforePreloadCount > 0 {
-				var attachmentIDs []uint
-				h.db.Table("bug_attachments").Where("bug_id = ?", bug.ID).Pluck("attachment_id", &attachmentIDs)
-				fmt.Printf("UpdateBug: Preload 之前，关联的附件ID: %v\n", attachmentIDs)
-			}
-		}
-	}
-
 	if err := h.db.Session(&gorm.Session{}).Preload("Project").Preload("Creator").Preload("Assignees").Preload("Requirement").Preload("Module").Preload("ResolvedVersion").Preload("Versions").Preload("Attachments").Preload("Attachments.Creator").First(&bug, bug.ID).Error; err != nil {
 		utils.Error(c, utils.CodeError, "重新加载Bug数据失败: "+err.Error())
 		return
-	}
-
-	// 调试：检查附件是否加载成功
-	fmt.Printf("UpdateBug: Preload 后，bug.Attachments 长度: %d\n", len(bug.Attachments))
-	if len(bug.Attachments) > 0 {
-		ids := make([]uint, len(bug.Attachments))
-		for i, att := range bug.Attachments {
-			ids[i] = att.ID
-			fmt.Printf("UpdateBug: 附件 %d: ID=%d, FileName=%s, DeletedAt=%v\n", i, att.ID, att.FileName, att.DeletedAt)
-		}
-		fmt.Printf("UpdateBug: 成功加载 %d 个附件，附件ID: %v\n", len(bug.Attachments), ids)
-	} else if req.AttachmentIDs != nil && len(*req.AttachmentIDs) > 0 {
-		fmt.Printf("UpdateBug: 警告 - 附件列表为空，但请求中包含 attachment_ids=%v\n", *req.AttachmentIDs)
-		// 检查关联表中是否有记录
-		var bugAttachmentCount int64
-		if err := h.db.Table("bug_attachments").Where("bug_id = ?", bug.ID).Count(&bugAttachmentCount).Error; err == nil {
-			fmt.Printf("UpdateBug: bug_attachments 表中的记录数: %d\n", bugAttachmentCount)
-			if bugAttachmentCount > 0 {
-				var attachmentIDs []uint
-				h.db.Table("bug_attachments").Where("bug_id = ?", bug.ID).Pluck("attachment_id", &attachmentIDs)
-				fmt.Printf("UpdateBug: 关联表中的附件ID: %v\n", attachmentIDs)
-
-				// 检查这些附件是否被软删除
-				var attachments []model.Attachment
-				if err := h.db.Unscoped().Where("id IN ?", attachmentIDs).Find(&attachments).Error; err == nil {
-					for _, att := range attachments {
-						fmt.Printf("UpdateBug: 附件 %d: FileName=%s, DeletedAt=%v\n", att.ID, att.FileName, att.DeletedAt)
-					}
-				}
-
-				// 尝试手动查询未删除的附件
-				var activeAttachments []model.Attachment
-				if err := h.db.Where("id IN ?", attachmentIDs).Find(&activeAttachments).Error; err == nil {
-					fmt.Printf("UpdateBug: 未删除的附件数量: %d\n", len(activeAttachments))
-				}
-			}
-		}
-		// 检查附件是否被软删除
-		var deletedCount int64
-		if err := h.db.Unscoped().Model(&model.Attachment{}).Where("id IN ? AND deleted_at IS NOT NULL", *req.AttachmentIDs).Count(&deletedCount).Error; err == nil {
-			fmt.Printf("UpdateBug: 被软删除的附件数量: %d\n", deletedCount)
-		}
 	}
 
 	// 记录编辑操作和字段变更

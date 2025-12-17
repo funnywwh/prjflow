@@ -983,16 +983,17 @@ const pagination = reactive({
 
 // 所有可用列的默认配置（不包含"操作"列）
 const defaultColumnConfig = [
-  { key: 'title', title: 'Bug标题', dataIndex: 'title', width: 300, ellipsis: true, visible: true, order: 1 },
-  { key: 'project', title: '项目', width: 120, visible: true, order: 2 },
-  { key: 'versions', title: '版本号', width: 150, visible: true, order: 3 },
-  { key: 'status', title: '状态', width: 100, visible: true, order: 4 },
-  { key: 'priority', title: '优先级', width: 100, visible: true, order: 5 },
-  { key: 'severity', title: '严重程度', width: 100, visible: true, order: 6 },
-  { key: 'creator', title: '创建人', width: 150, visible: true, order: 7 },
-  { key: 'assignees', title: '指派给', width: 160, visible: true, order: 8 },
-  { key: 'updated_at', title: '更新时间', dataIndex: 'updated_at', width: 180, visible: true, order: 9 },
-  { key: 'created_at', title: '创建时间', dataIndex: 'created_at', width: 180, visible: true, order: 10 }
+  { key: 'id', title: '编号', dataIndex: 'id', width: 60, visible: true, order: 1 },
+  { key: 'title', title: 'Bug标题', dataIndex: 'title', width: 300, ellipsis: true, visible: true, order: 2 },
+  { key: 'project', title: '项目', width: 120, visible: true, order: 3 },
+  { key: 'versions', title: '版本号', width: 150, visible: true, order: 4 },
+  { key: 'status', title: '状态', width: 100, visible: true, order: 5 },
+  { key: 'priority', title: '优先级', width: 100, visible: true, order: 6 },
+  { key: 'severity', title: '严重程度', width: 100, visible: true, order: 7 },
+  { key: 'creator', title: '创建人', width: 150, visible: true, order: 8 },
+  { key: 'assignees', title: '指派给', width: 160, visible: true, order: 9 },
+  { key: 'updated_at', title: '更新时间', dataIndex: 'updated_at', width: 180, visible: true, order: 10 },
+  { key: 'created_at', title: '创建时间', dataIndex: 'created_at', width: 180, visible: true, order: 11 }
 ]
 
 // "操作"列固定配置
@@ -1012,11 +1013,13 @@ const displayColumns = computed(() => {
     .sort((a, b) => a.order - b.order)
     .map(col => {
       const config = defaultColumnConfig.find(c => c.key === col.key)
+      // 对于id列，强制使用默认宽度60
+      const width = col.key === 'id' ? (config?.width || 60) : (col.width || config?.width)
       return {
         title: col.title,
         key: col.key,
         dataIndex: col.dataIndex || config?.dataIndex,
-        width: col.width || config?.width,
+        width: width,
         ellipsis: col.ellipsis || config?.ellipsis
       }
     })
@@ -1135,13 +1138,15 @@ const loadColumnSettings = async () => {
         const userSetting = settings.find(s => s.key === defaultCol.key)
         if (userSetting) {
           // 确保使用后端返回的 visible 值（即使是 false）
+          // 对于id列，强制使用默认宽度（因为默认宽度已更新为60）
+          const width = defaultCol.key === 'id' ? defaultCol.width : (userSetting.width !== undefined ? userSetting.width : defaultCol.width)
           const result = {
             ...defaultCol,
             visible: userSetting.visible, // 直接使用后端返回的值
             order: userSetting.order,
-            width: userSetting.width !== undefined ? userSetting.width : defaultCol.width
+            width: width
           }
-          console.log(`列 ${defaultCol.key}: 后端visible=${userSetting.visible}, 最终visible=${result.visible}`)
+          console.log(`列 ${defaultCol.key}: 后端visible=${userSetting.visible}, 宽度=${width}`)
           return result
         }
         // 如果后端没有该列的设置，使用默认配置
@@ -2682,8 +2687,17 @@ onMounted(async () => {
 }
 
 /* Bug标题列宽度固定为300px */
+/* 固定编号列（第一列）宽度为60px */
 .table-card :deep(.ant-table-thead > tr > th:first-child),
 .table-card :deep(.ant-table-tbody > tr > td:first-child) {
+  width: 60px !important;
+  min-width: 60px !important;
+  max-width: 60px !important;
+}
+
+/* Bug标题列（第二列）宽度固定为300px */
+.table-card :deep(.ant-table-thead > tr > th:nth-child(2)),
+.table-card :deep(.ant-table-tbody > tr > td:nth-child(2)) {
   width: 300px !important;
   min-width: 300px !important;
   max-width: 300px !important;

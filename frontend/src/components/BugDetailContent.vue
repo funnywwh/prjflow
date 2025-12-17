@@ -4,6 +4,7 @@
       <!-- 基本信息 -->
       <a-card title="基本信息" :bordered="false" style="margin-bottom: 16px">
         <a-descriptions :column="2" bordered>
+          <a-descriptions-item label="编号">{{ bug?.id || '-' }}</a-descriptions-item>
           <a-descriptions-item label="Bug标题">{{ bug?.title }}</a-descriptions-item>
           <a-descriptions-item label="状态">
             <a-space>

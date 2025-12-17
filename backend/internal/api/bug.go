@@ -1479,58 +1479,93 @@ func (h *BugHandler) ConfirmBug(c *gin.Context) {
 }
 
 // syncBugActualHours 同步Bug实际工时到资源分配
+// 使用事务和 FirstOrCreate 防止并发死锁
 func (h *BugHandler) syncBugActualHours(bug *model.Bug, actualHours float64, workDate time.Time, assigneeID uint) error {
-	// 查找或创建资源
+	// 使用事务包裹所有操作，防止死锁
+	tx := h.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			panic(r)
+		}
+	}()
+
+	// 使用 FirstOrCreate 查找或创建资源，避免并发创建冲突
 	var resource model.Resource
-	err := h.db.Where("user_id = ? AND project_id = ?", assigneeID, bug.ProjectID).First(&resource).Error
-	if err != nil {
-		// 资源不存在，创建资源
-		resource = model.Resource{
+	err := tx.Where("user_id = ? AND project_id = ?", assigneeID, bug.ProjectID).
+		FirstOrCreate(&resource, model.Resource{
 			UserID:    assigneeID,
 			ProjectID: bug.ProjectID,
-		}
-		if err := h.db.Create(&resource).Error; err != nil {
-			return err
-		}
+		}).Error
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("查找或创建资源失败: %w", err)
 	}
 
-	// 查找是否已存在该Bug和日期的资源分配
+	// 使用 FirstOrCreate 查找或创建资源分配，避免并发创建冲突
 	var allocation model.ResourceAllocation
-	err = h.db.Where("resource_id = ? AND bug_id = ? AND date = ?", resource.ID, bug.ID, workDate).First(&allocation).Error
-	if err != nil {
-		// 不存在，创建新的资源分配
-		allocation = model.ResourceAllocation{
+	err = tx.Where("resource_id = ? AND bug_id = ? AND date = ?", resource.ID, bug.ID, workDate).
+		FirstOrCreate(&allocation, model.ResourceAllocation{
 			ResourceID:  resource.ID,
 			BugID:       &bug.ID,
 			ProjectID:   &bug.ProjectID,
 			Date:        workDate,
 			Hours:       actualHours,
 			Description: fmt.Sprintf("Bug: %s", bug.Title),
-		}
-		if err := h.db.Create(&allocation).Error; err != nil {
-			return err
-		}
-	} else {
-		// 存在，更新工时
-		allocation.Hours = actualHours
-		if err := h.db.Save(&allocation).Error; err != nil {
-			return err
-		}
+		}).Error
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("查找或创建资源分配失败: %w", err)
+	}
+
+	// 无论记录是新创建还是已存在，都更新工时和描述（确保数据同步）
+	allocation.Hours = actualHours
+	allocation.Description = fmt.Sprintf("Bug: %s", bug.Title)
+	if err := tx.Save(&allocation).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("更新资源分配失败: %w", err)
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("提交事务失败: %w", err)
 	}
 
 	return nil
 }
 
 // calculateAndUpdateActualHours 计算并更新Bug的实际工时（从资源分配中汇总）
+// 使用事务包裹查询和更新操作，防止并发死锁
 func (h *BugHandler) calculateAndUpdateActualHours(bug *model.Bug) {
+	// 使用事务包裹查询和更新操作
+	tx := h.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			panic(r)
+		}
+	}()
+
 	var totalHours float64
-	h.db.Model(&model.ResourceAllocation{}).
+	if err := tx.Model(&model.ResourceAllocation{}).
 		Where("bug_id = ?", bug.ID).
 		Select("COALESCE(SUM(hours), 0)").
-		Scan(&totalHours)
+		Scan(&totalHours).Error; err != nil {
+		tx.Rollback()
+		return // 查询失败时静默返回，避免影响主流程
+	}
 
 	bug.ActualHours = &totalHours
-	h.db.Model(bug).Update("actual_hours", totalHours)
+	if err := tx.Model(bug).Update("actual_hours", totalHours).Error; err != nil {
+		tx.Rollback()
+		return // 更新失败时静默返回，避免影响主流程
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		// 提交失败时静默返回，避免影响主流程
+		return
+	}
 }
 
 // GetBugHistory 获取Bug历史记录列表（参考禅道的 getList() 方法）

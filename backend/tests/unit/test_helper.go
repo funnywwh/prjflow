@@ -30,8 +30,8 @@ func SetupTestDB(t *testing.T) *gorm.DB {
 		config.AppConfig.Database.DSN = ":memory:"
 	}
 
-	// 使用内存数据库进行测试
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+	// 使用内存数据库进行测试（添加 shared cache 支持并发）
+	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent), // 测试时关闭日志
 	})
 	if err != nil {

@@ -804,63 +804,98 @@ func (h *TaskHandler) UpdateTaskProgress(c *gin.Context) {
 
 
 // syncTaskActualHours 同步任务实际工时到资源分配
+// 使用事务和 FirstOrCreate 防止并发死锁
 func (h *TaskHandler) syncTaskActualHours(task *model.Task, actualHours float64, workDate time.Time) error {
 	// 如果任务没有负责人，无法创建资源分配
 	if task.AssigneeID == nil {
 		return nil // 没有负责人时，不创建资源分配，但不报错
 	}
 
-	// 查找或创建资源
+	// 使用事务包裹所有操作，防止死锁
+	tx := h.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			panic(r)
+		}
+	}()
+
+	// 使用 FirstOrCreate 查找或创建资源，避免并发创建冲突
 	var resource model.Resource
-	err := h.db.Where("user_id = ? AND project_id = ?", *task.AssigneeID, task.ProjectID).First(&resource).Error
-	if err != nil {
-		// 资源不存在，创建资源
-		resource = model.Resource{
+	err := tx.Where("user_id = ? AND project_id = ?", *task.AssigneeID, task.ProjectID).
+		FirstOrCreate(&resource, model.Resource{
 			UserID:    *task.AssigneeID,
 			ProjectID: task.ProjectID,
-		}
-		if err := h.db.Create(&resource).Error; err != nil {
-			return err
-		}
+		}).Error
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("查找或创建资源失败: %w", err)
 	}
 
-	// 查找是否已存在该任务和日期的资源分配
+	// 使用 FirstOrCreate 查找或创建资源分配，避免并发创建冲突
 	var allocation model.ResourceAllocation
-	err = h.db.Where("resource_id = ? AND task_id = ? AND date = ?", resource.ID, task.ID, workDate).First(&allocation).Error
-	if err != nil {
-		// 不存在，创建新的资源分配
-		allocation = model.ResourceAllocation{
+	err = tx.Where("resource_id = ? AND task_id = ? AND date = ?", resource.ID, task.ID, workDate).
+		FirstOrCreate(&allocation, model.ResourceAllocation{
 			ResourceID:  resource.ID,
 			TaskID:      &task.ID,
 			ProjectID:   &task.ProjectID,
 			Date:        workDate,
 			Hours:       actualHours,
 			Description: fmt.Sprintf("任务: %s", task.Title),
-		}
-		if err := h.db.Create(&allocation).Error; err != nil {
-			return err
-		}
-	} else {
-		// 存在，更新工时
-		allocation.Hours = actualHours
-		if err := h.db.Save(&allocation).Error; err != nil {
-			return err
-		}
+		}).Error
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("查找或创建资源分配失败: %w", err)
+	}
+
+	// 无论记录是新创建还是已存在，都更新工时和描述（确保数据同步）
+	allocation.Hours = actualHours
+	allocation.Description = fmt.Sprintf("任务: %s", task.Title)
+	if err := tx.Save(&allocation).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("更新资源分配失败: %w", err)
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("提交事务失败: %w", err)
 	}
 
 	return nil
 }
 
 // calculateAndUpdateActualHours 计算并更新任务的实际工时（从资源分配中汇总）
+// 使用事务包裹查询和更新操作，防止并发死锁
 func (h *TaskHandler) calculateAndUpdateActualHours(task *model.Task) {
+	// 使用事务包裹查询和更新操作
+	tx := h.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			panic(r)
+		}
+	}()
+
 	var totalHours float64
-	h.db.Model(&model.ResourceAllocation{}).
+	if err := tx.Model(&model.ResourceAllocation{}).
 		Where("task_id = ?", task.ID).
 		Select("COALESCE(SUM(hours), 0)").
-		Scan(&totalHours)
+		Scan(&totalHours).Error; err != nil {
+		tx.Rollback()
+		return // 查询失败时静默返回，避免影响主流程
+	}
 
 	task.ActualHours = &totalHours
-	h.db.Model(task).Update("actual_hours", totalHours)
+	if err := tx.Model(task).Update("actual_hours", totalHours).Error; err != nil {
+		tx.Rollback()
+		return // 更新失败时静默返回，避免影响主流程
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		// 提交失败时静默返回，避免影响主流程
+		return
+	}
 }
 
 // calculateProgressFromHours 根据实际工时和预估工时自动计算进度

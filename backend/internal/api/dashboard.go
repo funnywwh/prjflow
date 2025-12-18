@@ -95,17 +95,18 @@ func (h *DashboardHandler) getBugStats(userID uint) gin.H {
 	var activeCount, resolvedCount, closedCount int64
 
 	// 查询分配给当前用户的Bug（禅道状态：active, resolved, closed）
-	h.db.Table("bugs").
+	// 使用 Model(&model.Bug{}) 确保自动过滤软删除的记录（deleted_at IS NULL）
+	h.db.Model(&model.Bug{}).
 		Joins("JOIN bug_assignees ON bugs.id = bug_assignees.bug_id").
 		Where("bug_assignees.user_id = ? AND bugs.status = ?", userID, "active").
 		Count(&activeCount)
 
-	h.db.Table("bugs").
+	h.db.Model(&model.Bug{}).
 		Joins("JOIN bug_assignees ON bugs.id = bug_assignees.bug_id").
 		Where("bug_assignees.user_id = ? AND bugs.status = ?", userID, "resolved").
 		Count(&resolvedCount)
 
-	h.db.Table("bugs").
+	h.db.Model(&model.Bug{}).
 		Joins("JOIN bug_assignees ON bugs.id = bug_assignees.bug_id").
 		Where("bug_assignees.user_id = ? AND bugs.status = ?", userID, "closed").
 		Count(&closedCount)

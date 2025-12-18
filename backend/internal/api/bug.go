@@ -69,6 +69,20 @@ func (h *BugHandler) GetBugs(c *gin.Context) {
 		query = query.Where("creator_id = ?", creatorID)
 	}
 
+	// 更新日期范围筛选
+	if startDate := c.Query("updated_start_date"); startDate != "" {
+		if startTime, err := time.Parse("2006-01-02", startDate); err == nil {
+			query = query.Where("updated_at >= ?", startTime)
+		}
+	}
+	if endDate := c.Query("updated_end_date"); endDate != "" {
+		if endTime, err := time.Parse("2006-01-02", endDate); err == nil {
+			// 结束日期包含整天，所以加一天
+			endTime = endTime.AddDate(0, 0, 1)
+			query = query.Where("updated_at < ?", endTime)
+		}
+	}
+
 	// 版本筛选（通过关联表）
 	hasVersionFilter := false
 	var versionBugIDs []uint
@@ -103,6 +117,19 @@ func (h *BugHandler) GetBugs(c *gin.Context) {
 		}
 		if creatorID := c.Query("creator_id"); creatorID != "" {
 			idQuery = idQuery.Where("creator_id = ?", creatorID)
+		}
+		// 更新日期范围筛选
+		if startDate := c.Query("updated_start_date"); startDate != "" {
+			if startTime, err := time.Parse("2006-01-02", startDate); err == nil {
+				idQuery = idQuery.Where("updated_at >= ?", startTime)
+			}
+		}
+		if endDate := c.Query("updated_end_date"); endDate != "" {
+			if endTime, err := time.Parse("2006-01-02", endDate); err == nil {
+				// 结束日期包含整天，所以加一天
+				endTime = endTime.AddDate(0, 0, 1)
+				idQuery = idQuery.Where("updated_at < ?", endTime)
+			}
 		}
 
 		// JOIN 版本关联表
@@ -163,6 +190,19 @@ func (h *BugHandler) GetBugs(c *gin.Context) {
 		}
 		if creatorID := c.Query("creator_id"); creatorID != "" {
 			idQuery = idQuery.Where("creator_id = ?", creatorID)
+		}
+		// 更新日期范围筛选
+		if startDate := c.Query("updated_start_date"); startDate != "" {
+			if startTime, err := time.Parse("2006-01-02", startDate); err == nil {
+				idQuery = idQuery.Where("updated_at >= ?", startTime)
+			}
+		}
+		if endDate := c.Query("updated_end_date"); endDate != "" {
+			if endTime, err := time.Parse("2006-01-02", endDate); err == nil {
+				// 结束日期包含整天，所以加一天
+				endTime = endTime.AddDate(0, 0, 1)
+				idQuery = idQuery.Where("updated_at < ?", endTime)
+			}
 		}
 
 		// JOIN 分配人表
@@ -255,6 +295,19 @@ func (h *BugHandler) GetBugs(c *gin.Context) {
 	}
 	if creatorID := c.Query("creator_id"); creatorID != "" {
 		countQuery = countQuery.Where("creator_id = ?", creatorID)
+	}
+	// 更新日期范围筛选
+	if startDate := c.Query("updated_start_date"); startDate != "" {
+		if startTime, err := time.Parse("2006-01-02", startDate); err == nil {
+			countQuery = countQuery.Where("updated_at >= ?", startTime)
+		}
+	}
+	if endDate := c.Query("updated_end_date"); endDate != "" {
+		if endTime, err := time.Parse("2006-01-02", endDate); err == nil {
+			// 结束日期包含整天，所以加一天
+			endTime = endTime.AddDate(0, 0, 1)
+			countQuery = countQuery.Where("updated_at < ?", endTime)
+		}
 	}
 	// 分配人和版本筛选（通过关联表）
 	if hasAssigneeFilter {

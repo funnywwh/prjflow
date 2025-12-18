@@ -245,6 +245,15 @@
                       </a-form-item>
                     </a-col>
                     <a-col :span="6">
+                      <a-form-item label="更新日期">
+                        <a-range-picker
+                          v-model:value="updatedDateRange"
+                          format="YYYY-MM-DD"
+                          style="width: 100%"
+                        />
+                      </a-form-item>
+                    </a-col>
+                    <a-col :span="6">
                       <a-form-item label="版本号">
                         <a-select
                           v-model:value="searchForm.version_id"
@@ -268,16 +277,28 @@
                     <a-col :span="6">
                       <a-form-item label="指派给" class="assignee-form-item">
                         <div class="assignee-wrapper">
-                          <ProjectMemberSelect
-                            v-model="searchForm.assignee_id"
-                            :project-id="searchForm.project_id"
-                            :multiple="false"
+                          <a-select
+                            v-model:value="searchForm.assignee_id"
                             placeholder="选择指派给"
-                            :show-role="true"
-                            :show-hint="!searchForm.assignToMe"
+                            allow-clear
+                            show-search
+                            :filter-option="filterAssigneeOption"
+                            :loading="searchProjectMembersLoading"
+                            style="width: 100%"
                             class="assignee-select"
                             @change="handleAssigneeChange"
-                          />
+                          >
+                            <a-select-option
+                              v-for="option in assigneeOptions"
+                              :key="option.id"
+                              :value="option.id"
+                            >
+                              {{ option.username }}{{ option.nickname ? `(${option.nickname})` : '' }}
+                              <span v-if="option.role" style="color: #999; margin-left: 4px">
+                                ({{ getRoleText(option.role) }})
+                              </span>
+                            </a-select-option>
+                          </a-select>
                           <a-checkbox v-model:checked="searchForm.assignToMe" @change="handleAssignToMeChange" class="assign-to-me-checkbox">
                             指派给我
                           </a-checkbox>
@@ -922,7 +943,7 @@ import {
   type BugStatistics,
   type ColumnSetting
 } from '@/api/bug'
-import { getProjects, getProjectMembers, type Project } from '@/api/project'
+import { getProjects, getProjectMembers, type Project, type ProjectMember } from '@/api/project'
 import { getUsers, type User } from '@/api/user'
 import { getRequirements, createRequirement, type Requirement, type CreateRequirementRequest } from '@/api/requirement'
 import { getModules, type Module } from '@/api/module'
@@ -936,6 +957,8 @@ const loading = ref(false)
 const bugs = ref<Bug[]>([])
 const projects = ref<Project[]>([])
 const users = ref<User[]>([])
+const searchProjectMembers = ref<ProjectMember[]>([]) // 搜索表单中的项目成员列表
+const searchProjectMembersLoading = ref(false)
 const requirements = ref<Requirement[]>([])
 const requirementLoading = ref(false)
 const modules = ref<Module[]>([])
@@ -968,8 +991,13 @@ const searchForm = reactive({
   severity: undefined as string | undefined,
   version_id: undefined as number | undefined,
   assignee_id: undefined as number | undefined,
-  assignToMe: false // 指派给我
+  assignToMe: false, // 指派给我
+  updated_start_date: undefined as string | undefined,
+  updated_end_date: undefined as string | undefined
 })
+
+// 更新日期范围选择器
+const updatedDateRange = ref<[Dayjs, Dayjs] | null>(null)
 
 const pagination = reactive({
   current: 1,
@@ -1004,6 +1032,27 @@ const columnSettingsModalVisible = ref(false)
 const columnSettingsList = ref<Array<{ key: string; title: string; visible: boolean; order: number; width?: number; dataIndex?: string; ellipsis?: boolean }>>([])
 const draggedIndex = ref<number | null>(null)
 const originalColumnSettings = ref<ColumnSetting[]>([])
+
+// 计算属性：根据项目ID决定使用项目成员还是所有用户
+const assigneeOptions = computed(() => {
+  if (searchForm.project_id) {
+    // 如果有项目ID，使用项目成员
+    return searchProjectMembers.value.map(member => ({
+      id: member.user_id,
+      username: member.user?.username || '',
+      nickname: member.user?.nickname || '',
+      role: member.role
+    }))
+  } else {
+    // 如果没有项目ID，使用所有用户
+    return users.value.map(user => ({
+      id: user.id,
+      username: user.username,
+      nickname: user.nickname,
+      role: undefined
+    }))
+  }
+})
 
 // 计算属性：根据列设置生成表格列
 const displayColumns = computed(() => {
@@ -1335,6 +1384,12 @@ const loadBugs = async () => {
     if (searchForm.assignee_id) {
       params.assignee_id = searchForm.assignee_id
     }
+    if (searchForm.updated_start_date) {
+      params.updated_start_date = searchForm.updated_start_date
+    }
+    if (searchForm.updated_end_date) {
+      params.updated_end_date = searchForm.updated_end_date
+    }
     const response = await getBugs(params)
     bugs.value = response.list
     pagination.total = response.total
@@ -1388,6 +1443,25 @@ const loadUsers = async () => {
     users.value = response.list || []
   } catch (error: any) {
     console.error('加载用户列表失败:', error)
+  }
+}
+
+// 加载搜索表单中的项目成员列表
+const loadSearchProjectMembers = async (projectId: number | undefined) => {
+  if (!projectId) {
+    searchProjectMembers.value = []
+    searchProjectMembersLoading.value = false
+    return
+  }
+  
+  searchProjectMembersLoading.value = true
+  try {
+    searchProjectMembers.value = await getProjectMembers(projectId)
+  } catch (error: any) {
+    console.error('加载项目成员失败:', error)
+    searchProjectMembers.value = []
+  } finally {
+    searchProjectMembersLoading.value = false
   }
 }
 
@@ -1470,6 +1544,39 @@ const filterSearchVersionOption = (input: string, option: any) => {
   return version.version_number.toLowerCase().includes(searchText)
 }
 
+// 指派给筛选函数（支持项目成员和所有用户）
+const filterAssigneeOption = (input: string, option: any) => {
+  const optionData = assigneeOptions.value.find(o => o.id === option.value)
+  if (!optionData) return false
+  const searchText = input.toLowerCase()
+  return (
+    optionData.username.toLowerCase().includes(searchText) ||
+    (optionData.nickname && optionData.nickname.toLowerCase().includes(searchText))
+  )
+}
+
+// 获取角色文本
+const getRoleText = (role: string): string => {
+  const roleMap: Record<string, string> = {
+    owner: '负责人',
+    member: '成员',
+    viewer: '查看者'
+  }
+  return roleMap[role] || role
+}
+
+// 监听搜索表单中的项目变化，重新加载项目成员
+watch(() => searchForm.project_id, (newProjectId, oldProjectId) => {
+  // 加载项目成员
+  loadSearchProjectMembers(newProjectId)
+  
+  // 如果项目ID变化，清空指派给选择（避免选择了不在新项目成员中的用户）
+  if (newProjectId !== oldProjectId) {
+    searchForm.assignee_id = undefined
+    searchForm.assignToMe = false
+  }
+}, { immediate: true })
+
 // 监听项目变化，重新加载需求和版本
 watch(() => formData.project_id, () => {
   formData.requirement_id = undefined
@@ -1524,6 +1631,14 @@ const handleStatisticClick = (status?: string, priority?: string, severity?: str
 
 // 搜索
 const handleSearch = () => {
+  // 处理日期范围
+  if (updatedDateRange.value && updatedDateRange.value.length === 2) {
+    searchForm.updated_start_date = updatedDateRange.value[0].format('YYYY-MM-DD')
+    searchForm.updated_end_date = updatedDateRange.value[1].format('YYYY-MM-DD')
+  } else {
+    searchForm.updated_start_date = undefined
+    searchForm.updated_end_date = undefined
+  }
   pagination.current = 1
   loadBugs()
 }
@@ -1533,35 +1648,8 @@ const handleAssignToMeChange = async (e: any) => {
   const checked = e.target.checked
   if (checked && authStore.user) {
     const currentUserId = Number(authStore.user.id)
-    
-    if (searchForm.project_id) {
-      try {
-        // 先加载成员列表，确保当前用户在成员列表中
-        const members = await getProjectMembers(searchForm.project_id)
-        const currentUserInMembers = members.some(m => m.user_id === currentUserId)
-        
-        if (currentUserInMembers) {
-          // 直接设置 assignee_id 为当前用户ID
-          // ProjectMemberSelect 组件会通过内部状态管理确保正确显示
-          searchForm.assignee_id = currentUserId
-        } else {
-          // 如果当前用户不在项目成员中，提示用户
-          message.warning('您不是该项目的成员')
-          searchForm.assignToMe = false
-          searchForm.assignee_id = undefined
-        }
-      } catch (error: any) {
-        console.error('加载项目成员失败:', error)
-        message.error('加载项目成员失败')
-        searchForm.assignToMe = false
-        searchForm.assignee_id = undefined
-      }
-    } else {
-      // 如果没有选择项目，提示用户先选择项目
-      message.warning('请先选择项目')
-      searchForm.assignToMe = false
-      searchForm.assignee_id = undefined
-    }
+    // 直接设置 assignee_id 为当前用户ID，不受项目限制
+    searchForm.assignee_id = currentUserId
   } else {
     // 取消选中时，清空 assignee_id
     searchForm.assignee_id = undefined
@@ -1617,6 +1705,9 @@ const handleReset = () => {
   searchForm.version_id = undefined
   searchForm.assignee_id = undefined
   searchForm.assignToMe = false // 重置"指派给我"
+  searchForm.updated_start_date = undefined
+  searchForm.updated_end_date = undefined
+  updatedDateRange.value = null
   searchVersions.value = []
   pagination.current = 1
   // 清除保存的搜索项目选择

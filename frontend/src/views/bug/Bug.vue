@@ -797,6 +797,7 @@
       :width="1200"
       :mask-closable="true"
       :footer="null"
+      :z-index="2000"
       @cancel="handleDetailCancel"
     >
       <template #title>

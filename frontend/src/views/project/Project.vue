@@ -384,6 +384,7 @@
       :width="1200"
       :mask-closable="true"
       :footer="null"
+      :z-index="2000"
       @cancel="handleDetailCancel"
     >
       <template #title>
@@ -440,6 +441,7 @@
       v-model:open="noteModalVisible"
       title="添加备注"
       :mask-closable="true"
+      :z-index="2100"
       @ok="handleNoteSubmit"
       @cancel="handleNoteCancel"
     >

@@ -461,6 +461,7 @@
       v-model:open="detailNoteModalVisible"
       title="添加备注"
       :mask-closable="true"
+      :z-index="2100"
       @ok="handleDetailNoteSubmit"
       @cancel="handleDetailNoteCancel"
     >

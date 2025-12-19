@@ -159,6 +159,7 @@
       v-model:open="noteModalVisible"
       title="添加备注"
       :mask-closable="true"
+      :z-index="2100"
       @ok="handleNoteSubmit"
       @cancel="handleNoteCancel"
     >

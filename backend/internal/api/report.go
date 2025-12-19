@@ -82,8 +82,37 @@ func (h *ReportHandler) summarizeWorkContent(userID uint, startDate, endDate tim
 		completedTasks = []model.Task{}
 	}
 
-	// 如果既没有资源分配记录，也没有创建的bug，也没有完成的任务，返回空内容
-	if len(allocations) == 0 && len(createdBugs) == 0 && len(completedTasks) == 0 {
+	// 查询用户在指定日期范围内解决的Bug（通过Action表）
+	// 因为Bug解决后会自动指派回创建者，所以需要通过Action表找到真正的解决者
+	var resolvedBugActions []model.Action
+	actionErr := h.db.Where("object_type = ? AND action IN ? AND actor_id = ?", "bug", []string{"resolved", "closed"}, userID).
+		Where("date >= ? AND date < ?", startDateOnly, endDateExclusive).
+		Find(&resolvedBugActions).Error
+	if actionErr != nil {
+		// 查询失败不影响其他汇总，继续处理
+		resolvedBugActions = []model.Action{}
+	}
+
+	// 获取解决的Bug ID列表
+	var resolvedBugIDs []uint
+	for _, action := range resolvedBugActions {
+		resolvedBugIDs = append(resolvedBugIDs, action.ObjectID)
+	}
+
+	// 查询解决的Bug详情
+	var resolvedBugs []model.Bug
+	if len(resolvedBugIDs) > 0 {
+		bugQueryErr := h.db.Where("id IN ?", resolvedBugIDs).
+			Preload("Project").
+			Find(&resolvedBugs).Error
+		if bugQueryErr != nil {
+			// 查询失败不影响其他汇总，继续处理
+			resolvedBugs = []model.Bug{}
+		}
+	}
+
+	// 如果既没有资源分配记录，也没有创建的bug，也没有完成的任务，也没有解决的bug，返回空内容
+	if len(allocations) == 0 && len(createdBugs) == 0 && len(completedTasks) == 0 && len(resolvedBugs) == 0 {
 		return "暂无工作记录", 0
 	}
 
@@ -155,6 +184,37 @@ func (h *ReportHandler) summarizeWorkContent(userID uint, startDate, endDate tim
 			ProjectName: projectName,
 			Hours:       0, // 创建的bug如果没有资源分配，工时为0
 		})
+		bugIDMap[bug.ID] = true // 更新map，用于后续去重
+	}
+
+	// 添加用户解决的Bug（去重，避免与资源分配和创建的Bug重复）
+	for _, bug := range resolvedBugs {
+		// 如果这个bug已经在资源分配或创建的bug中，跳过（避免重复）
+		if bugIDMap[bug.ID] {
+			continue
+		}
+
+		projectName := "未知项目"
+		if bug.Project.ID > 0 {
+			projectName = bug.Project.Name
+		}
+
+		// 如果Bug有实际工时，使用实际工时；否则使用0
+		hours := 0.0
+		if bug.ActualHours != nil {
+			hours = *bug.ActualHours
+		}
+
+		bugs = append(bugs, WorkItem{
+			ID:          bug.ID,
+			Title:       bug.Title,
+			ProjectName: projectName,
+			Hours:       hours,
+		})
+		// 如果Bug有实际工时，也需要加到总工时中
+		if hours > 0 {
+			totalHours += hours
+		}
 	}
 
 	// 添加用户完成的任务（去重，避免与资源分配中的任务重复）
@@ -192,40 +252,56 @@ func (h *ReportHandler) summarizeWorkContent(userID uint, startDate, endDate tim
 		}
 	}
 
-	// 生成Markdown格式的工作内容摘要
+	// 生成Markdown格式的工作内容摘要（使用表格格式）
 	content := ""
 
 	if len(requirements) > 0 {
 		content += "## 需求\n\n"
+		content += "| 标题 | 项目 | 工时(小时) |\n"
+		content += "| --- | --- | ---: |\n"
 		var reqHours float64
 		for _, req := range requirements {
-			content += fmt.Sprintf("- **%s** (项目: %s) - %.2f小时\n", req.Title, req.ProjectName, req.Hours)
+			content += fmt.Sprintf("| %s | %s | %.2f |\n", req.Title, req.ProjectName, req.Hours)
 			reqHours += req.Hours
 		}
-		content += fmt.Sprintf("\n**需求总工时**: %.2f小时\n\n", reqHours)
+		content += fmt.Sprintf("| **合计** | | **%.2f** |\n\n", reqHours)
 	}
 
 	if len(tasks) > 0 {
 		content += "## 任务\n\n"
+		content += "| 标题 | 项目 | 工时(小时) |\n"
+		content += "| --- | --- | ---: |\n"
 		var taskHours float64
 		for _, task := range tasks {
-			content += fmt.Sprintf("- **%s** (项目: %s) - %.2f小时\n", task.Title, task.ProjectName, task.Hours)
+			content += fmt.Sprintf("| %s | %s | %.2f |\n", task.Title, task.ProjectName, task.Hours)
 			taskHours += task.Hours
 		}
-		content += fmt.Sprintf("\n**任务总工时**: %.2f小时\n\n", taskHours)
+		content += fmt.Sprintf("| **合计** | | **%.2f** |\n\n", taskHours)
 	}
 
 	if len(bugs) > 0 {
 		content += "## Bug\n\n"
+		content += "| 标题 | 项目 | 工时(小时) |\n"
+		content += "| --- | --- | ---: |\n"
 		var bugHours float64
 		for _, bug := range bugs {
-			content += fmt.Sprintf("- **%s** (项目: %s) - %.2f小时\n", bug.Title, bug.ProjectName, bug.Hours)
+			content += fmt.Sprintf("| %s | %s | %.2f |\n", bug.Title, bug.ProjectName, bug.Hours)
 			bugHours += bug.Hours
 		}
-		content += fmt.Sprintf("\n**Bug总工时**: %.2f小时\n\n", bugHours)
+		content += fmt.Sprintf("| **合计** | | **%.2f** |\n\n", bugHours)
 	}
 
-	content += fmt.Sprintf("**总工时**: %.2f小时", totalHours)
+	content += fmt.Sprintf("**总工时**: %.2f小时\n\n", totalHours)
+
+	// 添加工作计划表格模板（日报显示"明日工作计划"，周报显示"下周工作计划"）
+	planTitle := "明日工作计划"
+	if startDate != endDate {
+		planTitle = "下周工作计划"
+	}
+	content += fmt.Sprintf("## %s\n\n", planTitle)
+	content += "| 工作内容 | 预计工时(小时) |\n"
+	content += "| --- | ---: |\n"
+	content += "| | |\n"
 
 	return content, totalHours
 }

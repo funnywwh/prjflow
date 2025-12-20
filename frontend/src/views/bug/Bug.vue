@@ -671,6 +671,8 @@
             v-model:value="assignFormData.status"
             placeholder="选择状态（可选）"
             allow-clear
+            :getPopupContainer="getPopupContainer"
+            :dropdownStyle="{ zIndex: 2100 }"
           >
             <a-select-option value="active">激活</a-select-option>
             <a-select-option value="resolved">已解决</a-select-option>

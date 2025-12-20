@@ -652,10 +652,11 @@
         <a-form-item label="指派给" name="assignee_ids">
           <ProjectMemberSelect
             v-model="assignFormData.assignee_ids"
-            :project-id="assignFormData.project_id"
+            :project-id="assignFormData.project_id && assignFormData.project_id > 0 ? assignFormData.project_id : undefined"
             :multiple="true"
             placeholder="选择指派给"
             :show-role="true"
+            :get-popup-container="getPopupContainer"
           />
         </a-form-item>
         <a-form-item label="备注" name="comment">
@@ -2064,7 +2065,9 @@ const getPopupContainer = (triggerNode: HTMLElement): HTMLElement => {
 // 指派
 const handleAssign = (record: Bug) => {
   assignFormData.bug_id = record.id
-  assignFormData.project_id = record.project_id
+  // 确保 project_id 是有效的（优先使用 project?.id，如果不存在则使用 project_id）
+  const projectId = record.project?.id || record.project_id
+  assignFormData.project_id = projectId && projectId > 0 ? projectId : 0
   assignFormData.assignee_ids = [] // 默认清空，不预填充当前值
   assignFormData.status = record.status // 设置当前Bug的状态
   assignFormData.comment = undefined // 清空备注

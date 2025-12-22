@@ -1,0 +1,82 @@
+# Git 相关
+.git
+.gitignore
+.gitattributes
+
+# 前端构建产物（将在 Docker 中重新构建）
+frontend/dist
+frontend/node_modules
+frontend/.vite
+
+# 后端构建产物
+backend/cmd/server/frontend-dist
+backend/main
+backend/server
+backend/*.db
+backend/*.db-shm
+backend/*.db-wal
+backend/audit.db
+backend/audit.db-shm
+backend/audit.db-wal
+
+# 测试相关
+backend/tests
+backend/coverage.out
+*.test
+*_test.go
+
+# 文档
+docs
+*.md
+!README.md
+
+# 日志文件
+*.log
+logs
+
+# 上传文件
+uploads
+backend/uploads
+
+# 备份文件
+backups
+backend/backups
+
+# 数据库文件
+*.db
+*.db-shm
+*.db-wal
+data.db
+audit.db
+
+# 临时文件
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# IDE 配置
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# 构建脚本和发布文件
+scripts
+releases
+*.zip
+*.tar.gz
+
+# 配置文件（可选，如果需要挂载外部配置）
+# config.yaml
+# backend/config.yaml
+
+# 其他项目
+zentaopms
+
+# Docker 相关
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+

@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  prjflow:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # 构建参数（可选）
+        # VERSION: v0.5.6
+        # BUILD_TIME: "2025-01-01 12:00:00"
+        # GIT_COMMIT: abc1234
+    image: prjflow:latest
+    container_name: prjflow
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # 服务器配置
+      - SERVER_PORT=8080
+      # 数据库配置（SQLite）
+      - DATABASE_TYPE=sqlite
+      - DATABASE_DSN=/app/data/data.db
+      # JWT 配置（必须修改）
+      - JWT_SECRET=your-secret-key-change-in-production
+      # 上传文件配置
+      - UPLOAD_STORAGE_PATH=/app/data/uploads
+      # 时区设置
+      - TZ=Asia/Shanghai
+    volumes:
+      # 数据持久化
+      - ./data:/app/data
+      # 配置文件（可选，如果需要自定义配置）
+      # - ./config.yaml:/app/config.yaml:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+    networks:
+      - prjflow-network
+
+networks:
+  prjflow-network:
+    driver: bridge
+

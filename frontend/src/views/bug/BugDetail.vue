@@ -188,36 +188,16 @@
           <span style="margin-left: 8px; color: #999">不填则使用今天</span>
         </a-form-item>
         <a-form-item label="解决版本" name="resolved_version_id">
-          <a-space direction="vertical" style="width: 100%">
-            <a-select
-              v-model:value="statusFormData.resolved_version_id"
-              placeholder="选择版本（可选）"
-              allow-clear
-              show-search
-              :filter-option="filterVersionOption"
-              :loading="versionLoading"
-              :disabled="statusFormData.create_version"
-              :getPopupContainer="getPopupContainer"
-              :dropdownStyle="{ zIndex: 2100 }"
-              @focus="loadVersionsForProject(bug?.project_id || 0)"
-            >
-              <a-select-option
-                v-for="version in versions"
-                :key="version.id"
-                :value="version.id"
-              >
-                {{ version.version_number }}
-              </a-select-option>
-            </a-select>
-            <a-checkbox v-model:checked="statusFormData.create_version">
-              创建新版本
-            </a-checkbox>
-            <a-input
-              v-if="statusFormData.create_version"
-              v-model:value="statusFormData.version_number"
-              placeholder="输入版本号"
-            />
-          </a-space>
+          <VersionSelectWithCreate
+            v-model="statusFormData.resolved_version_id"
+            v-model:create-version="statusFormData.create_version"
+            v-model:version-number="statusFormData.version_number"
+            :project-id="bug?.project_id"
+            :multiple="false"
+            placeholder="选择版本（可选）"
+            :required="false"
+            version-number-placeholder="输入版本号"
+          />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -392,6 +372,7 @@ import AppHeader from '@/components/AppHeader.vue'
 import BugDetailContent from '@/components/BugDetailContent.vue'
 import AttachmentUpload from '@/components/AttachmentUpload.vue'
 import ProjectMemberSelect from '@/components/ProjectMemberSelect.vue'
+import VersionSelectWithCreate from '@/components/VersionSelectWithCreate.vue'
 import {
   getBug,
   getBugs,
@@ -404,7 +385,6 @@ import {
   type CreateBugRequest
 } from '@/api/bug'
 import { getUsers, type User } from '@/api/user'
-import { getVersions, type Version } from '@/api/version'
 import { getProjects, type Project } from '@/api/project'
 import { getRequirements, createRequirement, type Requirement, type CreateRequirementRequest } from '@/api/requirement'
 import { getModules, type Module } from '@/api/module'
@@ -450,8 +430,6 @@ const statusFormData = reactive({
   version_number: undefined as string | undefined,
   create_version: false
 })
-const versions = ref<Version[]>([])
-const versionLoading = ref(false)
 
 const assignFormRules = {
   assignee_ids: [{ required: true, message: '请选择指派给', trigger: 'change' }]
@@ -956,37 +934,9 @@ const handleOpenStatusModal = (status: string) => {
   statusFormData.resolved_version_id = bug.value.resolved_version_id
   statusFormData.version_number = undefined
   statusFormData.create_version = false
-  // 加载项目下的版本列表
-  if (bug.value.project_id) {
-    loadVersionsForProject(bug.value.project_id)
-  }
   statusModalVisible.value = true
 }
 
-// 加载项目下的版本列表
-const loadVersionsForProject = async (projectId: number) => {
-  if (!projectId) {
-    versions.value = []
-    return
-  }
-  try {
-    versionLoading.value = true
-    const response = await getVersions({ project_id: projectId, size: 1000 })
-    versions.value = response.list || []
-  } catch (error: any) {
-    console.error('加载版本列表失败:', error)
-  } finally {
-    versionLoading.value = false
-  }
-}
-
-// 版本筛选
-const filterVersionOption = (input: string, option: any) => {
-  const version = versions.value.find(v => v.id === option.value)
-  if (!version) return false
-  const searchText = input.toLowerCase()
-  return version.version_number.toLowerCase().includes(searchText)
-}
 
 // 获取下拉框容器（用于解决模态框中下拉框被遮挡的问题）
 const getPopupContainer = (triggerNode: HTMLElement): HTMLElement => {
@@ -1087,6 +1037,7 @@ const handleConvertToRequirement = async () => {
       content: '确定要将此Bug转为需求吗？转换后将创建新需求，并将Bug状态更新为"已解决"。',
       okText: '确定',
       cancelText: '取消',
+      zIndex: 2100,
       onOk: () => {
         resolve(true)
         modal.destroy()

@@ -1055,6 +1055,7 @@ const handleDetailConvertToTask = async () => {
       content: '确定要将此需求转为任务吗？转换后将创建新任务，并关联到此需求。',
       okText: '确定',
       cancelText: '取消',
+      zIndex: 2100,
       onOk: () => {
         resolve(true)
         modal.destroy()
@@ -1102,6 +1103,7 @@ const handleDetailConvertToBug = async () => {
       content: '确定要将此需求转为Bug吗？转换后将创建新Bug，并将需求状态更新为"已关闭"。',
       okText: '确定',
       cancelText: '取消',
+      zIndex: 2100,
       onOk: () => {
         resolve(true)
         modal.destroy()

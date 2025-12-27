@@ -558,36 +558,15 @@
           />
         </a-form-item>
         <a-form-item label="所属版本" name="version_ids">
-          <a-space direction="vertical" style="width: 100%">
-            <a-select
-              v-model:value="formData.version_ids"
-              mode="multiple"
-              placeholder="选择所属版本（必填，至少一个）"
-              show-search
-              :filter-option="filterFormVersionOption"
-              :loading="formVersionLoading"
-              :disabled="formData.create_version"
-              :getPopupContainer="getPopupContainer"
-              :dropdownStyle="{ zIndex: 2100 }"
-              @focus="loadVersionsForFormProject"
-            >
-              <a-select-option
-                v-for="version in formVersions"
-                :key="version.id"
-                :value="version.id"
-              >
-                {{ version.version_number }}
-              </a-select-option>
-            </a-select>
-            <a-checkbox v-model:checked="formData.create_version">
-              创建新版本
-            </a-checkbox>
-            <a-input
-              v-if="formData.create_version"
-              v-model:value="formData.version_number"
-              placeholder="请输入版本号（如：v1.0.0）"
-            />
-          </a-space>
+          <VersionSelectWithCreate
+            v-model="formData.version_ids"
+            v-model:create-version="formData.create_version"
+            v-model:version-number="formData.version_number"
+            :project-id="formData.project_id"
+            :multiple="true"
+            placeholder="选择所属版本（必填，至少一个）"
+            :required="true"
+          />
         </a-form-item>
         <a-form-item label="预估工时" name="estimated_hours">
           <a-input-number
@@ -761,36 +740,15 @@
           <span style="margin-left: 8px; color: #999">不填则使用今天</span>
         </a-form-item>
         <a-form-item label="解决版本" name="resolved_version_id">
-          <a-space direction="vertical" style="width: 100%">
-            <a-select
-              v-model:value="statusFormData.resolved_version_id"
-              placeholder="选择版本（可选）"
-              allow-clear
-              show-search
-              :filter-option="filterVersionOption"
-              :loading="versionLoading"
-              :disabled="statusFormData.create_version"
-              :getPopupContainer="getPopupContainer"
-              :dropdownStyle="{ zIndex: 2100 }"
-              @focus="() => loadVersionsForProject()"
-            >
-              <a-select-option
-                v-for="version in versions"
-                :key="version.id"
-                :value="version.id"
-              >
-                {{ version.version_number }}
-              </a-select-option>
-            </a-select>
-            <a-checkbox v-model:checked="statusFormData.create_version">
-              创建新版本
-            </a-checkbox>
-            <a-input
-              v-if="statusFormData.create_version"
-              v-model:value="statusFormData.version_number"
-              placeholder="请输入版本号（如：v1.0.0）"
-            />
-          </a-space>
+          <VersionSelectWithCreate
+            v-model="statusFormData.resolved_version_id"
+            v-model:create-version="statusFormData.create_version"
+            v-model:version-number="statusFormData.version_number"
+            :project-id="statusFormData.project_id"
+            :multiple="false"
+            placeholder="选择版本（可选）"
+            :required="false"
+          />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -930,6 +888,7 @@ import BugDetailContent from '@/components/BugDetailContent.vue'
 import MarkdownEditor from '@/components/MarkdownEditor.vue'
 import AttachmentUpload from '@/components/AttachmentUpload.vue'
 import ProjectMemberSelect from '@/components/ProjectMemberSelect.vue'
+import VersionSelectWithCreate from '@/components/VersionSelectWithCreate.vue'
 import { useAuthStore } from '@/stores/auth'
 import {
   getBugs,
@@ -968,10 +927,6 @@ const requirements = ref<Requirement[]>([])
 const requirementLoading = ref(false)
 const modules = ref<Module[]>([])
 const moduleLoading = ref(false)
-const versions = ref<Version[]>([])
-const versionLoading = ref(false)
-const formVersions = ref<Version[]>([])  // 表单中的版本列表
-const formVersionLoading = ref(false)
 const searchVersions = ref<Version[]>([])  // 搜索表单中的版本列表
 const searchVersionLoading = ref(false)
 const statistics = ref<BugStatistics | null>(null)
@@ -1166,6 +1121,7 @@ const statusModalVisible = ref(false)
 const statusFormRef = ref()
 const statusFormData = reactive({
   bug_id: 0,
+  project_id: undefined as number | undefined,
   status: 'active' as string,
   solution: undefined as string | undefined,
   solution_note: undefined as string | undefined,
@@ -1499,30 +1455,6 @@ const loadModulesForProject = async () => {
   }
 }
 
-// 加载表单中的版本列表（根据项目）
-const loadVersionsForFormProject = async () => {
-  if (!formData.project_id) {
-    formVersions.value = []
-    return
-  }
-  formVersionLoading.value = true
-  try {
-    const response = await getVersions({ project_id: formData.project_id, size: 1000 })
-    formVersions.value = response.list || []
-  } catch (error: any) {
-    console.error('加载版本列表失败:', error)
-  } finally {
-    formVersionLoading.value = false
-  }
-}
-
-// 版本筛选（表单）
-const filterFormVersionOption = (input: string, option: any) => {
-  const version = formVersions.value.find(v => v.id === option.value)
-  if (!version) return false
-  const searchText = input.toLowerCase()
-  return version.version_number.toLowerCase().includes(searchText)
-}
 
 // 加载搜索表单中的版本列表（根据项目）
 const loadVersionsForSearch = async () => {
@@ -1589,10 +1521,8 @@ watch(() => formData.project_id, () => {
   // 功能模块是系统资源，不需要清空
   if (formData.project_id) {
     loadRequirementsForProject()
-    loadVersionsForFormProject()
   } else {
     requirements.value = []
-    formVersions.value = []
     formData.assignee_ids = []
   }
 })
@@ -1751,7 +1681,6 @@ const handleCreate = () => {
   formData.version_number = undefined
   bugAttachments.value = []
   if (formData.project_id) {
-    loadVersionsForFormProject()
   }
   modalVisible.value = true
 }
@@ -1789,7 +1718,6 @@ const handleEdit = async (record: Bug) => {
   modalVisible.value = true
   if (formData.project_id) {
     loadRequirementsForProject()
-    loadVersionsForFormProject()
   }
 }
 
@@ -1954,6 +1882,7 @@ const handleStatusUpdate = async (id: number, status: string) => {
 // 打开状态更新对话框（仅用于"已解决"状态）
 const handleOpenStatusModal = (record: Bug, status: string) => {
   statusFormData.bug_id = record.id
+  statusFormData.project_id = record.project_id
   statusFormData.status = status
   statusFormData.solution = record.solution
   statusFormData.solution_note = record.solution_note
@@ -1963,42 +1892,9 @@ const handleOpenStatusModal = (record: Bug, status: string) => {
   statusFormData.resolved_version_id = record.resolved_version_id
   statusFormData.version_number = undefined
   statusFormData.create_version = false
-  // 加载项目下的版本列表
-  if (record.project_id) {
-    loadVersionsForProject(record.project_id)
-  } else {
-    // 如果没有project_id，清空版本列表
-    versions.value = []
-  }
   statusModalVisible.value = true
 }
 
-// 加载项目下的版本列表
-const loadVersionsForProject = async (projectId?: number) => {
-  let pid = projectId
-  if (!pid && statusFormData.bug_id) {
-    const bug = bugs.value.find(b => b.id === statusFormData.bug_id)
-    pid = bug?.project_id
-  }
-  if (!pid) {
-    versions.value = []
-    return
-  }
-  try {
-    versionLoading.value = true
-    const response = await getVersions({ project_id: pid, size: 1000 })
-    versions.value = response.list || []
-    if (versions.value.length === 0) {
-      console.warn(`项目 ${pid} 下没有版本`)
-    }
-  } catch (error: any) {
-    console.error('加载版本列表失败:', error)
-    message.error('加载版本列表失败: ' + (error.message || '未知错误'))
-    versions.value = []
-  } finally {
-    versionLoading.value = false
-  }
-}
 
 // 状态更新提交
 const handleStatusSubmit = async () => {
@@ -2040,6 +1936,7 @@ const handleStatusSubmit = async () => {
 const handleStatusCancel = () => {
   statusModalVisible.value = false
   statusFormData.bug_id = 0
+  statusFormData.project_id = undefined
   statusFormData.status = 'active'
   statusFormData.solution = undefined
   statusFormData.solution_note = undefined
@@ -2051,13 +1948,6 @@ const handleStatusCancel = () => {
   statusFormData.create_version = false
 }
 
-// 版本筛选
-const filterVersionOption = (input: string, option: any) => {
-  const version = versions.value.find(v => v.id === option.value)
-  if (!version) return false
-  const searchText = input.toLowerCase()
-  return version.version_number.toLowerCase().includes(searchText)
-}
 
 // 获取下拉框容器（用于解决模态框中下拉框被遮挡的问题）
 const getPopupContainer = (triggerNode: HTMLElement): HTMLElement => {
@@ -2435,6 +2325,7 @@ const handleDetailConvertToRequirement = async () => {
       content: '确定要将此Bug转为需求吗？转换后将创建新需求，并将Bug状态更新为"已解决"。',
       okText: '确定',
       cancelText: '取消',
+      zIndex: 2100,
       onOk: () => {
         resolve(true)
         modal.destroy()

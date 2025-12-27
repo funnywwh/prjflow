@@ -846,7 +846,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch, computed, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import dayjs, { type Dayjs } from 'dayjs'
 import { formatDateTime, formatDate } from '@/utils/date'
@@ -1155,6 +1155,21 @@ const handleDailyTableChange = (pag: any) => {
   loadDailyReports()
 }
 
+// 提取统计逻辑为独立函数
+const fetchAndUpdateSummary = async () => {
+  try {
+    const dateStr = dailyFormData.date!.format('YYYY-MM-DD')
+    const summary = await getWorkSummary({
+      start_date: dateStr,
+      end_date: dateStr
+    })
+    dailyFormData.content = summary.content
+  } catch (error: any) {
+    console.error('加载工作汇总失败:', error)
+    // 不显示错误提示，因为可能是没有工作记录
+  }
+}
+
 // 加载日报工作汇总
 const loadDailyWorkSummary = async () => {
   // 编辑模式下不自动汇总
@@ -1166,21 +1181,23 @@ const loadDailyWorkSummary = async () => {
     return
   }
   
-  try {
-    const dateStr = dailyFormData.date.format('YYYY-MM-DD')
-    const summary = await getWorkSummary({
-      start_date: dateStr,
-      end_date: dateStr
+  // 如果内容不为空，提示用户是否要重新统计
+  if (dailyFormData.content && dailyFormData.content.trim() !== '') {
+    Modal.confirm({
+      title: '重新统计',
+      content: '当前日报已有内容，是否要重新统计并覆盖？',
+      okText: '确定',
+      cancelText: '取消',
+      onOk: async () => {
+        // 用户确认后重新统计
+        await fetchAndUpdateSummary()
+      }
     })
-    
-    // 只有在内容为空时才自动填充（允许用户修改）
-    if (!dailyFormData.content || dailyFormData.content.trim() === '') {
-      dailyFormData.content = summary.content
-    }
-  } catch (error: any) {
-    console.error('加载工作汇总失败:', error)
-    // 不显示错误提示，因为可能是没有工作记录
+    return
   }
+  
+  // 内容为空时，直接统计并填充
+  await fetchAndUpdateSummary()
 }
 
 // 加载周报工作汇总

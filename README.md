@@ -1,6 +1,6 @@
 # 项目流
 
-#### 官网 [https://prjflow.com](https://prjflow.com) 即将上线
+#### 官网 [https://funnywwh.github.io/prjflow/](https://funnywwh.github.io/prjflow/)
 
 ### 项目管理系统
 
